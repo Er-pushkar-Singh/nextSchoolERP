@@ -1,4 +1,4 @@
--- School ERP: full database setup (migrations 0001–0007 combined).
+-- School ERP: full database setup (migrations 0001–0012 combined).
 -- Paste into Supabase SQL Editor and Run. Safe to run again; existing data and members are kept.
 -- Works in its own Supabase project or next to the CodersDuniya website/CRM tables (no name clashes).
 
@@ -659,36 +659,41 @@ insert into public.erp_modules (code, name, grp, tier, core, sort) values
   ('dashboard', 'Dashboard', 'Core', 'MVP', true, 0),
   ('frontdesk', 'Front office & admissions', 'Core', 'MVP', false, 1),
   ('students', 'Student information', 'Core', 'MVP', false, 2),
-  ('academics', 'Academic setup', 'Academic', 'MVP', false, 3),
-  ('homework', 'Homework & study material', 'Academic', 'Phase 2', false, 4),
-  ('attendance', 'Attendance', 'Academic', 'MVP', false, 5),
-  ('exams', 'Examinations', 'Academic', 'MVP', false, 6),
-  ('fees', 'Fees', 'Finance', 'MVP', false, 7),
-  ('accounts', 'Accounts', 'Finance', 'Phase 3', false, 8),
-  ('hr', 'Staff & payroll', 'Operations', 'Phase 2', false, 9),
-  ('comms', 'Communication', 'Communication', 'MVP', false, 10),
-  ('transport', 'Transport', 'Operations', 'Phase 2', false, 11),
-  ('library', 'Library', 'Operations', 'Phase 3', false, 12),
-  ('hostel', 'Hostel', 'Operations', 'Phase 3', false, 13),
-  ('inventory', 'Inventory & sales', 'Operations', 'Phase 3', false, 14),
-  ('wellbeing', 'Health & discipline', 'Operations', 'Phase 3', false, 15),
-  ('reports', 'Reports & analytics', 'Reports', 'MVP', false, 16),
-  ('settings', 'Settings & security', 'Core', 'MVP', true, 17),
-  ('support', 'Help & support', 'Core', 'MVP', true, 18)
+  ('documents', 'Documents & templates', 'Academic', 'MVP', false, 3),
+  ('academics', 'Academic setup', 'Academic', 'MVP', false, 4),
+  ('homework', 'Homework & study material', 'Academic', 'Phase 2', false, 5),
+  ('attendance', 'Attendance', 'Academic', 'MVP', false, 6),
+  ('exams', 'Examinations', 'Academic', 'MVP', false, 7),
+  ('fees', 'Fees', 'Finance', 'MVP', false, 8),
+  ('accounts', 'Accounts', 'Finance', 'Phase 3', false, 9),
+  ('hr', 'Staff & payroll', 'Operations', 'Phase 2', false, 10),
+  ('comms', 'Communication', 'Communication', 'MVP', false, 11),
+  ('transport', 'Transport', 'Operations', 'Phase 2', false, 12),
+  ('library', 'Library', 'Operations', 'Phase 3', false, 13),
+  ('hostel', 'Hostel', 'Operations', 'Phase 3', false, 14),
+  ('inventory', 'Inventory & sales', 'Operations', 'Phase 3', false, 15),
+  ('wellbeing', 'Health & discipline', 'Operations', 'Phase 3', false, 16),
+  ('reports', 'Reports & analytics', 'Reports', 'MVP', false, 17),
+  ('settings', 'Settings & security', 'Core', 'MVP', true, 18),
+  ('support', 'Help & support', 'Core', 'MVP', true, 19)
 on conflict (code) do update set name = excluded.name, grp = excluded.grp, tier = excluded.tier, core = excluded.core, sort = excluded.sort;
 
 insert into public.erp_submodules (code, module_code, name, built, sort) values
   ('dashboard.overview', 'dashboard', 'Dashboard', true, 0),
   ('frontdesk.enquiries', 'frontdesk', 'Admission enquiries', true, 0),
-  ('frontdesk.admissions', 'frontdesk', 'Admission approval', false, 1),
-  ('frontdesk.online_form', 'frontdesk', 'Online registration form', false, 2),
+  ('frontdesk.admissions', 'frontdesk', 'Admission applications, decisions & admit', true, 1),
+  ('frontdesk.online_form', 'frontdesk', 'Online admission form (public link)', true, 2),
   ('frontdesk.visitors', 'frontdesk', 'Visitor & call log, gate pass', false, 3),
   ('students.profile', 'students', 'Student profile & guardians', true, 0),
-  ('students.sensitive', 'students', 'Aadhaar, medical, PEN / APAAR', false, 1),
+  ('students.sensitive', 'students', 'Identity (PEN, APAAR), health & internal notes', true, 1),
   ('students.import', 'students', 'Bulk import', true, 2),
   ('students.promotion', 'students', 'Promotion & section change', true, 3),
-  ('students.certificates', 'students', 'TC, bonafide & ID cards', false, 4),
+  ('students.certificates', 'students', 'TC, bonafide & ID cards', true, 4),
   ('students.parent_link', 'students', 'Parent page link', true, 5),
+  ('students.documents', 'students', 'Student documents', true, 6),
+  ('students.board_reg', 'students', 'UP Board registration (Class 9-12)', true, 7),
+  ('documents.templates', 'documents', 'Templates (TC, ID card, letters)', true, 0),
+  ('documents.issue', 'documents', 'Issue, print & cancel documents', true, 1),
   ('academics.setup', 'academics', 'Sessions, classes, sections, subjects', true, 0),
   ('academics.allocation', 'academics', 'Class teacher & subject allocation', true, 1),
   ('academics.timetable', 'academics', 'Timetable', false, 2),
@@ -708,8 +713,8 @@ insert into public.erp_submodules (code, module_code, name, built, sort) values
   ('fees.receipts', 'fees', 'Receipts & cancellation', true, 3),
   ('fees.concessions', 'fees', 'Concessions & scholarships', true, 4),
   ('fees.defaulters', 'fees', 'Defaulters & reminders', true, 5),
-  ('fees.online', 'fees', 'Online payment', false, 6),
-  ('fees.refunds', 'fees', 'Refunds', false, 7),
+  ('fees.online', 'fees', 'Online payment', true, 6),
+  ('fees.refunds', 'fees', 'Refunds', true, 7),
   ('accounts.vouchers', 'accounts', 'Income & expense vouchers', false, 0),
   ('accounts.books', 'accounts', 'Cash, bank & day book', false, 1),
   ('hr.staff', 'hr', 'Staff profiles & documents', true, 0),
@@ -752,7 +757,10 @@ insert into public.erp_permissions (key, submodule_code, module_code, action) va
   ('frontdesk.enquiries.delete', 'frontdesk.enquiries', 'frontdesk', 'delete'),
   ('frontdesk.enquiries.export', 'frontdesk.enquiries', 'frontdesk', 'export'),
   ('frontdesk.admissions.view', 'frontdesk.admissions', 'frontdesk', 'view'),
+  ('frontdesk.admissions.create', 'frontdesk.admissions', 'frontdesk', 'create'),
+  ('frontdesk.admissions.edit', 'frontdesk.admissions', 'frontdesk', 'edit'),
   ('frontdesk.admissions.approve', 'frontdesk.admissions', 'frontdesk', 'approve'),
+  ('frontdesk.admissions.export', 'frontdesk.admissions', 'frontdesk', 'export'),
   ('frontdesk.online_form.view', 'frontdesk.online_form', 'frontdesk', 'view'),
   ('frontdesk.online_form.edit', 'frontdesk.online_form', 'frontdesk', 'edit'),
   ('frontdesk.visitors.view', 'frontdesk.visitors', 'frontdesk', 'view'),
@@ -776,6 +784,25 @@ insert into public.erp_permissions (key, submodule_code, module_code, action) va
   ('students.certificates.approve', 'students.certificates', 'students', 'approve'),
   ('students.parent_link.view', 'students.parent_link', 'students', 'view'),
   ('students.parent_link.edit', 'students.parent_link', 'students', 'edit'),
+  ('students.documents.view', 'students.documents', 'students', 'view'),
+  ('students.documents.create', 'students.documents', 'students', 'create'),
+  ('students.documents.edit', 'students.documents', 'students', 'edit'),
+  ('students.documents.delete', 'students.documents', 'students', 'delete'),
+  ('students.documents.approve', 'students.documents', 'students', 'approve'),
+  ('students.board_reg.view', 'students.board_reg', 'students', 'view'),
+  ('students.board_reg.create', 'students.board_reg', 'students', 'create'),
+  ('students.board_reg.edit', 'students.board_reg', 'students', 'edit'),
+  ('students.board_reg.approve', 'students.board_reg', 'students', 'approve'),
+  ('students.board_reg.export', 'students.board_reg', 'students', 'export'),
+  ('documents.templates.view', 'documents.templates', 'documents', 'view'),
+  ('documents.templates.create', 'documents.templates', 'documents', 'create'),
+  ('documents.templates.edit', 'documents.templates', 'documents', 'edit'),
+  ('documents.templates.delete', 'documents.templates', 'documents', 'delete'),
+  ('documents.issue.view', 'documents.issue', 'documents', 'view'),
+  ('documents.issue.create', 'documents.issue', 'documents', 'create'),
+  ('documents.issue.print', 'documents.issue', 'documents', 'print'),
+  ('documents.issue.approve', 'documents.issue', 'documents', 'approve'),
+  ('documents.issue.export', 'documents.issue', 'documents', 'export'),
   ('academics.setup.view', 'academics.setup', 'academics', 'view'),
   ('academics.setup.create', 'academics.setup', 'academics', 'create'),
   ('academics.setup.edit', 'academics.setup', 'academics', 'edit'),
@@ -955,8 +982,8 @@ insert into public.erp_permissions (key, submodule_code, module_code, action) va
   ('support.tickets.view', 'support.tickets', 'support', 'view'),
   ('support.tickets.create', 'support.tickets', 'support', 'create')
 on conflict (key) do nothing;
-delete from public.erp_permissions where key not in ('dashboard.overview.view', 'frontdesk.enquiries.view', 'frontdesk.enquiries.create', 'frontdesk.enquiries.edit', 'frontdesk.enquiries.delete', 'frontdesk.enquiries.export', 'frontdesk.admissions.view', 'frontdesk.admissions.approve', 'frontdesk.online_form.view', 'frontdesk.online_form.edit', 'frontdesk.visitors.view', 'frontdesk.visitors.create', 'frontdesk.visitors.edit', 'frontdesk.visitors.delete', 'students.profile.view', 'students.profile.create', 'students.profile.edit', 'students.profile.delete', 'students.profile.export', 'students.profile.print', 'students.sensitive.view', 'students.sensitive.edit', 'students.import.create', 'students.promotion.view', 'students.promotion.create', 'students.certificates.view', 'students.certificates.create', 'students.certificates.print', 'students.certificates.approve', 'students.parent_link.view', 'students.parent_link.edit', 'academics.setup.view', 'academics.setup.create', 'academics.setup.edit', 'academics.setup.delete', 'academics.allocation.view', 'academics.allocation.create', 'academics.allocation.edit', 'academics.allocation.delete', 'academics.timetable.view', 'academics.timetable.create', 'academics.timetable.edit', 'academics.timetable.delete', 'academics.timetable.print', 'academics.syllabus.view', 'academics.syllabus.create', 'academics.syllabus.edit', 'academics.syllabus.delete', 'academics.syllabus.approve', 'homework.homework.view', 'homework.homework.create', 'homework.homework.edit', 'homework.homework.delete', 'homework.material.view', 'homework.material.create', 'homework.material.edit', 'homework.material.delete', 'attendance.students.view', 'attendance.students.create', 'attendance.students.edit', 'attendance.students.export', 'attendance.students.print', 'attendance.leave.view', 'attendance.leave.create', 'attendance.leave.approve', 'attendance.staff.view', 'attendance.staff.create', 'attendance.staff.edit', 'attendance.staff.export', 'exams.setup.view', 'exams.setup.create', 'exams.setup.edit', 'exams.setup.delete', 'exams.marks.view', 'exams.marks.create', 'exams.marks.edit', 'exams.marks.approve', 'exams.results.view', 'exams.results.print', 'exams.results.publish', 'exams.admit_cards.view', 'exams.admit_cards.create', 'exams.admit_cards.print', 'fees.structure.view', 'fees.structure.create', 'fees.structure.edit', 'fees.structure.delete', 'fees.dues.view', 'fees.dues.create', 'fees.collection.view', 'fees.collection.create', 'fees.collection.print', 'fees.collection.export', 'fees.receipts.view', 'fees.receipts.print', 'fees.receipts.export', 'fees.receipts.approve', 'fees.concessions.view', 'fees.concessions.create', 'fees.concessions.delete', 'fees.concessions.approve', 'fees.defaulters.view', 'fees.defaulters.create', 'fees.defaulters.export', 'fees.online.view', 'fees.online.create', 'fees.refunds.view', 'fees.refunds.create', 'fees.refunds.approve', 'accounts.vouchers.view', 'accounts.vouchers.create', 'accounts.vouchers.edit', 'accounts.vouchers.delete', 'accounts.vouchers.approve', 'accounts.vouchers.export', 'accounts.books.view', 'accounts.books.export', 'accounts.books.print', 'hr.staff.view', 'hr.staff.create', 'hr.staff.edit', 'hr.staff.delete', 'hr.staff.export', 'hr.leave.view', 'hr.leave.create', 'hr.leave.approve', 'hr.payroll.view', 'hr.payroll.create', 'hr.payroll.edit', 'hr.payroll.approve', 'hr.payroll.export', 'hr.payroll.print', 'comms.notices.view', 'comms.notices.create', 'comms.notices.edit', 'comms.notices.delete', 'comms.notices.publish', 'comms.broadcast.create', 'comms.templates.view', 'comms.templates.create', 'comms.templates.edit', 'comms.templates.delete', 'comms.calendar.view', 'comms.calendar.create', 'comms.calendar.edit', 'comms.calendar.delete', 'comms.messages.view', 'comms.messages.create', 'transport.routes.view', 'transport.routes.create', 'transport.routes.edit', 'transport.routes.delete', 'transport.allocation.view', 'transport.allocation.create', 'transport.allocation.edit', 'transport.allocation.delete', 'transport.tracking.view', 'library.catalogue.view', 'library.catalogue.create', 'library.catalogue.edit', 'library.catalogue.delete', 'library.circulation.view', 'library.circulation.create', 'library.circulation.edit', 'hostel.rooms.view', 'hostel.rooms.create', 'hostel.rooms.edit', 'hostel.rooms.delete', 'hostel.allocation.view', 'hostel.allocation.create', 'hostel.allocation.edit', 'hostel.allocation.delete', 'inventory.items.view', 'inventory.items.create', 'inventory.items.edit', 'inventory.items.delete', 'inventory.sales.view', 'inventory.sales.create', 'inventory.sales.print', 'wellbeing.medical.view', 'wellbeing.medical.create', 'wellbeing.medical.edit', 'wellbeing.discipline.view', 'wellbeing.discipline.create', 'wellbeing.discipline.edit', 'reports.fees.view', 'reports.fees.export', 'reports.academic.view', 'reports.academic.export', 'reports.udise.export', 'settings.school.view', 'settings.school.edit', 'settings.billing.view', 'settings.billing.create', 'settings.users.view', 'settings.users.create', 'settings.users.edit', 'settings.users.delete', 'settings.roles.view', 'settings.roles.create', 'settings.roles.edit', 'settings.roles.delete', 'settings.integrations.view', 'settings.integrations.edit', 'settings.backups.view', 'settings.backups.create', 'settings.audit.view', 'support.tickets.view', 'support.tickets.create');
-delete from public.erp_submodules where code not in ('dashboard.overview', 'frontdesk.enquiries', 'frontdesk.admissions', 'frontdesk.online_form', 'frontdesk.visitors', 'students.profile', 'students.sensitive', 'students.import', 'students.promotion', 'students.certificates', 'students.parent_link', 'academics.setup', 'academics.allocation', 'academics.timetable', 'academics.syllabus', 'homework.homework', 'homework.material', 'attendance.students', 'attendance.leave', 'attendance.staff', 'exams.setup', 'exams.marks', 'exams.results', 'exams.admit_cards', 'fees.structure', 'fees.dues', 'fees.collection', 'fees.receipts', 'fees.concessions', 'fees.defaulters', 'fees.online', 'fees.refunds', 'accounts.vouchers', 'accounts.books', 'hr.staff', 'hr.leave', 'hr.payroll', 'comms.notices', 'comms.broadcast', 'comms.templates', 'comms.calendar', 'comms.messages', 'transport.routes', 'transport.allocation', 'transport.tracking', 'library.catalogue', 'library.circulation', 'hostel.rooms', 'hostel.allocation', 'inventory.items', 'inventory.sales', 'wellbeing.medical', 'wellbeing.discipline', 'reports.fees', 'reports.academic', 'reports.udise', 'settings.school', 'settings.billing', 'settings.users', 'settings.roles', 'settings.integrations', 'settings.backups', 'settings.audit', 'support.tickets');
+delete from public.erp_permissions where key not in ('dashboard.overview.view', 'frontdesk.enquiries.view', 'frontdesk.enquiries.create', 'frontdesk.enquiries.edit', 'frontdesk.enquiries.delete', 'frontdesk.enquiries.export', 'frontdesk.admissions.view', 'frontdesk.admissions.create', 'frontdesk.admissions.edit', 'frontdesk.admissions.approve', 'frontdesk.admissions.export', 'frontdesk.online_form.view', 'frontdesk.online_form.edit', 'frontdesk.visitors.view', 'frontdesk.visitors.create', 'frontdesk.visitors.edit', 'frontdesk.visitors.delete', 'students.profile.view', 'students.profile.create', 'students.profile.edit', 'students.profile.delete', 'students.profile.export', 'students.profile.print', 'students.sensitive.view', 'students.sensitive.edit', 'students.import.create', 'students.promotion.view', 'students.promotion.create', 'students.certificates.view', 'students.certificates.create', 'students.certificates.print', 'students.certificates.approve', 'students.parent_link.view', 'students.parent_link.edit', 'students.documents.view', 'students.documents.create', 'students.documents.edit', 'students.documents.delete', 'students.documents.approve', 'students.board_reg.view', 'students.board_reg.create', 'students.board_reg.edit', 'students.board_reg.approve', 'students.board_reg.export', 'documents.templates.view', 'documents.templates.create', 'documents.templates.edit', 'documents.templates.delete', 'documents.issue.view', 'documents.issue.create', 'documents.issue.print', 'documents.issue.approve', 'documents.issue.export', 'academics.setup.view', 'academics.setup.create', 'academics.setup.edit', 'academics.setup.delete', 'academics.allocation.view', 'academics.allocation.create', 'academics.allocation.edit', 'academics.allocation.delete', 'academics.timetable.view', 'academics.timetable.create', 'academics.timetable.edit', 'academics.timetable.delete', 'academics.timetable.print', 'academics.syllabus.view', 'academics.syllabus.create', 'academics.syllabus.edit', 'academics.syllabus.delete', 'academics.syllabus.approve', 'homework.homework.view', 'homework.homework.create', 'homework.homework.edit', 'homework.homework.delete', 'homework.material.view', 'homework.material.create', 'homework.material.edit', 'homework.material.delete', 'attendance.students.view', 'attendance.students.create', 'attendance.students.edit', 'attendance.students.export', 'attendance.students.print', 'attendance.leave.view', 'attendance.leave.create', 'attendance.leave.approve', 'attendance.staff.view', 'attendance.staff.create', 'attendance.staff.edit', 'attendance.staff.export', 'exams.setup.view', 'exams.setup.create', 'exams.setup.edit', 'exams.setup.delete', 'exams.marks.view', 'exams.marks.create', 'exams.marks.edit', 'exams.marks.approve', 'exams.results.view', 'exams.results.print', 'exams.results.publish', 'exams.admit_cards.view', 'exams.admit_cards.create', 'exams.admit_cards.print', 'fees.structure.view', 'fees.structure.create', 'fees.structure.edit', 'fees.structure.delete', 'fees.dues.view', 'fees.dues.create', 'fees.collection.view', 'fees.collection.create', 'fees.collection.print', 'fees.collection.export', 'fees.receipts.view', 'fees.receipts.print', 'fees.receipts.export', 'fees.receipts.approve', 'fees.concessions.view', 'fees.concessions.create', 'fees.concessions.delete', 'fees.concessions.approve', 'fees.defaulters.view', 'fees.defaulters.create', 'fees.defaulters.export', 'fees.online.view', 'fees.online.create', 'fees.refunds.view', 'fees.refunds.create', 'fees.refunds.approve', 'accounts.vouchers.view', 'accounts.vouchers.create', 'accounts.vouchers.edit', 'accounts.vouchers.delete', 'accounts.vouchers.approve', 'accounts.vouchers.export', 'accounts.books.view', 'accounts.books.export', 'accounts.books.print', 'hr.staff.view', 'hr.staff.create', 'hr.staff.edit', 'hr.staff.delete', 'hr.staff.export', 'hr.leave.view', 'hr.leave.create', 'hr.leave.approve', 'hr.payroll.view', 'hr.payroll.create', 'hr.payroll.edit', 'hr.payroll.approve', 'hr.payroll.export', 'hr.payroll.print', 'comms.notices.view', 'comms.notices.create', 'comms.notices.edit', 'comms.notices.delete', 'comms.notices.publish', 'comms.broadcast.create', 'comms.templates.view', 'comms.templates.create', 'comms.templates.edit', 'comms.templates.delete', 'comms.calendar.view', 'comms.calendar.create', 'comms.calendar.edit', 'comms.calendar.delete', 'comms.messages.view', 'comms.messages.create', 'transport.routes.view', 'transport.routes.create', 'transport.routes.edit', 'transport.routes.delete', 'transport.allocation.view', 'transport.allocation.create', 'transport.allocation.edit', 'transport.allocation.delete', 'transport.tracking.view', 'library.catalogue.view', 'library.catalogue.create', 'library.catalogue.edit', 'library.catalogue.delete', 'library.circulation.view', 'library.circulation.create', 'library.circulation.edit', 'hostel.rooms.view', 'hostel.rooms.create', 'hostel.rooms.edit', 'hostel.rooms.delete', 'hostel.allocation.view', 'hostel.allocation.create', 'hostel.allocation.edit', 'hostel.allocation.delete', 'inventory.items.view', 'inventory.items.create', 'inventory.items.edit', 'inventory.items.delete', 'inventory.sales.view', 'inventory.sales.create', 'inventory.sales.print', 'wellbeing.medical.view', 'wellbeing.medical.create', 'wellbeing.medical.edit', 'wellbeing.discipline.view', 'wellbeing.discipline.create', 'wellbeing.discipline.edit', 'reports.fees.view', 'reports.fees.export', 'reports.academic.view', 'reports.academic.export', 'reports.udise.export', 'settings.school.view', 'settings.school.edit', 'settings.billing.view', 'settings.billing.create', 'settings.users.view', 'settings.users.create', 'settings.users.edit', 'settings.users.delete', 'settings.roles.view', 'settings.roles.create', 'settings.roles.edit', 'settings.roles.delete', 'settings.integrations.view', 'settings.integrations.edit', 'settings.backups.view', 'settings.backups.create', 'settings.audit.view', 'support.tickets.view', 'support.tickets.create');
+delete from public.erp_submodules where code not in ('dashboard.overview', 'frontdesk.enquiries', 'frontdesk.admissions', 'frontdesk.online_form', 'frontdesk.visitors', 'students.profile', 'students.sensitive', 'students.import', 'students.promotion', 'students.certificates', 'students.parent_link', 'students.documents', 'students.board_reg', 'documents.templates', 'documents.issue', 'academics.setup', 'academics.allocation', 'academics.timetable', 'academics.syllabus', 'homework.homework', 'homework.material', 'attendance.students', 'attendance.leave', 'attendance.staff', 'exams.setup', 'exams.marks', 'exams.results', 'exams.admit_cards', 'fees.structure', 'fees.dues', 'fees.collection', 'fees.receipts', 'fees.concessions', 'fees.defaulters', 'fees.online', 'fees.refunds', 'accounts.vouchers', 'accounts.books', 'hr.staff', 'hr.leave', 'hr.payroll', 'comms.notices', 'comms.broadcast', 'comms.templates', 'comms.calendar', 'comms.messages', 'transport.routes', 'transport.allocation', 'transport.tracking', 'library.catalogue', 'library.circulation', 'hostel.rooms', 'hostel.allocation', 'inventory.items', 'inventory.sales', 'wellbeing.medical', 'wellbeing.discipline', 'reports.fees', 'reports.academic', 'reports.udise', 'settings.school', 'settings.billing', 'settings.users', 'settings.roles', 'settings.integrations', 'settings.backups', 'settings.audit', 'support.tickets');
 
 insert into public.role_templates (code, name, kind, description, locked, sort) values
   ('principal', 'Principal / School Admin', 'staff', 'Every permission in this school.', true, 0),
@@ -982,7 +1009,10 @@ insert into public.role_template_permissions (template_code, perm_key, scope) va
   ('principal', 'frontdesk.enquiries.delete', 'school'),
   ('principal', 'frontdesk.enquiries.export', 'school'),
   ('principal', 'frontdesk.admissions.view', 'school'),
+  ('principal', 'frontdesk.admissions.create', 'school'),
+  ('principal', 'frontdesk.admissions.edit', 'school'),
   ('principal', 'frontdesk.admissions.approve', 'school'),
+  ('principal', 'frontdesk.admissions.export', 'school'),
   ('principal', 'frontdesk.online_form.view', 'school'),
   ('principal', 'frontdesk.online_form.edit', 'school'),
   ('principal', 'frontdesk.visitors.view', 'school'),
@@ -1006,6 +1036,25 @@ insert into public.role_template_permissions (template_code, perm_key, scope) va
   ('principal', 'students.certificates.approve', 'school'),
   ('principal', 'students.parent_link.view', 'school'),
   ('principal', 'students.parent_link.edit', 'school'),
+  ('principal', 'students.documents.view', 'school'),
+  ('principal', 'students.documents.create', 'school'),
+  ('principal', 'students.documents.edit', 'school'),
+  ('principal', 'students.documents.delete', 'school'),
+  ('principal', 'students.documents.approve', 'school'),
+  ('principal', 'students.board_reg.view', 'school'),
+  ('principal', 'students.board_reg.create', 'school'),
+  ('principal', 'students.board_reg.edit', 'school'),
+  ('principal', 'students.board_reg.approve', 'school'),
+  ('principal', 'students.board_reg.export', 'school'),
+  ('principal', 'documents.templates.view', 'school'),
+  ('principal', 'documents.templates.create', 'school'),
+  ('principal', 'documents.templates.edit', 'school'),
+  ('principal', 'documents.templates.delete', 'school'),
+  ('principal', 'documents.issue.view', 'school'),
+  ('principal', 'documents.issue.create', 'school'),
+  ('principal', 'documents.issue.print', 'school'),
+  ('principal', 'documents.issue.approve', 'school'),
+  ('principal', 'documents.issue.export', 'school'),
   ('principal', 'academics.setup.view', 'school'),
   ('principal', 'academics.setup.create', 'school'),
   ('principal', 'academics.setup.edit', 'school'),
@@ -1187,12 +1236,16 @@ insert into public.role_template_permissions (template_code, perm_key, scope) va
   ('vice_principal', 'dashboard.overview.view', 'school'),
   ('vice_principal', 'frontdesk.enquiries.view', 'school'),
   ('vice_principal', 'frontdesk.admissions.view', 'school'),
+  ('vice_principal', 'frontdesk.admissions.create', 'school'),
+  ('vice_principal', 'frontdesk.admissions.edit', 'school'),
   ('vice_principal', 'frontdesk.admissions.approve', 'school'),
+  ('vice_principal', 'frontdesk.admissions.export', 'school'),
   ('vice_principal', 'students.profile.view', 'school'),
   ('vice_principal', 'students.profile.edit', 'school'),
   ('vice_principal', 'students.profile.export', 'school'),
   ('vice_principal', 'students.profile.print', 'school'),
   ('vice_principal', 'students.sensitive.view', 'school'),
+  ('vice_principal', 'students.sensitive.edit', 'school'),
   ('vice_principal', 'students.promotion.view', 'school'),
   ('vice_principal', 'students.promotion.create', 'school'),
   ('vice_principal', 'students.certificates.view', 'school'),
@@ -1257,6 +1310,23 @@ insert into public.role_template_permissions (template_code, perm_key, scope) va
   ('vice_principal', 'reports.academic.export', 'school'),
   ('vice_principal', 'support.tickets.view', 'own'),
   ('vice_principal', 'support.tickets.create', 'own'),
+  ('vice_principal', 'students.documents.view', 'school'),
+  ('vice_principal', 'students.documents.create', 'school'),
+  ('vice_principal', 'students.documents.edit', 'school'),
+  ('vice_principal', 'students.documents.approve', 'school'),
+  ('vice_principal', 'students.board_reg.view', 'school'),
+  ('vice_principal', 'students.board_reg.create', 'school'),
+  ('vice_principal', 'students.board_reg.edit', 'school'),
+  ('vice_principal', 'students.board_reg.export', 'school'),
+  ('vice_principal', 'documents.templates.view', 'school'),
+  ('vice_principal', 'documents.templates.create', 'school'),
+  ('vice_principal', 'documents.templates.edit', 'school'),
+  ('vice_principal', 'documents.issue.view', 'school'),
+  ('vice_principal', 'documents.issue.create', 'school'),
+  ('vice_principal', 'documents.issue.print', 'school'),
+  ('vice_principal', 'documents.issue.export', 'school'),
+  ('vice_principal', 'frontdesk.online_form.view', 'school'),
+  ('vice_principal', 'frontdesk.online_form.edit', 'school'),
   ('accountant', 'dashboard.overview.view', 'school'),
   ('accountant', 'frontdesk.enquiries.view', 'school'),
   ('accountant', 'students.profile.view', 'school'),
@@ -1311,6 +1381,9 @@ insert into public.role_template_permissions (template_code, perm_key, scope) va
   ('front_office', 'frontdesk.enquiries.delete', 'school'),
   ('front_office', 'frontdesk.enquiries.export', 'school'),
   ('front_office', 'frontdesk.admissions.view', 'school'),
+  ('front_office', 'frontdesk.admissions.create', 'school'),
+  ('front_office', 'frontdesk.admissions.edit', 'school'),
+  ('front_office', 'frontdesk.admissions.export', 'school'),
   ('front_office', 'frontdesk.online_form.view', 'school'),
   ('front_office', 'frontdesk.visitors.view', 'school'),
   ('front_office', 'frontdesk.visitors.create', 'school'),
@@ -1342,6 +1415,18 @@ insert into public.role_template_permissions (template_code, perm_key, scope) va
   ('front_office', 'transport.routes.view', 'school'),
   ('front_office', 'support.tickets.view', 'own'),
   ('front_office', 'support.tickets.create', 'own'),
+  ('front_office', 'students.sensitive.view', 'school'),
+  ('front_office', 'students.sensitive.edit', 'school'),
+  ('front_office', 'students.documents.view', 'school'),
+  ('front_office', 'students.documents.create', 'school'),
+  ('front_office', 'students.documents.edit', 'school'),
+  ('front_office', 'students.board_reg.view', 'school'),
+  ('front_office', 'students.board_reg.create', 'school'),
+  ('front_office', 'students.board_reg.edit', 'school'),
+  ('front_office', 'documents.templates.view', 'school'),
+  ('front_office', 'documents.issue.view', 'school'),
+  ('front_office', 'documents.issue.create', 'school'),
+  ('front_office', 'documents.issue.print', 'school'),
   ('office_admin', 'dashboard.overview.view', 'school'),
   ('office_admin', 'students.profile.view', 'school'),
   ('office_admin', 'academics.setup.view', 'school'),
@@ -1369,6 +1454,10 @@ insert into public.role_template_permissions (template_code, perm_key, scope) va
   ('office_admin', 'comms.calendar.delete', 'school'),
   ('office_admin', 'support.tickets.view', 'own'),
   ('office_admin', 'support.tickets.create', 'own'),
+  ('office_admin', 'documents.templates.view', 'school'),
+  ('office_admin', 'documents.issue.view', 'school'),
+  ('office_admin', 'documents.issue.create', 'school'),
+  ('office_admin', 'documents.issue.print', 'school'),
   ('class_teacher', 'dashboard.overview.view', 'school'),
   ('class_teacher', 'students.profile.view', 'assigned'),
   ('class_teacher', 'students.profile.edit', 'assigned'),
@@ -1410,6 +1499,7 @@ insert into public.role_template_permissions (template_code, perm_key, scope) va
   ('class_teacher', 'reports.academic.view', 'assigned'),
   ('class_teacher', 'support.tickets.view', 'own'),
   ('class_teacher', 'support.tickets.create', 'own'),
+  ('class_teacher', 'students.sensitive.view', 'assigned'),
   ('subject_teacher', 'dashboard.overview.view', 'school'),
   ('subject_teacher', 'students.profile.view', 'assigned'),
   ('subject_teacher', 'academics.setup.view', 'school'),
@@ -3879,3 +3969,2812 @@ begin
     execute format('create trigger audit_%1$s after insert or update or delete on public.%1$I for each row execute function public.audit_row()', t);
   end loop;
 end $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Step 6: student-data compliance (from the 12 Oct 2026 audit).
+--   P0  student edit rights narrowed · parent-link only via function · DOB sanity ·
+--       enrolment history (promotion no longer erases class membership) · class /
+--       section delete guard · audit coverage + masking
+--   P1  protected identity & health tier (PEN, APAAR + consent) · student documents
+--       (private storage) · guardians / emergency / pickup contacts · structured
+--       address & previous school · UP Board registration (Class 9-12) workflow
+-- Needs 0002_catalog.sql (new permission keys) — run the whole setup.sql.
+-- Safe to run again.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- ───────────── Student columns ─────────────
+alter table public.students
+  add column if not exists middle_name        text,
+  add column if not exists application_no     text,
+  add column if not exists admission_category text check (admission_category is null or admission_category in ('general','rte','staff_ward','sibling','other')),
+  add column if not exists admission_class_id uuid references public.classes(id) on delete set null,
+  add column if not exists previous_school    text,
+  add column if not exists previous_board     text,
+  add column if not exists previous_class     text,
+  add column if not exists permanent_address  text,
+  add column if not exists district           text,
+  add column if not exists block_tehsil       text,
+  add column if not exists pincode            text check (pincode is null or pincode ~ '^[1-9][0-9]{5}$'),
+  add column if not exists state              text,
+  add column if not exists locality_type      text check (locality_type is null or locality_type in ('rural','urban')),
+  add column if not exists mother_tongue      text,
+  add column if not exists nationality        text,
+  add column if not exists distance_km        numeric(5,1) check (distance_km is null or distance_km >= 0),
+  add column if not exists left_on            date,
+  add column if not exists left_reason        text,
+  add column if not exists tc_no              text,
+  add column if not exists tc_issued_on       date;
+
+alter table public.students drop constraint if exists students_status_check;
+alter table public.students add constraint students_status_check
+  check (status in ('active','left','passed_out','transferred','withdrawn'));
+
+-- ───────────── Row guard: DOB sanity, parent link only through reset_portal_token() ─────────────
+create or replace function public.guard_student_row() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare t date := public.today_ist();
+begin
+  if new.dob is not null and (tg_op = 'INSERT' or new.dob is distinct from old.dob) then
+    if new.dob > t then raise exception 'Date of birth cannot be in the future.'; end if;
+    if new.dob > t - interval '2 years' or new.dob < t - interval '30 years' then
+      raise exception 'Date of birth does not look right: the student''s age must be between 2 and 30 years.';
+    end if;
+  end if;
+  if tg_op = 'UPDATE' and new.portal_token is distinct from old.portal_token
+     and coalesce(current_setting('app.portal_reset', true), '') <> '1' then
+    raise exception 'The parent link can only be changed with "Reset link".';
+  end if;
+  return new;
+end $$;
+drop trigger if exists students_guard on public.students;
+create trigger students_guard before insert or update on public.students for each row execute function public.guard_student_row();
+
+create or replace function public.reset_portal_token(sid uuid, stu uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.has_perm_school(sid, 'students.parent_link.edit') then raise exception 'not allowed'; end if;
+  perform set_config('app.portal_reset', '1', true);
+  update public.students set portal_token = replace(gen_random_uuid()::text, '-', '') where id = stu and school_id = sid;
+  perform set_config('app.portal_reset', '', true);
+  if not found then raise exception 'Student not found.'; end if;
+end $$;
+
+-- Editing a student needs the profile-edit permission for that student. (Before, holding
+-- parent_link.edit or promotion.create let a user change EVERY column of every student.)
+drop policy if exists "edit" on public.students;
+create policy "edit" on public.students for update to authenticated
+  using (public.can_student(school_id, 'students.profile.edit', id))
+  with check (public.can_student(school_id, 'students.profile.edit', id));
+
+-- A class / section that still has students cannot be deleted (the FK used to null them out silently)
+create or replace function public.guard_class_delete() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if exists (select 1 from public.schools where id = old.school_id) and exists (
+       select 1 from public.students s where case when tg_table_name = 'classes' then s.class_id else s.section_id end = old.id) then
+    raise exception 'This % still has students. Move them first.', case when tg_table_name = 'classes' then 'class' else 'section' end;
+  end if;
+  return old;
+end $$;
+drop trigger if exists classes_delete_guard on public.classes;
+create trigger classes_delete_guard before delete on public.classes for each row execute function public.guard_class_delete();
+drop trigger if exists sections_delete_guard on public.sections;
+create trigger sections_delete_guard before delete on public.sections for each row execute function public.guard_class_delete();
+
+-- ═════════════════════════ Enrolment history ═════════════════════════
+-- One row per spell a student spends in a class. The open row (ended_on is null) is the current one.
+-- Maintained by a trigger on students, so every way of changing class / status is recorded.
+create table if not exists public.student_enrolments (
+  id           uuid primary key default gen_random_uuid(),
+  school_id    uuid not null references public.schools(id) on delete cascade,
+  student_id   uuid not null references public.students(id) on delete cascade,
+  session_id   uuid references public.sessions(id) on delete set null,
+  class_id     uuid references public.classes(id) on delete set null,
+  section_id   uuid references public.sections(id) on delete set null,
+  class_name   text,              -- snapshots: stay correct if a class is renamed or removed
+  section_name text,
+  roll_no      int,
+  started_on   date not null default public.today_ist(),
+  ended_on     date,
+  outcome      text not null default 'continuing'
+               check (outcome in ('continuing','promoted','detained','passed_out','left','transferred','withdrawn','changed')),
+  created_at   timestamptz not null default now()
+);
+create unique index if not exists student_enrolments_open on public.student_enrolments (student_id) where ended_on is null;
+create index if not exists student_enrolments_class_idx on public.student_enrolments (school_id, session_id, class_id);
+
+create or replace function public.open_enrolment(stu public.students) returns void
+language plpgsql security definer set search_path = public as $$
+declare sess uuid; cn text; sn text;
+begin
+  select id into sess from public.sessions where school_id = stu.school_id and is_current limit 1;
+  select name into cn from public.classes where id = stu.class_id;
+  select name into sn from public.sections where id = stu.section_id;
+  insert into public.student_enrolments (school_id, student_id, session_id, class_id, section_id, class_name, section_name, roll_no)
+  values (stu.school_id, stu.id, sess, stu.class_id, stu.section_id, cn, sn, stu.roll_no)
+  on conflict (student_id) where ended_on is null do nothing;
+end $$;
+
+create or replace function public.track_enrolment() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare outc text;
+begin
+  if tg_op = 'INSERT' then
+    if new.status = 'active' then perform public.open_enrolment(new); end if;
+    return null;
+  end if;
+  if new.status is distinct from old.status then
+    if new.status = 'active' then
+      perform public.open_enrolment(new);
+    else
+      update public.student_enrolments set ended_on = public.today_ist(), outcome = new.status
+       where student_id = new.id and ended_on is null;
+    end if;
+  elsif new.status = 'active' and (new.class_id is distinct from old.class_id or new.section_id is distinct from old.section_id) then
+    outc := coalesce(nullif(current_setting('app.enrol_outcome', true), ''), 'changed');
+    update public.student_enrolments set ended_on = public.today_ist(), outcome = outc where student_id = new.id and ended_on is null;
+    perform public.open_enrolment(new);
+  elsif new.status = 'active' and new.roll_no is distinct from old.roll_no then
+    update public.student_enrolments set roll_no = new.roll_no where student_id = new.id and ended_on is null;
+  end if;
+  return null;
+end $$;
+drop trigger if exists students_enrolment on public.students;
+create trigger students_enrolment after insert or update on public.students for each row execute function public.track_enrolment();
+
+-- Backfill: current students get an open row; students who already left get one closed row
+insert into public.student_enrolments (school_id, student_id, session_id, class_id, section_id, class_name, section_name, roll_no, started_on, ended_on, outcome)
+select s.school_id, s.id,
+       (select id from public.sessions x where x.school_id = s.school_id and x.is_current limit 1),
+       s.class_id, s.section_id, c.name, sec.name, s.roll_no,
+       coalesce(s.admission_date, s.created_at::date),
+       case when s.status = 'active' then null else public.today_ist() end,
+       case s.status when 'active' then 'continuing' else s.status end
+  from public.students s
+  left join public.classes c on c.id = s.class_id
+  left join public.sections sec on sec.id = s.section_id
+ where not exists (select 1 from public.student_enrolments e where e.student_id = s.id);
+
+alter table public.student_enrolments enable row level security;
+drop policy if exists "read" on public.student_enrolments;
+create policy "read" on public.student_enrolments for select to authenticated
+  using (public.can_student(school_id, 'students.profile.view', student_id));
+-- no write policies: only the trigger and promote_students() change this table
+
+-- Promotion now keeps history, lets the school hold students back, and refuses to run twice
+drop function if exists public.promote_students(uuid);
+create or replace function public.promote_students(sid uuid, detain uuid[] default '{}') returns json
+language plpgsql security definer set search_path = public as $$
+declare moved int; passed int; kept int := 0; top int; cur uuid; today date := public.today_ist(); keep uuid[] := coalesce(detain, '{}');
+begin
+  if not public.has_perm_school(sid, 'students.promotion.create') then raise exception 'not allowed'; end if;
+  select id into cur from public.sessions where school_id = sid and is_current;
+  if cur is null then raise exception 'Set the current session first.'; end if;
+  if not exists (select 1 from public.student_enrolments e join public.students s on s.id = e.student_id
+                  where s.school_id = sid and s.status = 'active' and e.ended_on is null and e.session_id is distinct from cur) then
+    raise exception 'Start the new session first (Settings → Classes & sessions → make it current), then promote. Promoting inside the same session would overwrite last year''s class records.';
+  end if;
+  select max(sort) into top from public.classes where school_id = sid;
+
+  if cardinality(keep) > 0 then
+    update public.student_enrolments e set ended_on = today, outcome = 'detained'
+      from public.students s where e.student_id = s.id and s.school_id = sid and s.status = 'active' and s.id = any(keep) and e.ended_on is null;
+    insert into public.student_enrolments (school_id, student_id, session_id, class_id, section_id, class_name, section_name, started_on)
+      select sid, s.id, cur, s.class_id, s.section_id, c.name, sec.name, today
+        from public.students s left join public.classes c on c.id = s.class_id left join public.sections sec on sec.id = s.section_id
+       where s.school_id = sid and s.status = 'active' and s.id = any(keep);
+    get diagnostics kept = row_count;
+    update public.students set roll_no = null where school_id = sid and id = any(keep);
+  end if;
+
+  update public.students s set status = 'passed_out', left_on = today
+    from public.classes c where c.id = s.class_id and s.school_id = sid and s.status = 'active' and c.sort = top and not (s.id = any(keep));
+  get diagnostics passed = row_count;
+
+  perform set_config('app.enrol_outcome', 'promoted', true);
+  with nxt as (
+    select c.id as from_id, (select c2.id from public.classes c2 where c2.school_id = sid and c2.sort > c.sort order by c2.sort limit 1) as to_id
+    from public.classes c where c.school_id = sid
+  )
+  update public.students s set class_id = nxt.to_id,
+         section_id = coalesce((select x.id from public.sections x where x.class_id = nxt.to_id and x.name = (select name from public.sections where id = s.section_id)),
+                               (select x.id from public.sections x where x.class_id = nxt.to_id order by x.name limit 1)),
+         roll_no = null
+    from nxt where s.class_id = nxt.from_id and nxt.to_id is not null and s.school_id = sid and s.status = 'active' and not (s.id = any(keep));
+  get diagnostics moved = row_count;
+  perform set_config('app.enrol_outcome', '', true);
+  return json_build_object('promoted', moved, 'passed_out', passed, 'detained', kept);
+end $$;
+
+-- ═════════════════════════ Identity, health & internal notes (sensitive tier) ═════════════════════════
+-- Needs students.sensitive.view / .edit. Aadhaar is deliberately NOT stored: the school never needs the
+-- number itself (APAAR generation authenticates it on the government portal).
+create table if not exists public.student_sensitive (
+  student_id          uuid primary key references public.students(id) on delete cascade,
+  school_id           uuid not null references public.schools(id) on delete cascade,
+  pen                 text check (pen is null or pen ~ '^[A-Za-z0-9]{6,20}$'),
+  apaar_id            text check (apaar_id is null or apaar_id ~ '^[0-9]{12}$'),
+  apaar_status        text not null default 'not_created' check (apaar_status in ('not_created','requested','generated','verified','mismatch')),
+  apaar_consent       boolean not null default false,       -- parent / guardian consent for creating the APAAR ID
+  apaar_consent_by    text,
+  apaar_consent_on    date,
+  identity_verified_on date,
+  identity_note       text,
+  allergies           text,
+  medical_conditions  text,
+  medication          text,
+  disability          text,
+  accommodations      text,
+  doctor_name         text,
+  doctor_phone        text,
+  internal_notes      text,
+  updated_by          uuid default auth.uid() references auth.users(id) on delete set null,
+  updated_at          timestamptz not null default now(),
+  check (apaar_status <> 'requested' or apaar_consent),
+  check (apaar_consent_on is null or apaar_consent)
+);
+create unique index if not exists student_sensitive_apaar on public.student_sensitive (school_id, apaar_id) where apaar_id is not null;
+create unique index if not exists student_sensitive_pen on public.student_sensitive (school_id, upper(pen)) where pen is not null;
+drop trigger if exists student_sensitive_touch on public.student_sensitive;
+create trigger student_sensitive_touch before update on public.student_sensitive for each row execute function public.touch_row();
+
+-- internal notes used to live in students.notes where every profile viewer could read them
+insert into public.student_sensitive (student_id, school_id, internal_notes)
+select id, school_id, notes from public.students where notes is not null and btrim(notes) <> ''
+on conflict (student_id) do update set internal_notes = coalesce(public.student_sensitive.internal_notes, excluded.internal_notes);
+update public.students set notes = null where notes is not null;
+
+-- anything still written to students.notes (old forms, imports, API) is moved into the protected tier
+create or replace function public.move_student_notes() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if new.notes is not null and btrim(new.notes) <> '' then
+    insert into public.student_sensitive (student_id, school_id, internal_notes) values (new.id, new.school_id, new.notes)
+    on conflict (student_id) do update set internal_notes = excluded.internal_notes;
+  end if;
+  if new.notes is not null then update public.students set notes = null where id = new.id; end if;
+  return null;
+end $$;
+drop trigger if exists students_move_notes on public.students;
+create trigger students_move_notes after insert or update of notes on public.students
+  for each row when (new.notes is not null) execute function public.move_student_notes();
+
+alter table public.student_sensitive enable row level security;
+drop policy if exists "read" on public.student_sensitive;
+create policy "read" on public.student_sensitive for select to authenticated using (public.can_student(school_id, 'students.sensitive.view', student_id));
+drop policy if exists "create" on public.student_sensitive;
+create policy "create" on public.student_sensitive for insert to authenticated with check (public.can_student(school_id, 'students.sensitive.edit', student_id));
+drop policy if exists "edit" on public.student_sensitive;
+create policy "edit" on public.student_sensitive for update to authenticated
+  using (public.can_student(school_id, 'students.sensitive.edit', student_id)) with check (public.can_student(school_id, 'students.sensitive.edit', student_id));
+
+-- ═════════════════════════ Documents ═════════════════════════
+-- A row can exist without a file (status pending = "to be submitted by <due_by>"), so a missing document
+-- never blocks an admission. Files live in the private storage bucket 'student-docs'.
+create table if not exists public.student_documents (
+  id               uuid primary key default gen_random_uuid(),
+  school_id        uuid not null references public.schools(id) on delete cascade,
+  student_id       uuid not null references public.students(id) on delete cascade,
+  doc_type         text not null check (doc_type in ('birth_certificate','photo','previous_marksheet','transfer_certificate','migration_certificate',
+                     'address_proof','caste_certificate','income_certificate','disability_certificate','apaar_consent','medical_declaration','transport_declaration','other')),
+  title            text,
+  status           text not null default 'pending' check (status in ('pending','uploaded','verified','rejected','not_applicable')),
+  file_path        text,
+  file_name        text,
+  mime_type        text,
+  size_bytes       int check (size_bytes is null or size_bytes > 0),
+  due_by           date,
+  uploaded_by      uuid references auth.users(id) on delete set null,
+  uploaded_by_name text,
+  uploaded_at      timestamptz,
+  verified_by      uuid references auth.users(id) on delete set null,
+  verified_by_name text,
+  verified_at      timestamptz,
+  reject_reason    text,
+  remark           text,
+  created_at       timestamptz not null default now(),
+  check (status in ('pending','not_applicable') or file_path is not null)
+);
+create unique index if not exists student_documents_one on public.student_documents (student_id, doc_type) where doc_type <> 'other';
+create index if not exists student_documents_student_idx on public.student_documents (school_id, student_id);
+
+create or replace function public.guard_student_document() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare actor_checked boolean := auth.uid() is not null and not public.is_service();
+begin
+  if not exists (select 1 from public.students where id = new.student_id and school_id = new.school_id) then raise exception 'Student not found.'; end if;
+  if tg_op = 'UPDATE' and new.file_path is distinct from old.file_path and new.file_path is not null then
+    new.status := 'uploaded'; new.verified_by := null; new.verified_by_name := null; new.verified_at := null; new.reject_reason := null;
+  elsif tg_op = 'UPDATE' and new.status is distinct from old.status and new.status in ('verified','rejected') then
+    if actor_checked and not public.has_perm_school(new.school_id, 'students.documents.approve') then
+      raise exception 'You cannot verify documents.';
+    end if;
+    if new.status = 'rejected' and coalesce(btrim(new.reject_reason), '') = '' then raise exception 'Write the reason for rejecting the document.'; end if;
+    new.verified_by := auth.uid(); new.verified_at := now();
+    if new.status = 'verified' then new.reject_reason := null; end if;
+  elsif tg_op = 'INSERT' and new.status in ('verified','rejected') and actor_checked
+        and not public.has_perm_school(new.school_id, 'students.documents.approve') then
+    new.status := 'uploaded';
+  end if;
+  return new;
+end $$;
+drop trigger if exists student_documents_guard on public.student_documents;
+create trigger student_documents_guard before insert or update on public.student_documents for each row execute function public.guard_student_document();
+
+alter table public.student_documents enable row level security;
+drop policy if exists "read" on public.student_documents;
+create policy "read" on public.student_documents for select to authenticated using (public.can_student(school_id, 'students.documents.view', student_id));
+drop policy if exists "create" on public.student_documents;
+create policy "create" on public.student_documents for insert to authenticated with check (public.has_perm_school(school_id, 'students.documents.create'));
+drop policy if exists "edit" on public.student_documents;
+create policy "edit" on public.student_documents for update to authenticated
+  using (public.has_perm_school(school_id, 'students.documents.edit') or public.has_perm_school(school_id, 'students.documents.approve') or public.has_perm_school(school_id, 'students.documents.create'))
+  with check (public.has_perm_school(school_id, 'students.documents.edit') or public.has_perm_school(school_id, 'students.documents.approve') or public.has_perm_school(school_id, 'students.documents.create'));
+drop policy if exists "delete" on public.student_documents;
+create policy "delete" on public.student_documents for delete to authenticated using (public.has_perm_school(school_id, 'students.documents.delete'));
+
+-- Private bucket (no public URLs; the app hands out 60-second signed links after a permission check)
+do $$
+begin
+  if to_regclass('storage.buckets') is not null then
+    insert into storage.buckets (id, name, public) values ('student-docs', 'student-docs', false) on conflict (id) do update set public = false;
+  end if;
+end $$;
+
+-- ═════════════════════════ Guardians, emergency & pickup contacts ═════════════════════════
+alter table public.guardians
+  add column if not exists occupation   text,
+  add column if not exists is_emergency boolean not null default false,
+  add column if not exists can_pickup   boolean not null default false;
+alter table public.student_guardians add column if not exists is_primary boolean not null default false;
+create unique index if not exists student_guardians_primary on public.student_guardians (student_id) where is_primary;
+
+-- guardians were readable by anyone with ANY profile-view scope; now only through a child they may see
+drop policy if exists "read" on public.guardians;
+create policy "read" on public.guardians for select to authenticated using (
+  user_id = auth.uid()
+  or exists (select 1 from public.student_guardians sg where sg.guardian_id = guardians.id
+              and public.can_student(sg.school_id, 'students.profile.view', sg.student_id)));
+
+create or replace function public.add_student_contact(sid uuid, stu uuid, p_name text, p_relation text, p_phone text,
+                                                      p_occupation text, p_primary boolean, p_emergency boolean, p_pickup boolean)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare gid uuid; ph text := nullif(regexp_replace(coalesce(p_phone, ''), '\D', '', 'g'), '');
+begin
+  if not public.can_student(sid, 'students.profile.edit', stu) then raise exception 'not allowed'; end if;
+  if not exists (select 1 from public.students where id = stu and school_id = sid) then raise exception 'Student not found.'; end if;
+  if coalesce(btrim(p_name), '') = '' then raise exception 'Name is required.'; end if;
+  if ph is not null then
+    if length(ph) = 12 and ph like '91%' then ph := substr(ph, 3); end if;
+    if ph !~ '^[6-9][0-9]{9}$' then raise exception 'Phone must be a 10-digit Indian mobile number.'; end if;
+  end if;
+  if (p_emergency or p_pickup) and ph is null then raise exception 'Emergency and pickup contacts need a phone number.'; end if;
+  insert into public.guardians (school_id, name, relation, phone, occupation, is_emergency, can_pickup)
+    values (sid, btrim(p_name), nullif(btrim(coalesce(p_relation, '')), ''), ph, nullif(btrim(coalesce(p_occupation, '')), ''), coalesce(p_emergency, false), coalesce(p_pickup, false))
+    returning id into gid;
+  if coalesce(p_primary, false) then
+    update public.student_guardians set is_primary = false where student_id = stu;
+    if ph is not null then update public.students set guardian_phone = ph where id = stu; end if;
+  end if;
+  insert into public.student_guardians (school_id, student_id, guardian_id, is_primary) values (sid, stu, gid, coalesce(p_primary, false));
+  return gid;
+end $$;
+
+create or replace function public.remove_student_contact(sid uuid, stu uuid, gid uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.can_student(sid, 'students.profile.edit', stu) then raise exception 'not allowed'; end if;
+  delete from public.student_guardians where student_id = stu and guardian_id = gid and school_id = sid;
+  if not found then raise exception 'Contact not found.'; end if;
+  delete from public.guardians g where g.id = gid and g.user_id is null
+     and not exists (select 1 from public.student_guardians sg where sg.guardian_id = g.id);
+end $$;
+
+-- ═════════════════════════ UP Board registration (Class 9-12) ═════════════════════════
+-- Subjects a student takes in a session (compulsory + elective). Official board subject codes
+-- are entered by the school on subjects.code — nothing is hard-coded.
+create table if not exists public.student_subjects (
+  id          uuid primary key default gen_random_uuid(),
+  school_id   uuid not null references public.schools(id) on delete cascade,
+  student_id  uuid not null references public.students(id) on delete cascade,
+  session_id  uuid not null references public.sessions(id) on delete cascade,
+  subject_id  uuid not null references public.subjects(id) on delete cascade,
+  is_elective boolean not null default false,
+  unique (student_id, session_id, subject_id)
+);
+create index if not exists student_subjects_student_idx on public.student_subjects (school_id, student_id);
+
+create table if not exists public.board_registrations (
+  id                uuid primary key default gen_random_uuid(),
+  school_id         uuid not null references public.schools(id) on delete cascade,
+  student_id        uuid not null references public.students(id) on delete cascade,
+  session_id        uuid not null references public.sessions(id) on delete cascade,
+  kind              text not null check (kind in ('advance_registration','exam_application')),
+  class_level       int  not null check (class_level between 9 and 12),
+  exam_year         int,
+  status            text not null default 'draft' check (status in ('draft','checked','submitted','correction','accepted')),
+  snapshot          jsonb not null default '{}',     -- frozen when the principal checks the record
+  fee_total         numeric(8,2) not null default 50 check (fee_total >= 0),
+  fee_to_treasury   numeric(8,2) not null default 40 check (fee_to_treasury >= 0),
+  fee_paid_on       date,
+  challan_no        text,
+  challan_date      date,
+  checked_by        uuid references auth.users(id) on delete set null,
+  checked_by_name   text,
+  checked_at        timestamptz,
+  submitted_on      date,
+  board_ref         text,
+  correction_note   text,
+  created_at        timestamptz not null default now(),
+  updated_at        timestamptz not null default now(),
+  unique (student_id, session_id, kind),
+  check (fee_to_treasury <= fee_total)
+);
+create index if not exists board_registrations_idx on public.board_registrations (school_id, session_id, kind, class_level, status);
+drop trigger if exists board_registrations_touch on public.board_registrations;
+create trigger board_registrations_touch before update on public.board_registrations for each row execute function public.touch_row();
+
+create table if not exists public.board_registration_events (
+  id              bigint generated always as identity primary key,
+  school_id       uuid not null references public.schools(id) on delete cascade,
+  registration_id uuid not null references public.board_registrations(id) on delete cascade,
+  at              timestamptz not null default now(),
+  actor           uuid,
+  actor_name      text,
+  event           text not null,
+  details         jsonb not null default '{}'
+);
+create index if not exists board_registration_events_idx on public.board_registration_events (registration_id, at);
+
+-- What the board form will carry, as of now
+create or replace function public.build_board_snapshot(stu uuid, sess uuid) returns jsonb
+language sql stable security definer set search_path = public as $$
+  select jsonb_build_object(
+    'name', btrim(concat_ws(' ', s.first_name, s.middle_name, s.last_name)),
+    'admission_no', s.admission_no, 'father_name', s.father_name, 'mother_name', s.mother_name,
+    'dob', s.dob, 'gender', s.gender, 'category', s.category,
+    'class', c.name, 'section', sec.name,
+    'apaar_id', ss.apaar_id, 'pen', ss.pen,
+    'photo', exists (select 1 from public.student_documents d where d.student_id = s.id and d.doc_type = 'photo' and d.file_path is not null and d.status <> 'rejected'),
+    'subjects', coalesce((select jsonb_agg(jsonb_build_object('name', sb.name, 'code', sb.code, 'elective', x.is_elective) order by sb.sort, sb.name)
+                            from public.student_subjects x join public.subjects sb on sb.id = x.subject_id
+                           where x.student_id = s.id and x.session_id = sess), '[]'::jsonb))
+    from public.students s
+    left join public.classes c on c.id = s.class_id
+    left join public.sections sec on sec.id = s.section_id
+    left join public.student_sensitive ss on ss.student_id = s.id
+   where s.id = stu;
+$$;
+
+create or replace function public.guard_board_registration() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare snap jsonb; missing text[] := '{}'; actor_checked boolean := auth.uid() is not null and not public.is_service();
+begin
+  if tg_op = 'INSERT' then
+    if not exists (select 1 from public.students where id = new.student_id and school_id = new.school_id) then raise exception 'Student not found.'; end if;
+    new.status := 'draft'; new.snapshot := '{}';
+    return new;
+  end if;
+  if new.student_id is distinct from old.student_id or new.session_id is distinct from old.session_id or new.kind is distinct from old.kind then
+    raise exception 'A registration cannot be moved to another student, session or form type.';
+  end if;
+  if new.snapshot is distinct from old.snapshot and new.status = old.status then
+    raise exception 'The snapshot is set automatically when the principal checks the record.';
+  end if;
+  if new.status is distinct from old.status then
+    if not ((old.status = 'draft' and new.status = 'checked') or (old.status = 'checked' and new.status in ('draft','submitted'))
+         or (old.status = 'submitted' and new.status in ('accepted','correction')) or (old.status = 'correction' and new.status = 'checked')) then
+      raise exception 'A registration cannot go from % to %.', old.status, new.status;
+    end if;
+    if actor_checked and not public.has_perm_school(new.school_id, 'students.board_reg.approve') then
+      raise exception 'Only the principal can check, submit or accept a board registration.';
+    end if;
+    if new.status = 'checked' then
+      snap := public.build_board_snapshot(new.student_id, new.session_id);
+      if coalesce(snap ->> 'name', '') = '' then missing := missing || 'student name'::text; end if;
+      if coalesce(snap ->> 'father_name', '') = '' and coalesce(snap ->> 'mother_name', '') = '' then missing := missing || 'father''s or mother''s name'::text; end if;
+      if snap ->> 'dob' is null then missing := missing || 'date of birth'::text; end if;
+      if snap ->> 'gender' is null then missing := missing || 'gender'::text; end if;
+      if (snap ->> 'photo')::boolean is not true then missing := missing || 'photograph'::text; end if;
+      if jsonb_array_length(snap -> 'subjects') = 0 then missing := missing || 'subjects'::text; end if;
+      if cardinality(missing) > 0 then raise exception 'Cannot check this record. Missing: %.', array_to_string(missing, ', '); end if;
+      new.snapshot := snap; new.checked_by := auth.uid(); new.checked_at := now();
+      new.correction_note := null;
+    elsif new.status = 'submitted' then
+      new.submitted_on := coalesce(new.submitted_on, public.today_ist());
+    elsif new.status = 'correction' and coalesce(btrim(new.correction_note), '') = '' then
+      raise exception 'Write what the board asked to correct.';
+    elsif new.status = 'draft' then
+      new.snapshot := '{}'; new.checked_by := null; new.checked_at := null; new.checked_by_name := null;
+    end if;
+  elsif old.status in ('checked','submitted','accepted') and (new.fee_total is distinct from old.fee_total or new.exam_year is distinct from old.exam_year
+        or new.class_level is distinct from old.class_level) then
+    raise exception 'This registration is locked. Send it back to draft first.';
+  end if;
+  return new;
+end $$;
+drop trigger if exists board_registrations_guard on public.board_registrations;
+create trigger board_registrations_guard before insert or update on public.board_registrations for each row execute function public.guard_board_registration();
+
+create or replace function public.log_board_registration() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare ev text; det jsonb := '{}';
+begin
+  if tg_op = 'INSERT' then ev := 'created'; det := jsonb_build_object('kind', new.kind, 'class_level', new.class_level);
+  elsif new.status is distinct from old.status then ev := 'status ' || old.status || ' → ' || new.status;
+    det := jsonb_build_object('note', new.correction_note, 'board_ref', new.board_ref);
+  elsif new.challan_no is distinct from old.challan_no or new.fee_paid_on is distinct from old.fee_paid_on or new.fee_total is distinct from old.fee_total then
+    ev := 'fee / challan updated'; det := jsonb_build_object('challan_no', new.challan_no, 'fee_paid_on', new.fee_paid_on, 'fee_total', new.fee_total);
+  elsif new.board_ref is distinct from old.board_ref then ev := 'board reference'; det := jsonb_build_object('board_ref', new.board_ref);
+  else return null; end if;
+  insert into public.board_registration_events (school_id, registration_id, actor, actor_name, event, details)
+  values (new.school_id, new.id, auth.uid(), coalesce(auth.jwt() ->> 'email', ''), ev, det);
+  return null;
+end $$;
+drop trigger if exists board_registrations_log on public.board_registrations;
+create trigger board_registrations_log after insert or update on public.board_registrations for each row execute function public.log_board_registration();
+
+alter table public.student_subjects enable row level security;
+alter table public.board_registrations enable row level security;
+alter table public.board_registration_events enable row level security;
+drop policy if exists "read" on public.student_subjects;
+create policy "read" on public.student_subjects for select to authenticated
+  using (public.can_student(school_id, 'students.profile.view', student_id) or public.has_perm_school(school_id, 'students.board_reg.view'));
+drop policy if exists "write" on public.student_subjects;
+create policy "write" on public.student_subjects for all to authenticated
+  using (public.has_perm_school(school_id, 'students.board_reg.edit')) with check (public.has_perm_school(school_id, 'students.board_reg.edit'));
+drop policy if exists "read" on public.board_registrations;
+create policy "read" on public.board_registrations for select to authenticated using (public.has_perm_school(school_id, 'students.board_reg.view'));
+drop policy if exists "create" on public.board_registrations;
+create policy "create" on public.board_registrations for insert to authenticated with check (public.has_perm_school(school_id, 'students.board_reg.create'));
+drop policy if exists "edit" on public.board_registrations;
+create policy "edit" on public.board_registrations for update to authenticated
+  using (public.has_perm_school(school_id, 'students.board_reg.edit') or public.has_perm_school(school_id, 'students.board_reg.approve'))
+  with check (public.has_perm_school(school_id, 'students.board_reg.edit') or public.has_perm_school(school_id, 'students.board_reg.approve'));
+drop policy if exists "read" on public.board_registration_events;
+create policy "read" on public.board_registration_events for select to authenticated using (public.has_perm_school(school_id, 'students.board_reg.view'));
+-- registrations are never deleted (the audit trail must stay); events are written only by the trigger
+
+-- ═════════════════════════ Audit: wider coverage, personal data masked ═════════════════════════
+-- Same log as before, but contact / address / health values are written as "changed" instead of the value,
+-- and the parent-link token is never stored. Names, DOB and identifiers stay visible so identity
+-- corrections can be traced.
+create or replace function public.audit_row() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare o jsonb := case when tg_op <> 'INSERT' then to_jsonb(old) end;
+        n jsonb := case when tg_op <> 'DELETE' then to_jsonb(new) end;
+        diff jsonb := '{}'; k text; sid uuid;
+        masked text[] := case tg_table_name
+          when 'students' then array['portal_token','notes','address','permanent_address','email','alt_phone','guardian_phone','blood_group']
+          when 'guardians' then array['phone','occupation']
+          when 'student_sensitive' then array['allergies','medical_conditions','medication','disability','accommodations','doctor_name','doctor_phone','internal_notes','identity_note']
+          when 'student_documents' then array['file_path','file_name']
+          when 'staff' then array['pan','uan','bank_account','ifsc','bank_name','address','phone','email']
+          else array[]::text[] end;
+begin
+  if tg_op = 'UPDATE' then
+    for k in select jsonb_object_keys(n) loop
+      if k not in ('updated_at','marked_at') and (o -> k) is distinct from (n -> k) then
+        diff := diff || jsonb_build_object(k, case when k = any(masked) then jsonb_build_array('•', '•') else jsonb_build_array(o -> k, n -> k) end);
+      end if;
+    end loop;
+    if diff = '{}' then return new; end if;
+  end if;
+  sid := coalesce((coalesce(n, o) ->> 'school_id')::uuid, case when tg_table_name = 'schools' then (coalesce(n, o) ->> 'id')::uuid end);
+  perform public.log_event(lower(tg_op), sid, tg_table_name, coalesce(coalesce(n, o) ->> 'id', coalesce(n, o) ->> 'student_id'),
+    case when tg_op = 'UPDATE' then jsonb_build_object('changed', diff)
+         when tg_op = 'DELETE' then jsonb_build_object('row', o - masked)
+         else jsonb_build_object('row', n - masked) end);
+  return coalesce(new, old);
+end $$;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['marks','fee_dues','enquiries','guardians','student_guardians','student_enrolments','student_sensitive',
+                           'student_documents','student_subjects','board_registrations','staff','payslips'] loop
+    execute format('drop trigger if exists audit_%1$s on public.%1$I', t);
+    execute format('create trigger audit_%1$s after insert or update or delete on public.%1$I for each row execute function public.audit_row()', t);
+  end loop;
+end $$;
+
+-- ═════════════════════════ New permissions for schools that already exist ═════════════════════════
+-- Adds only keys the role does not have yet (never removes or changes what a school customised).
+insert into public.role_permissions (role_id, perm_key, scope)
+select r.id, t.perm_key, t.scope
+  from public.roles r
+  join public.role_template_permissions t on t.template_code = r.template_code
+ where (t.perm_key like 'students.documents.%' or t.perm_key like 'students.board_reg.%' or t.perm_key like 'students.sensitive.%')
+on conflict (role_id, perm_key) do nothing;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Step 7: student certificates — Transfer (TC), Bonafide, Character, Study.
+-- Numbered per school / kind / session, snapshot of the student's data at issue,
+-- duplicate copies controlled, cancellation needs the principal.
+-- Safe to run again.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+create table if not exists public.certificate_counters (
+  school_id    uuid not null references public.schools(id) on delete cascade,
+  kind         text not null,
+  session_name text not null,
+  next_no      int  not null default 1,
+  primary key (school_id, kind, session_name)
+);
+
+create table if not exists public.student_certificates (
+  id               uuid primary key default gen_random_uuid(),
+  school_id        uuid not null references public.schools(id) on delete cascade,
+  student_id       uuid not null references public.students(id) on delete cascade,
+  kind             text not null check (kind in ('transfer','bonafide','character','study')),
+  cert_no          text not null,
+  issued_on        date not null default public.today_ist(),
+  is_duplicate     boolean not null default false,
+  details          jsonb not null default '{}',     -- snapshot of the student's data + what the school wrote
+  status           text not null default 'issued' check (status in ('issued','cancelled')),
+  cancelled_reason text,
+  cancelled_at     timestamptz,
+  cancelled_by     uuid references auth.users(id) on delete set null,
+  issued_by        uuid default auth.uid() references auth.users(id) on delete set null,
+  issued_by_name   text,
+  created_at       timestamptz not null default now(),
+  unique (school_id, cert_no)
+);
+create index if not exists student_certificates_student_idx on public.student_certificates (school_id, student_id);
+
+alter table public.certificate_counters enable row level security;   -- no policies: only the functions touch it
+alter table public.student_certificates enable row level security;
+drop policy if exists "read" on public.student_certificates;
+create policy "read" on public.student_certificates for select to authenticated
+  using (public.can_student(school_id, 'students.certificates.view', student_id));
+-- issued only through issue_certificate(), cancelled only through cancel_certificate()
+
+create or replace function public.issue_certificate(sid uuid, stu uuid, p_kind text, p_issued_on date, p_extra jsonb default '{}',
+                                                    p_mark_left boolean default false, p_by text default null)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare s record; sname text; n int; num text; prev text; dup boolean := coalesce((p_extra ->> 'duplicate')::boolean, false);
+        owed numeric; cid uuid; d jsonb; pre text; on_day date := coalesce(p_issued_on, public.today_ist());
+begin
+  if not public.has_perm_school(sid, 'students.certificates.create') then raise exception 'not allowed'; end if;
+  if p_kind not in ('transfer','bonafide','character','study') then raise exception 'Unknown certificate type.'; end if;
+  if on_day > public.today_ist() then raise exception 'The issue date cannot be in the future.'; end if;
+  select st.*, c.name as class_name, sec.name as section_name, ac.name as admission_class_name into s
+    from public.students st
+    left join public.classes c on c.id = st.class_id
+    left join public.sections sec on sec.id = st.section_id
+    left join public.classes ac on ac.id = st.admission_class_id
+   where st.id = stu and st.school_id = sid;
+  if s.id is null then raise exception 'Student not found.'; end if;
+
+  select cert_no into prev from public.student_certificates where student_id = stu and kind = p_kind and status = 'issued' and not is_duplicate order by created_at limit 1;
+  if p_kind = 'transfer' and prev is not null and not dup then
+    raise exception 'A transfer certificate was already issued (no. %). Tick "Duplicate copy" to issue another.', prev;
+  end if;
+  if p_kind = 'transfer' and dup and prev is null then dup := false; end if;
+
+  select coalesce((select name from public.sessions where school_id = sid and is_current limit 1), 'NA') into sname;
+  insert into public.certificate_counters (school_id, kind, session_name, next_no) values (sid, p_kind, sname, 2)
+  on conflict (school_id, kind, session_name) do update set next_no = public.certificate_counters.next_no + 1
+  returning next_no - 1 into n;
+  pre := case p_kind when 'transfer' then 'TC' when 'bonafide' then 'BC' when 'character' then 'CC' else 'SC' end;
+  num := pre || '/' || sname || '/' || lpad(n::text, 4, '0') || case when dup then '-D' else '' end;
+
+  select coalesce(sum(greatest(amount - concession + fine - paid, 0)), 0) into owed from public.fee_dues where student_id = stu and school_id = sid;
+
+  d := jsonb_build_object(
+    'name', btrim(concat_ws(' ', s.first_name, s.middle_name, s.last_name)),
+    'admission_no', s.admission_no, 'father_name', s.father_name, 'mother_name', s.mother_name,
+    'dob', s.dob, 'gender', s.gender, 'category', s.category, 'nationality', coalesce(s.nationality, 'Indian'),
+    'class', s.class_name, 'section', s.section_name, 'roll_no', s.roll_no,
+    'admission_date', s.admission_date, 'admission_class', s.admission_class_name,
+    'address', s.address, 'session', sname, 'dues_outstanding', owed,
+    'apaar_id', (select apaar_id from public.student_sensitive where student_id = stu and apaar_status in ('generated','verified')),
+    'last_exam', nullif(btrim(coalesce(p_extra ->> 'last_exam', '')), ''),
+    'result', nullif(btrim(coalesce(p_extra ->> 'result', '')), ''),
+    'promotion', nullif(btrim(coalesce(p_extra ->> 'promotion', '')), ''),
+    'conduct', coalesce(nullif(btrim(coalesce(p_extra ->> 'conduct', '')), ''), 'Good'),
+    'reason', nullif(btrim(coalesce(p_extra ->> 'reason', '')), ''),
+    'working_days', nullif(btrim(coalesce(p_extra ->> 'working_days', '')), ''),
+    'days_present', nullif(btrim(coalesce(p_extra ->> 'days_present', '')), ''),
+    'remarks', nullif(btrim(coalesce(p_extra ->> 'remarks', '')), ''),
+    'left_on', case when p_kind = 'transfer' then coalesce(nullif(p_extra ->> 'left_on', '')::date, on_day) end);
+
+  insert into public.student_certificates (school_id, student_id, kind, cert_no, issued_on, is_duplicate, details, issued_by_name)
+  values (sid, stu, p_kind, num, on_day, dup, d, p_by) returning id into cid;
+
+  if p_kind = 'transfer' and p_mark_left and s.status = 'active' then
+    update public.students set status = 'transferred', left_on = (d ->> 'left_on')::date,
+           left_reason = coalesce(d ->> 'reason', 'Transfer certificate issued'), tc_no = num, tc_issued_on = on_day
+     where id = stu;
+  elsif p_kind = 'transfer' and not dup then
+    update public.students set tc_no = num, tc_issued_on = on_day where id = stu;
+  end if;
+  return cid;
+end $$;
+
+create or replace function public.cancel_certificate(cid uuid, p_reason text) returns void
+language plpgsql security definer set search_path = public as $$
+declare c record;
+begin
+  select * into c from public.student_certificates where id = cid;
+  if c.id is null then raise exception 'Certificate not found.'; end if;
+  if not public.has_perm_school(c.school_id, 'students.certificates.approve') then raise exception 'not allowed'; end if;
+  if coalesce(btrim(p_reason), '') = '' then raise exception 'Write the reason for cancelling.'; end if;
+  if c.status = 'cancelled' then raise exception 'Already cancelled.'; end if;
+  update public.student_certificates set status = 'cancelled', cancelled_reason = btrim(p_reason), cancelled_at = now(), cancelled_by = auth.uid() where id = cid;
+end $$;
+
+drop trigger if exists audit_student_certificates on public.student_certificates;
+create trigger audit_student_certificates after insert or update or delete on public.student_certificates for each row execute function public.audit_row();
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Step 8: end-to-end admissions + the data the UP Board 2027 exam forms ask for.
+--   · applications (number, documents, test / interview, decision, waitlist, RTE, fee) → admit
+--   · fuller student profile (Hindi names, mobile, street / post office, religion …)
+--   · Aadhaar (encrypted by the app, consent required), disability type, prior exams
+--   · official UPMSP subject codes (HS 2027 + Intermediate 2027) and per-student board subjects
+--   · seats and age limits per class, UPMSP centre IDs on the school
+-- Source of the board data: UPMSP Exam Form HS 2027 / Intermediate 2027 (subject codes and combination rules).
+-- Safe to run again.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- ───────────── Student profile additions ─────────────
+alter table public.students
+  add column if not exists name_hi              text,
+  add column if not exists father_name_hi       text,
+  add column if not exists mother_name_hi       text,
+  add column if not exists mobile               text check (mobile is null or mobile ~ '^[6-9][0-9]{9}$'),
+  add column if not exists street               text,
+  add column if not exists post_office          text,
+  add column if not exists religion             text,
+  add column if not exists caste                text,
+  add column if not exists medium               text check (medium is null or medium in ('hindi','english')),
+  add column if not exists bpl                  boolean,
+  add column if not exists sibling_student_id   uuid references public.students(id) on delete set null,
+  add column if not exists previous_year_percent numeric(5,2) check (previous_year_percent is null or previous_year_percent between 0 and 100),
+  add column if not exists previous_year_days   int check (previous_year_days is null or previous_year_days between 0 and 400),
+  add column if not exists application_id       uuid;
+
+alter table public.classes
+  add column if not exists seats         int check (seats is null or seats >= 0),
+  add column if not exists min_age_years numeric(3,1) check (min_age_years is null or min_age_years >= 0),
+  add column if not exists max_age_years numeric(3,1) check (max_age_years is null or max_age_years >= 0);
+
+-- UPMSP: the user id and centre number the board allots to the school (fields 1 and 2 of every exam form)
+alter table public.schools
+  add column if not exists upmsp_user_id   text check (upmsp_user_id is null or upmsp_user_id ~ '^[0-9]{6}$'),
+  add column if not exists upmsp_center_no text check (upmsp_center_no is null or upmsp_center_no ~ '^[0-9]{4}$');
+
+-- ───────────── Sensitive tier: Aadhaar (ciphertext only), disability ─────────────
+alter table public.student_sensitive
+  add column if not exists aadhaar_enc     text,     -- AES-256-GCM made by the app; the database never sees the number
+  add column if not exists aadhaar_last4   text check (aadhaar_last4 is null or aadhaar_last4 ~ '^[0-9]{4}$'),
+  add column if not exists aadhaar_consent boolean not null default false,
+  add column if not exists disability_type text check (disability_type is null or disability_type in ('visual','hearing','speech','locomotor','hand','multiple','other')),
+  add column if not exists disability_percent numeric(5,2) check (disability_percent is null or disability_percent between 0 and 100);
+alter table public.student_sensitive drop constraint if exists student_sensitive_aadhaar_consent;
+alter table public.student_sensitive add constraint student_sensitive_aadhaar_consent check (aadhaar_enc is null or aadhaar_consent);
+
+-- ───────────── Earlier examinations / schools (UPMSP form items 29-38) ─────────────
+create table if not exists public.student_prior_exams (
+  id            uuid primary key default gen_random_uuid(),
+  school_id     uuid not null references public.schools(id) on delete cascade,
+  student_id    uuid not null references public.students(id) on delete cascade,
+  level         text not null check (level in ('class8','class9_registration','class9','high_school','class11_registration','intermediate','iti','other')),
+  board_name    text,
+  exam_year     int check (exam_year is null or exam_year between 1980 and 2100),
+  roll_no       text,                 -- अनुक्रमांक
+  registration_no text,
+  school_name   text,
+  district_code text,
+  school_code   text,
+  result        text,
+  marks_obtained numeric(7,2),
+  max_marks     numeric(7,2),
+  percentage    numeric(5,2) check (percentage is null or percentage between 0 and 100),
+  note          text,
+  created_at    timestamptz not null default now(),
+  unique (student_id, level)
+);
+alter table public.student_prior_exams enable row level security;
+drop policy if exists "read" on public.student_prior_exams;
+create policy "read" on public.student_prior_exams for select to authenticated using (public.can_student(school_id, 'students.profile.view', student_id));
+drop policy if exists "write" on public.student_prior_exams;
+create policy "write" on public.student_prior_exams for all to authenticated
+  using (public.can_student(school_id, 'students.profile.edit', student_id)) with check (public.can_student(school_id, 'students.profile.edit', student_id));
+
+-- ───────────── Official UPMSP subject codes (HS 2027 and Intermediate 2027) ─────────────
+create table if not exists public.board_subject_codes (
+  level   text not null check (level in ('hs','inter')),
+  code    text not null,
+  name_en text not null,
+  name_hi text,
+  sort    int  not null default 0,
+  primary key (level, code)
+);
+alter table public.board_subject_codes enable row level security;
+drop policy if exists "read" on public.board_subject_codes;
+create policy "read" on public.board_subject_codes for select to authenticated using (true);
+
+insert into public.board_subject_codes (level, code, name_en, name_hi) values
+  ('hs','901','Hindi','हिन्दी'), ('hs','902','Elementary Hindi','प्रारम्भिक हिन्दी'), ('hs','903','Gujarati','गुजराती'), ('hs','904','Urdu','उर्दू'),
+  ('hs','905','Punjabi','पंजाबी'), ('hs','906','Bengali','बंगला'), ('hs','907','Marathi','मराठी'), ('hs','908','Assamese','आसामी'), ('hs','909','Oriya','उड़िया'),
+  ('hs','910','Kannada','कन्नड़'), ('hs','911','Kashmiri','कश्मीरी'), ('hs','912','Sindhi','सिन्धी'), ('hs','913','Tamil','तमिल'), ('hs','914','Telugu','तेलुगू'),
+  ('hs','915','Malayalam','मलयालम'), ('hs','916','Nepali','नेपाली'), ('hs','917','English','अंग्रेजी'), ('hs','923','Sanskrit','संस्कृत'), ('hs','924','Pali','पालि'),
+  ('hs','925','Arabic','अरबी'), ('hs','926','Persian','फारसी'), ('hs','928','Mathematics','गणित'), ('hs','930','Home Science (female candidates)','गृह विज्ञान'),
+  ('hs','931','Science','विज्ञान'), ('hs','932','Social Science','सामाजिक विज्ञान'), ('hs','933','Music Vocal','संगीत गायन'), ('hs','934','Music Instrumental','संगीत वादन'),
+  ('hs','935','Commerce','वाणिज्य'), ('hs','936','Drawing','चित्रकला'), ('hs','937','Agriculture','कृषि'), ('hs','938','Home Science (optional)','गृह विज्ञान'),
+  ('hs','939','Tailoring','सिलाई'), ('hs','940','Painting','रंजनकला'), ('hs','941','Computer','कम्प्यूटर'), ('hs','942','Anthropology','मानव विज्ञान'),
+  ('hs','944','Moral, Yoga, Sports & Physical Education','नैतिक, योग, खेल एवं शारीरिक शिक्षा'),
+  ('hs','971','Retail Trading','खुदरा व्यापार'), ('hs','972','Security','सुरक्षा'), ('hs','973','Automobile','ऑटोमोबाइल'), ('hs','974','IT / ITES','आई0टी0/आई0टी0ई0एस'), ('hs','975','Health Care','हेल्थ केयर'),
+  ('hs','945','Textile Design (pre-vocational)','टेक्सटाइल डिजाइन'), ('hs','946','Library Science (pre-vocational)','पुस्तकालय विज्ञान'), ('hs','947','Cookery (pre-vocational)','पाक शास्त्र'),
+  ('hs','948','Photography (pre-vocational)','फोटोग्राफी'), ('hs','949','Baking & Confectionery (pre-vocational)','बेकिंग तथा कन्फेक्शनरी'), ('hs','950','Bee Keeping (pre-vocational)','मधुमक्खी पालन'),
+  ('hs','951','Plant Nursery (pre-vocational)','पौधशाला'), ('hs','952','Automobile (pre-vocational)','ऑटोमोबाइल'), ('hs','953','Laundry & Dyeing (pre-vocational)','धुलाई तथा रंगाई'),
+  ('hs','954','Dress Making & Decoration (pre-vocational)','परिधान रचना एवं सज्जा'), ('hs','955','Food Preservation (pre-vocational)','खाद्य संरक्षण'),
+  ('hs','956','Accountancy & Auditing (pre-vocational)','एकाउन्टेन्सी एवं अंकेक्षण'), ('hs','957','Shorthand & Typing (pre-vocational)','आशुलिपि एवं टंकण'),
+  ('hs','958','Banking (pre-vocational)','बैंकिंग'), ('hs','959','Typing (pre-vocational)','टाइपिंग'), ('hs','960','Fruit Preservation Technology (pre-vocational)','फल संरक्षण तकनीक'),
+  ('hs','961','Crop Protection Technology (pre-vocational)','फसल सुरक्षा तकनीक'), ('hs','962','Printing (pre-vocational)','मुद्रण'),
+  ('hs','963','Radio & Television Technique (pre-vocational)','रेडियो एवं टेलीविजन तकनीक'), ('hs','964','Weaving Technology (pre-vocational)','बुनाई तकनीक'),
+  ('hs','965','Retail Trading (pre-vocational)','खुदरा व्यापार'), ('hs','966','Security (pre-vocational)','सुरक्षा'), ('hs','967','Mobile Repairing (pre-vocational)','मोबाइल रिपेयरिंग'),
+  ('hs','968','Tourism & Hospitality (pre-vocational)','पर्यटन एवं आतिथ्य'), ('hs','969','IT / ITES (pre-vocational)','आई0टी0/आई0टी0ई0एस0'),
+  ('hs','701','Retail Trading (revised vocational)','खुदरा व्यापार'), ('hs','702','Security (revised vocational)','सुरक्षा'),
+  ('hs','703','Automobile (revised vocational)','ऑटोमोबाइल'), ('hs','704','IT / ITES (revised vocational)','आई0टी0/आई0टी0ई0एस0'),
+
+  ('inter','101','Hindi','हिन्दी'), ('inter','102','General Hindi','सामान्य हिन्दी'), ('inter','103','Sanskrit','संस्कृत'), ('inter','104','Urdu','उर्दू'),
+  ('inter','105','Gujarati','गुजराती'), ('inter','106','Punjabi','पंजाबी'), ('inter','107','Bengali','बंगाली'), ('inter','108','Marathi','मराठी'), ('inter','109','Assamese','आसामी'),
+  ('inter','110','Oriya','उड़िया'), ('inter','111','Kannada','कन्नड़'), ('inter','113','Sindhi','सिन्धी'), ('inter','114','Tamil','तमिल'), ('inter','115','Telugu','तेलुगू'),
+  ('inter','116','Malayalam','मलयालम'), ('inter','117','English','अंग्रेजी'), ('inter','121','Nepali','नेपाली'), ('inter','124','Pali','पाली'), ('inter','125','Arabic','अरबी'),
+  ('inter','126','Persian','फारसी'), ('inter','128','History','इतिहास'), ('inter','129','Geography','भूगोल'), ('inter','130','Civics','नागरिकशास्त्र'), ('inter','131','Mathematics','गणित'),
+  ('inter','132','Military Science','सैन्यविज्ञान'), ('inter','133','Psychology','मनोविज्ञान'), ('inter','134','Education','शिक्षाशास्त्र'), ('inter','135','Home Science','गृहविज्ञान'),
+  ('inter','136','Economics','अर्थशास्त्र'), ('inter','137','Logic','तर्कशास्त्र'), ('inter','138','Music Vocal','संगीत (गायन)'), ('inter','139','Music Instrumental','संगीत (वादन)'),
+  ('inter','140','Drawing (Design)','चित्रकला (आलेखन)'), ('inter','141','Drawing (Technical)','चित्रकला (प्रावैधिक)'), ('inter','142','Sociology','समाजशास्त्र'),
+  ('inter','144','Computer','कम्प्यूटर'), ('inter','145','Wood Craft','काष्ठशिल्प'), ('inter','146','Book Craft','ग्रन्थशिल्प'), ('inter','147','Tailoring','सिलाई'),
+  ('inter','149','Painting','रंजनकला'), ('inter','150','Dancing','नृत्यकला'), ('inter','151','Physics','भौतिक विज्ञान'), ('inter','152','Chemistry','रसायन विज्ञान'),
+  ('inter','153','Biology','जीव विज्ञान'), ('inter','156','Accountancy','लेखाशास्त्र'), ('inter','157','Business Studies','व्यवसाय अध्ययन'),
+  ('inter','163','Agronomy (Ag. Part 1)','शस्यविज्ञान'), ('inter','164','Ag. Botany','कृषि वनस्पतिविज्ञान'), ('inter','165','Ag. Physics & Climatology','कृषि भौतिकविज्ञान एवं जलवायुविज्ञान'),
+  ('inter','166','Ag. Engineering','कृषि अभियंत्रण'), ('inter','167','Ag. Mathematics & Elementary Statistics','कृषि गणित तथा प्रारम्भिक सांख्यिकी'),
+  ('inter','168','Agronomy (Ag. Part 2)','शस्यविज्ञान'), ('inter','169','Ag. Economics','कृषि अर्थशास्त्र'), ('inter','170','Ag. Zoology','कृषि जन्तुविज्ञान'),
+  ('inter','171','Animal Husbandry & Veterinary Science','कृषि पशुपालन एवं पशु चिकित्साविज्ञान'), ('inter','172','Ag. Chemistry','कृषि रसायन विज्ञान'),
+  ('inter','173','Moral, Yoga, Sports & Physical Education','नैतिक, योग, खेल एवं शारीरिक शिक्षा'), ('inter','174','Anthropology','मानव विज्ञान'), ('inter','175','NCC','एन0सी0सी0'),
+  ('inter','200','Optional Agronomy','वैकल्पिक शस्य विज्ञान'), ('inter','201','Vocational General Foundation','सामान्य आधारिक विषय'),
+  ('inter','202','Fruit & Food Preservation','फल एवं खाद्य संरक्षण'), ('inter','203','Cookery','पाकशास्त्र'), ('inter','204','Dress Making & Decoration','परिधान रचना एवं सज्जा'),
+  ('inter','205','Laundry & Dyeing','धुलाई तथा रंगाई'), ('inter','206','Baking & Confectionery','बेकिंग तथा कन्फेक्शनरी'), ('inter','207','Textile Design','टेक्सटाइल डिजाइन'),
+  ('inter','208','Weaving Technique','बुनाई तकनीक'), ('inter','209','Nursery Teacher Training & Child Management','नर्सरी शिक्षक प्रशिक्षण एवं शिशु प्रबन्ध'),
+  ('inter','210','Library Science','पुस्तकालय विज्ञान'), ('inter','211','Multipurpose Health Worker (incl. Laboratory Technique)','बहुउद्देशीय स्वास्थ्य कर्मिक (लेबोरेटरी तकनीक सहित)'),
+  ('inter','212','Colour Photography','रंगीन फोटोग्राफी'), ('inter','213','Radio & Colour Television','रेडियो एवं रंगीन टेलीविजन'), ('inter','214','Automobiles','आटोमोबाइल्स'),
+  ('inter','215','Bee Keeping','मधुमक्खी पालन'), ('inter','216','Dairy Technology','डेरी प्रौद्योगिकी'), ('inter','217','Sericulture','रेशमकीट पालन'),
+  ('inter','218','Seed Production Technology','बीजोत्पादन प्रौद्योगिकी'), ('inter','219','Crop Protection Technology','फसल सुरक्षा प्रौद्योगिकी'), ('inter','220','Plant Nursery','पौधशाला'),
+  ('inter','221','Land Conservation & Reclamation','भूमि संरक्षण एवं भूमि सुधार'), ('inter','222','Accountancy & Auditing','एकाउन्टेन्सी एवं अंकेक्षण'), ('inter','223','Banking','बैंकिंग'),
+  ('inter','224','Shorthand & Typing (Hindi)','आशुलिपि एवं टंकण (हिन्दी)'), ('inter','225','Shorthand & Typing (English)','आशुलिपि एवं टंकण (अंग्रेजी)'),
+  ('inter','226','Marketing & Salesmanship','विपणन एवं विक्रयकला'), ('inter','227','Secretarial Practice','सचिवीय पद्धति'), ('inter','228','Insurance','बीमा'),
+  ('inter','229','Co-operation','सहकारिता'), ('inter','230','Typing Hindi & English','टंकण हिन्दी तथा अंग्रेजी'), ('inter','231','Printing','मुद्रण'), ('inter','232','Pottery','कुलालविज्ञान'),
+  ('inter','233','Artificial Limbs & Organ Technique','कृत्रिम अंग एवं अवयव तकनीक'), ('inter','234','Embroidery','इम्ब्राइडरी'), ('inter','235','Hand Block Printing','हैण्ड ब्लाक प्रिंटिंग'),
+  ('inter','236','Metal Craft (Moulding)','मेटलक्राफ्ट (मोल्डिंग)'), ('inter','237','Metal Craft (Engraving)','मेटलक्राफ्ट (इनग्रेविंग)'),
+  ('inter','238','Computer Technique & Maintenance (Data Entry Process)','कम्प्यूटर तकनीक एवं मेन्टेनेन्स (डाटा इन्ट्री प्रोसेस)'),
+  ('inter','239','Repair & Maintenance of Domestic Electrical Appliances','घरेलू विद्युत उपकरणों की मरम्मत एवं रख रखाव'), ('inter','240','Retail Trading','रिटेल ट्रेडिंग'),
+  ('inter','241','Security','सेक्योरिटी'), ('inter','242','Mobile Repairing','मोबाइल रिपेयरिंग'), ('inter','243','Tourism & Hospitality','टूरिज्म एण्ड हॉस्पिटैलिटी'),
+  ('inter','244','IT / ITES','आई0टी0/आई0टी0ई0एस0'), ('inter','245','Health Care','हेल्थ केयर')
+on conflict (level, code) do update set name_en = excluded.name_en, name_hi = excluded.name_hi;
+
+-- Subjects chosen for the board form, in the order of the form's boxes (slot '1'…'7'; HS also 'trade')
+create table if not exists public.student_board_subjects (
+  id         uuid primary key default gen_random_uuid(),
+  school_id  uuid not null references public.schools(id) on delete cascade,
+  student_id uuid not null references public.students(id) on delete cascade,
+  session_id uuid not null references public.sessions(id) on delete cascade,
+  level      text not null check (level in ('hs','inter')),
+  slot       text not null check (slot in ('1','2','3','4','5','6','7','trade')),
+  code       text not null,
+  unique (student_id, session_id, level, slot),
+  foreign key (level, code) references public.board_subject_codes(level, code)
+);
+alter table public.student_board_subjects enable row level security;
+drop policy if exists "read" on public.student_board_subjects;
+create policy "read" on public.student_board_subjects for select to authenticated
+  using (public.can_student(school_id, 'students.profile.view', student_id) or public.has_perm_school(school_id, 'students.board_reg.view'));
+drop policy if exists "write" on public.student_board_subjects;
+create policy "write" on public.student_board_subjects for all to authenticated
+  using (public.has_perm_school(school_id, 'students.board_reg.edit')) with check (public.has_perm_school(school_id, 'students.board_reg.edit'));
+
+alter table public.board_registrations
+  add column if not exists subject_group   text check (subject_group is null or subject_group in ('A','B','C','F1','F2','I')),
+  add column if not exists exam_type       text not null default 'full' check (exam_type in ('full','part')),
+  add column if not exists board_roll_no   text,
+  add column if not exists board_reg_no    text;
+
+-- ───────────── Snapshot: everything the board form carries ─────────────
+create or replace function public.build_board_snapshot(stu uuid, sess uuid) returns jsonb
+language sql stable security definer set search_path = public as $$
+  select jsonb_build_object(
+    'name', btrim(concat_ws(' ', s.first_name, s.middle_name, s.last_name)),
+    'name_hi', s.name_hi, 'father_name', s.father_name, 'father_name_hi', s.father_name_hi,
+    'mother_name', s.mother_name, 'mother_name_hi', s.mother_name_hi,
+    'admission_no', s.admission_no, 'dob', s.dob, 'gender', s.gender, 'category', s.category, 'medium', s.medium,
+    'mobile', s.mobile, 'email', s.email, 'nationality', coalesce(s.nationality, 'Indian'),
+    'street', coalesce(s.street, s.address), 'village_town_city', s.city, 'post_office', s.post_office, 'tehsil_block', s.block_tehsil,
+    'district', s.district, 'state', s.state, 'pincode', s.pincode,
+    'class', c.name, 'section', sec.name,
+    'apaar_id', ss.apaar_id, 'pen', ss.pen, 'aadhaar_last4', ss.aadhaar_last4, 'aadhaar_present', ss.aadhaar_enc is not null,
+    'disability_type', ss.disability_type,
+    'photo', exists (select 1 from public.student_documents d where d.student_id = s.id and d.doc_type = 'photo' and d.file_path is not null and d.status <> 'rejected'),
+    'subject_group', (select r.subject_group from public.board_registrations r where r.student_id = s.id and r.session_id = sess limit 1),
+    'subjects', coalesce((select jsonb_agg(jsonb_build_object('slot', b.slot, 'code', b.code, 'name_en', k.name_en, 'name_hi', k.name_hi)
+                                          order by case when b.slot = 'trade' then 99 else b.slot::int end)
+                            from public.student_board_subjects b join public.board_subject_codes k on k.level = b.level and k.code = b.code
+                           where b.student_id = s.id and b.session_id = sess), '[]'::jsonb),
+    'prior', coalesce((select jsonb_agg(jsonb_build_object('level', p.level, 'board_name', p.board_name, 'exam_year', p.exam_year, 'roll_no', p.roll_no,
+                                          'registration_no', p.registration_no, 'school_name', p.school_name, 'district_code', p.district_code, 'school_code', p.school_code))
+                         from public.student_prior_exams p where p.student_id = s.id), '[]'::jsonb))
+    from public.students s
+    left join public.classes c on c.id = s.class_id
+    left join public.sections sec on sec.id = s.section_id
+    left join public.student_sensitive ss on ss.student_id = s.id
+   where s.id = stu;
+$$;
+
+-- readiness rules for the principal's check (presence only; combination rules are checked by the app)
+create or replace function public.guard_board_registration() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare snap jsonb; missing text[] := '{}'; actor_checked boolean := auth.uid() is not null and not public.is_service();
+        n_sub int; need int; grp text; hs boolean;
+begin
+  if tg_op = 'INSERT' then
+    if not exists (select 1 from public.students where id = new.student_id and school_id = new.school_id) then raise exception 'Student not found.'; end if;
+    new.status := 'draft'; new.snapshot := '{}';
+    return new;
+  end if;
+  if new.student_id is distinct from old.student_id or new.session_id is distinct from old.session_id or new.kind is distinct from old.kind then
+    raise exception 'A registration cannot be moved to another student, session or form type.';
+  end if;
+  if new.snapshot is distinct from old.snapshot and new.status = old.status then
+    raise exception 'The snapshot is set automatically when the principal checks the record.';
+  end if;
+  if new.status is distinct from old.status then
+    if not ((old.status = 'draft' and new.status = 'checked') or (old.status = 'checked' and new.status in ('draft','submitted'))
+         or (old.status = 'submitted' and new.status in ('accepted','correction')) or (old.status = 'correction' and new.status = 'checked')) then
+      raise exception 'A registration cannot go from % to %.', old.status, new.status;
+    end if;
+    if actor_checked and not public.has_perm_school(new.school_id, 'students.board_reg.approve') then
+      raise exception 'Only the principal can check, submit or accept a board registration.';
+    end if;
+    if new.status = 'checked' then
+      snap := public.build_board_snapshot(new.student_id, new.session_id);
+      hs := new.class_level in (9, 10);
+      grp := coalesce(new.subject_group, snap ->> 'subject_group');
+      if coalesce(snap ->> 'name', '') = '' then missing := missing || 'student name'::text; end if;
+      if coalesce(snap ->> 'name_hi', '') = '' then missing := missing || 'student name in Hindi'::text; end if;
+      if coalesce(snap ->> 'father_name', '') = '' and coalesce(snap ->> 'mother_name', '') = '' then missing := missing || 'father''s or mother''s name'::text; end if;
+      if coalesce(snap ->> 'father_name', '') <> '' and coalesce(snap ->> 'father_name_hi', '') = '' then missing := missing || 'father''s name in Hindi'::text; end if;
+      if coalesce(snap ->> 'mother_name', '') <> '' and coalesce(snap ->> 'mother_name_hi', '') = '' then missing := missing || 'mother''s name in Hindi'::text; end if;
+      if snap ->> 'dob' is null then missing := missing || 'date of birth'::text; end if;
+      if snap ->> 'gender' is null then missing := missing || 'gender'::text; end if;
+      if snap ->> 'category' is null then missing := missing || 'category'::text; end if;
+      if snap ->> 'medium' is null then missing := missing || 'medium (Hindi / English)'::text; end if;
+      if coalesce(snap ->> 'district', '') = '' or coalesce(snap ->> 'state', '') = '' or coalesce(snap ->> 'pincode', '') = '' then missing := missing || 'address (district, state, PIN)'::text; end if;
+      if coalesce(snap ->> 'mobile', '') = '' then missing := missing || 'mobile number'::text; end if;
+      if (snap ->> 'photo')::boolean is not true then missing := missing || 'photograph'::text; end if;
+      select count(*) into n_sub from jsonb_array_elements(snap -> 'subjects') x where x ->> 'slot' <> '7';
+      if hs then
+        if not (select bool_and(exists (select 1 from jsonb_array_elements(snap -> 'subjects') x where x ->> 'slot' = s)) from unnest(array['1','2','3','4','5']) s) then
+          missing := missing || 'subjects 1 to 5'::text;
+        end if;
+        if not exists (select 1 from jsonb_array_elements(snap -> 'subjects') x where x ->> 'slot' in ('6','trade')) then
+          missing := missing || '6th subject (optional / trade)'::text;
+        end if;
+      else
+        if grp is null then missing := missing || 'subject group (A, B, C, F1, F2, I)'::text;
+        else
+          need := case grp when 'F1' then 6 when 'F2' then 6 when 'I' then 4 else 5 end;
+          if n_sub < need then missing := missing || ('subjects (group ' || grp || ' needs ' || need || ')')::text; end if;
+        end if;
+      end if;
+      if cardinality(missing) > 0 then raise exception 'Cannot check this record. Missing: %.', array_to_string(missing, ', '); end if;
+      new.snapshot := snap; new.checked_by := auth.uid(); new.checked_at := now();
+      new.correction_note := null;
+    elsif new.status = 'submitted' then
+      new.submitted_on := coalesce(new.submitted_on, public.today_ist());
+    elsif new.status = 'correction' and coalesce(btrim(new.correction_note), '') = '' then
+      raise exception 'Write what the board asked to correct.';
+    elsif new.status = 'draft' then
+      new.snapshot := '{}'; new.checked_by := null; new.checked_at := null; new.checked_by_name := null;
+    end if;
+  elsif old.status in ('checked','submitted','accepted') and (new.fee_total is distinct from old.fee_total or new.exam_year is distinct from old.exam_year
+        or new.class_level is distinct from old.class_level or new.subject_group is distinct from old.subject_group) then
+    raise exception 'This registration is locked. Send it back to draft first.';
+  end if;
+  return new;
+end $$;
+
+-- ═════════════════════════ Admission applications ═════════════════════════
+create table if not exists public.admission_applications (
+  id              uuid primary key default gen_random_uuid(),
+  school_id       uuid not null references public.schools(id) on delete cascade,
+  application_no  text not null,
+  session_id      uuid references public.sessions(id) on delete set null,
+  class_id        uuid references public.classes(id) on delete set null,       -- class applied for
+  enquiry_id      uuid references public.enquiries(id) on delete set null,
+  status          text not null default 'submitted'
+                  check (status in ('submitted','under_review','test_scheduled','approved','waitlisted','rejected','admitted','cancelled')),
+  applicant_name  text not null check (length(btrim(applicant_name)) > 0),
+  father_name     text,
+  phone           text,
+  form            jsonb not null default '{}',     -- the full student profile (same keys as students) + contacts[] + prior[]
+  rte_applicant   boolean not null default false,
+  rte_reference   text,
+  source          text,
+  applied_on      date not null default public.today_ist(),
+  test_on         date, test_marks numeric(6,2), test_max numeric(6,2),
+  interview_on    date, interview_note text,
+  waitlist_no     int,
+  decision_note   text,
+  decided_by      uuid references auth.users(id) on delete set null,
+  decided_by_name text,
+  decided_at      timestamptz,
+  fee_amount      numeric(10,2) check (fee_amount is null or fee_amount >= 0),
+  fee_paid_on     date, fee_mode text, fee_ref text,
+  student_id      uuid references public.students(id) on delete set null,
+  admitted_on     date,
+  created_by      uuid default auth.uid() references auth.users(id) on delete set null,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now(),
+  unique (school_id, application_no),
+  check (test_marks is null or test_max is null or test_marks <= test_max)
+);
+create index if not exists admission_applications_idx on public.admission_applications (school_id, session_id, status);
+create index if not exists admission_applications_class_idx on public.admission_applications (school_id, class_id, status);
+drop trigger if exists admission_applications_touch on public.admission_applications;
+create trigger admission_applications_touch before update on public.admission_applications for each row execute function public.touch_row();
+alter table public.students drop constraint if exists students_application_fk;
+alter table public.students add constraint students_application_fk foreign key (application_id) references public.admission_applications(id) on delete set null;
+
+create table if not exists public.admission_application_events (
+  id             bigint generated always as identity primary key,
+  school_id      uuid not null references public.schools(id) on delete cascade,
+  application_id uuid not null references public.admission_applications(id) on delete cascade,
+  at             timestamptz not null default now(),
+  actor          uuid,
+  actor_name     text,
+  event          text not null,
+  details        jsonb not null default '{}'
+);
+create index if not exists admission_application_events_idx on public.admission_application_events (application_id, at);
+
+create table if not exists public.application_documents (
+  id               uuid primary key default gen_random_uuid(),
+  school_id        uuid not null references public.schools(id) on delete cascade,
+  application_id   uuid not null references public.admission_applications(id) on delete cascade,
+  doc_type         text not null check (doc_type in ('birth_certificate','photo','previous_marksheet','transfer_certificate','migration_certificate',
+                     'address_proof','caste_certificate','income_certificate','disability_certificate','apaar_consent','medical_declaration','transport_declaration','other')),
+  title            text,
+  status           text not null default 'pending' check (status in ('pending','uploaded','verified','rejected','not_applicable')),
+  file_path        text, file_name text, mime_type text, size_bytes int,
+  due_by           date,
+  uploaded_by      uuid references auth.users(id) on delete set null, uploaded_by_name text, uploaded_at timestamptz,
+  verified_by      uuid references auth.users(id) on delete set null, verified_by_name text, verified_at timestamptz,
+  reject_reason    text, remark text,
+  created_at       timestamptz not null default now(),
+  check (status in ('pending','not_applicable') or file_path is not null)
+);
+create unique index if not exists application_documents_one on public.application_documents (application_id, doc_type) where doc_type <> 'other';
+
+create or replace function public.guard_application_document() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare actor_checked boolean := auth.uid() is not null and not public.is_service();
+begin
+  if not exists (select 1 from public.admission_applications where id = new.application_id and school_id = new.school_id) then raise exception 'Application not found.'; end if;
+  if tg_op = 'UPDATE' and new.file_path is distinct from old.file_path and new.file_path is not null then
+    new.status := 'uploaded'; new.verified_by := null; new.verified_by_name := null; new.verified_at := null; new.reject_reason := null;
+  elsif tg_op = 'UPDATE' and new.status is distinct from old.status and new.status in ('verified','rejected') then
+    if actor_checked and not public.has_perm_school(new.school_id, 'frontdesk.admissions.edit') then raise exception 'You cannot verify documents.'; end if;
+    if new.status = 'rejected' and coalesce(btrim(new.reject_reason), '') = '' then raise exception 'Write the reason for rejecting the document.'; end if;
+    new.verified_by := auth.uid(); new.verified_at := now();
+    if new.status = 'verified' then new.reject_reason := null; end if;
+  end if;
+  return new;
+end $$;
+drop trigger if exists application_documents_guard on public.application_documents;
+create trigger application_documents_guard before insert or update on public.application_documents for each row execute function public.guard_application_document();
+
+-- numbering uses certificate_counters (kind 'application')
+create or replace function public.create_application(sid uuid, p_class uuid, p_enquiry uuid, p_form jsonb, p_rte boolean default false,
+                                                     p_rte_ref text default null, p_source text default null, p_session uuid default null)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare sess uuid := coalesce(p_session, (select id from public.sessions where school_id = sid and is_current limit 1));
+        sname text; n int; num text; nm text; dup text; aid uuid; f jsonb := coalesce(p_form, '{}'::jsonb);
+begin
+  if not public.has_perm_school(sid, 'frontdesk.admissions.create') then raise exception 'not allowed'; end if;
+  if coalesce(btrim(f ->> 'first_name'), '') = '' then raise exception 'The student''s first name is required.'; end if;
+  if p_class is not null and not exists (select 1 from public.classes where id = p_class and school_id = sid) then raise exception 'Class not found.'; end if;
+  if p_enquiry is not null and not exists (select 1 from public.enquiries where id = p_enquiry and school_id = sid) then raise exception 'Enquiry not found.'; end if;
+  nm := btrim(concat_ws(' ', f ->> 'first_name', f ->> 'middle_name', f ->> 'last_name'));
+  select application_no into dup from public.admission_applications
+   where school_id = sid and session_id is not distinct from sess and status not in ('cancelled','rejected')
+     and lower(applicant_name) = lower(nm) and coalesce(form ->> 'dob', '') = coalesce(f ->> 'dob', '') and coalesce(lower(father_name), '') = coalesce(lower(f ->> 'father_name'), '')
+   limit 1;
+  if dup is not null and coalesce((f ->> 'allow_duplicate')::boolean, false) is not true then
+    raise exception 'An application for the same student already exists (no. %).', dup;
+  end if;
+  select coalesce((select name from public.sessions where id = sess), 'NA') into sname;
+  insert into public.certificate_counters (school_id, kind, session_name, next_no) values (sid, 'application', sname, 2)
+  on conflict (school_id, kind, session_name) do update set next_no = public.certificate_counters.next_no + 1 returning next_no - 1 into n;
+  num := 'APP/' || sname || '/' || lpad(n::text, 4, '0');
+  insert into public.admission_applications (school_id, application_no, session_id, class_id, enquiry_id, applicant_name, father_name, phone, form, rte_applicant, rte_reference, source)
+  values (sid, num, sess, p_class, p_enquiry, nm, nullif(btrim(f ->> 'father_name'), ''), nullif(btrim(f ->> 'guardian_phone'), ''), f - 'allow_duplicate', coalesce(p_rte, false), nullif(btrim(coalesce(p_rte_ref, '')), ''), nullif(btrim(coalesce(p_source, '')), ''))
+  returning id into aid;
+  if p_enquiry is not null then update public.enquiries set status = case when status in ('new','contacted','visited') then 'test' else status end where id = p_enquiry and school_id = sid; end if;
+  return aid;
+end $$;
+
+-- status workflow
+create or replace function public.guard_application() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare actor_checked boolean := auth.uid() is not null and not public.is_service(); ok boolean; need_approve boolean;
+begin
+  if tg_op = 'INSERT' then new.status := 'submitted'; return new; end if;
+  if new.school_id is distinct from old.school_id or new.application_no is distinct from old.application_no then raise exception 'Application numbers cannot be changed.'; end if;
+  if old.status in ('admitted','cancelled') and (new.status is distinct from old.status or new.form is distinct from old.form or new.class_id is distinct from old.class_id) then
+    raise exception 'This application is closed (%).', old.status;
+  end if;
+  if new.status is distinct from old.status then
+    ok := case old.status
+      when 'submitted'      then new.status in ('under_review','test_scheduled','approved','waitlisted','rejected','cancelled')
+      when 'under_review'   then new.status in ('test_scheduled','approved','waitlisted','rejected','cancelled')
+      when 'test_scheduled' then new.status in ('under_review','approved','waitlisted','rejected','cancelled')
+      when 'approved'       then new.status in ('waitlisted','cancelled','admitted','under_review')
+      when 'waitlisted'     then new.status in ('approved','rejected','cancelled','under_review')
+      when 'rejected'       then new.status in ('under_review')
+      else false end;
+    if not ok then raise exception 'An application cannot go from % to %.', old.status, new.status; end if;
+    if new.status = 'admitted' and coalesce(current_setting('app.admitting', true), '') <> '1' then
+      raise exception 'An application becomes admitted only through "Admit".';
+    end if;
+    need_approve := new.status in ('approved','waitlisted','rejected') or (old.status = 'rejected');
+    if actor_checked and need_approve and not public.has_perm_school(new.school_id, 'frontdesk.admissions.approve') then
+      raise exception 'Only the principal (admission approver) can approve, waitlist or reject.';
+    end if;
+    if new.status = 'rejected' and coalesce(btrim(new.decision_note), '') = '' then raise exception 'Write the reason for rejecting.'; end if;
+    if new.status in ('approved','waitlisted','rejected') then new.decided_by := auth.uid(); new.decided_at := now(); end if;
+    if new.status = 'waitlisted' then
+      select coalesce(max(waitlist_no), 0) + 1 into new.waitlist_no from public.admission_applications
+       where school_id = new.school_id and class_id is not distinct from new.class_id and session_id is not distinct from new.session_id and status = 'waitlisted';
+    elsif old.status = 'waitlisted' then new.waitlist_no := null;
+    end if;
+    if new.status = 'test_scheduled' and new.test_on is null and new.interview_on is null then raise exception 'Set the test or interview date first.'; end if;
+  end if;
+  return new;
+end $$;
+drop trigger if exists admission_applications_guard on public.admission_applications;
+create trigger admission_applications_guard before insert or update on public.admission_applications for each row execute function public.guard_application();
+
+create or replace function public.log_application() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare ev text; det jsonb := '{}';
+begin
+  if tg_op = 'INSERT' then ev := 'application received'; det := jsonb_build_object('no', new.application_no);
+  elsif new.status is distinct from old.status then ev := 'status ' || old.status || ' → ' || new.status; det := jsonb_build_object('note', new.decision_note, 'waitlist_no', new.waitlist_no);
+  elsif new.fee_paid_on is distinct from old.fee_paid_on or new.fee_amount is distinct from old.fee_amount then ev := 'application fee recorded'; det := jsonb_build_object('amount', new.fee_amount, 'mode', new.fee_mode);
+  elsif new.test_marks is distinct from old.test_marks or new.test_on is distinct from old.test_on or new.interview_on is distinct from old.interview_on then ev := 'test / interview updated'; det := jsonb_build_object('test_on', new.test_on, 'marks', new.test_marks, 'interview_on', new.interview_on);
+  else return null; end if;
+  insert into public.admission_application_events (school_id, application_id, actor, actor_name, event, details)
+  values (new.school_id, new.id, auth.uid(), coalesce(auth.jwt() ->> 'email', ''), ev, det);
+  return null;
+end $$;
+drop trigger if exists admission_applications_log on public.admission_applications;
+create trigger admission_applications_log after insert or update on public.admission_applications for each row execute function public.log_application();
+
+alter table public.admission_applications enable row level security;
+alter table public.admission_application_events enable row level security;
+alter table public.application_documents enable row level security;
+drop policy if exists "read" on public.admission_applications;
+create policy "read" on public.admission_applications for select to authenticated using (public.has_perm_school(school_id, 'frontdesk.admissions.view'));
+drop policy if exists "edit" on public.admission_applications;
+create policy "edit" on public.admission_applications for update to authenticated
+  using (public.has_perm_school(school_id, 'frontdesk.admissions.edit') or public.has_perm_school(school_id, 'frontdesk.admissions.approve'))
+  with check (public.has_perm_school(school_id, 'frontdesk.admissions.edit') or public.has_perm_school(school_id, 'frontdesk.admissions.approve'));
+-- created only through create_application(); never deleted (cancel instead)
+drop policy if exists "read" on public.admission_application_events;
+create policy "read" on public.admission_application_events for select to authenticated using (public.has_perm_school(school_id, 'frontdesk.admissions.view'));
+drop policy if exists "read" on public.application_documents;
+create policy "read" on public.application_documents for select to authenticated using (public.has_perm_school(school_id, 'frontdesk.admissions.view'));
+drop policy if exists "create" on public.application_documents;
+create policy "create" on public.application_documents for insert to authenticated with check (public.has_perm_school(school_id, 'frontdesk.admissions.create'));
+drop policy if exists "edit" on public.application_documents;
+create policy "edit" on public.application_documents for update to authenticated
+  using (public.has_perm_school(school_id, 'frontdesk.admissions.edit')) with check (public.has_perm_school(school_id, 'frontdesk.admissions.edit'));
+drop policy if exists "delete" on public.application_documents;
+create policy "delete" on public.application_documents for delete to authenticated using (public.has_perm_school(school_id, 'frontdesk.admissions.edit'));
+
+-- ───────────── Admit: application → student ─────────────
+-- helper (not callable by users): create one student's dues from the class fee plans
+create or replace function public.bill_student_dues(sid uuid, stu uuid) returns int
+language plpgsql security definer set search_path = public as $$
+declare cnt int; sess uuid;
+begin
+  select id into sess from public.sessions where school_id = sid and is_current limit 1;
+  if sess is null then return 0; end if;
+  insert into public.fee_dues (school_id, session_id, student_id, fee_plan_id, fee_head_id, label, due_date, amount, concession)
+  select p.school_id, p.session_id, s.id, p.id, p.fee_head_id, h.name || ' · ' || p.label, p.due_date, p.amount,
+         least(p.amount, coalesce((select sum(case when c.kind = 'percent' then p.amount * c.value / 100 else c.value end)
+                                    from public.student_concessions c where c.student_id = s.id and (c.fee_head_id is null or c.fee_head_id = p.fee_head_id)), 0))
+    from public.fee_plans p
+    join public.fee_heads h on h.id = p.fee_head_id
+    join public.students s on s.class_id = p.class_id and s.school_id = p.school_id and s.id = stu and s.status = 'active'
+   where p.school_id = sid and p.session_id = sess
+  on conflict (student_id, fee_plan_id) do nothing;
+  get diagnostics cnt = row_count;
+  return cnt;
+end $$;
+revoke execute on function public.bill_student_dues(uuid, uuid) from public, anon, authenticated;
+
+create or replace function public.admit_application(app uuid, p_class uuid, p_section uuid, p_admission_no text default null,
+                                                    p_admission_date date default null, p_roll int default null)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare a record; f jsonb; sid uuid; stu uuid; adm text; c jsonb; pr jsonb; d record; today date := public.today_ist(); billed int;
+begin
+  select * into a from public.admission_applications where id = app for update;
+  if a.id is null then raise exception 'Application not found.'; end if;
+  sid := a.school_id;
+  if not public.has_perm_school(sid, 'frontdesk.admissions.approve') then raise exception 'not allowed'; end if;
+  if a.status <> 'approved' then raise exception 'Only an approved application can be admitted (this one is %).', a.status; end if;
+  if p_class is null or not exists (select 1 from public.classes where id = p_class and school_id = sid) then raise exception 'Choose the class.'; end if;
+  if p_section is not null and not exists (select 1 from public.sections where id = p_section and class_id = p_class) then raise exception 'The section does not belong to that class.'; end if;
+  f := a.form;
+  adm := nullif(btrim(coalesce(p_admission_no, '')), '');
+  if adm is null then adm := public.next_school_number(sid, 'admission'); end if;
+  insert into public.students (school_id, admission_no, first_name, middle_name, last_name, gender, dob, class_id, section_id, roll_no,
+      father_name, mother_name, guardian_phone, alt_phone, email, address, city, district, block_tehsil, pincode, state, locality_type, mother_tongue, nationality,
+      category, blood_group, permanent_address, previous_school, previous_board, previous_class, name_hi, father_name_hi, mother_name_hi, mobile, street, post_office,
+      religion, caste, medium, bpl, admission_date, admission_class_id, application_no, application_id,
+      admission_category, previous_year_percent, previous_year_days, distance_km)
+  values (sid, adm, btrim(f ->> 'first_name'), nullif(f ->> 'middle_name', ''), nullif(f ->> 'last_name', ''), nullif(f ->> 'gender', ''), nullif(f ->> 'dob', '')::date, p_class, p_section, p_roll,
+      nullif(f ->> 'father_name', ''), nullif(f ->> 'mother_name', ''), nullif(f ->> 'guardian_phone', ''), nullif(f ->> 'alt_phone', ''), nullif(f ->> 'email', ''),
+      nullif(f ->> 'address', ''), nullif(f ->> 'city', ''), nullif(f ->> 'district', ''), nullif(f ->> 'block_tehsil', ''), nullif(f ->> 'pincode', ''), nullif(f ->> 'state', ''),
+      nullif(f ->> 'locality_type', ''), nullif(f ->> 'mother_tongue', ''), coalesce(nullif(f ->> 'nationality', ''), 'Indian'),
+      nullif(f ->> 'category', ''), nullif(f ->> 'blood_group', ''), nullif(f ->> 'permanent_address', ''), nullif(f ->> 'previous_school', ''), nullif(f ->> 'previous_board', ''),
+      nullif(f ->> 'previous_class', ''), nullif(f ->> 'name_hi', ''), nullif(f ->> 'father_name_hi', ''), nullif(f ->> 'mother_name_hi', ''), nullif(f ->> 'mobile', ''),
+      nullif(f ->> 'street', ''), nullif(f ->> 'post_office', ''), nullif(f ->> 'religion', ''), nullif(f ->> 'caste', ''), nullif(f ->> 'medium', ''),
+      nullif(f ->> 'bpl', '')::boolean, coalesce(p_admission_date, today), p_class, a.application_no, a.id,
+      case when a.rte_applicant then 'rte' else nullif(f ->> 'admission_category', '') end,
+      nullif(f ->> 'previous_year_percent', '')::numeric, nullif(f ->> 'previous_year_days', '')::int, nullif(f ->> 'distance_km', '')::numeric)
+  returning id into stu;
+
+  -- restricted tier
+  if f ?| array['pen','apaar_id','aadhaar_enc','allergies','medical_conditions','medication','disability','disability_type','accommodations'] then
+    insert into public.student_sensitive (student_id, school_id, pen, apaar_id, apaar_status, apaar_consent, aadhaar_enc, aadhaar_last4, aadhaar_consent,
+        allergies, medical_conditions, medication, disability, disability_type, disability_percent, accommodations)
+    values (stu, sid, nullif(f ->> 'pen', ''), nullif(f ->> 'apaar_id', ''), coalesce(nullif(f ->> 'apaar_status', ''), 'not_created'),
+        coalesce((f ->> 'apaar_consent')::boolean, false), nullif(f ->> 'aadhaar_enc', ''), nullif(f ->> 'aadhaar_last4', ''),
+        coalesce((f ->> 'aadhaar_consent')::boolean, false), nullif(f ->> 'allergies', ''), nullif(f ->> 'medical_conditions', ''), nullif(f ->> 'medication', ''),
+        nullif(f ->> 'disability', ''), nullif(f ->> 'disability_type', ''), nullif(f ->> 'disability_percent', '')::numeric, nullif(f ->> 'accommodations', ''))
+    on conflict (student_id) do nothing;
+  end if;
+
+  -- guardians / emergency / pickup
+  for c in select * from jsonb_array_elements(coalesce(f -> 'contacts', '[]'::jsonb)) loop
+    declare gid uuid; ph text := nullif(regexp_replace(coalesce(c ->> 'phone', ''), '\D', '', 'g'), '');
+    begin
+      if coalesce(btrim(c ->> 'name'), '') = '' then continue; end if;
+      if ph is not null and length(ph) = 12 and ph like '91%' then ph := substr(ph, 3); end if;
+      if ph is not null and ph !~ '^[6-9][0-9]{9}$' then ph := null; end if;
+      insert into public.guardians (school_id, name, relation, phone, occupation, is_emergency, can_pickup)
+      values (sid, btrim(c ->> 'name'), nullif(c ->> 'relation', ''), ph, nullif(c ->> 'occupation', ''),
+              coalesce((c ->> 'is_emergency')::boolean, false) and ph is not null, coalesce((c ->> 'can_pickup')::boolean, false) and ph is not null)
+      returning id into gid;
+      insert into public.student_guardians (school_id, student_id, guardian_id, is_primary)
+      values (sid, stu, gid, coalesce((c ->> 'is_primary')::boolean, false) and not exists (select 1 from public.student_guardians where student_id = stu and is_primary));
+    end;
+  end loop;
+
+  -- earlier examinations
+  for pr in select * from jsonb_array_elements(coalesce(f -> 'prior', '[]'::jsonb)) loop
+    if (pr ->> 'level') in ('class8','class9_registration','class9','high_school','class11_registration','intermediate','iti','other') then
+      insert into public.student_prior_exams (school_id, student_id, level, board_name, exam_year, roll_no, registration_no, school_name, district_code, school_code, result, percentage)
+      values (sid, stu, pr ->> 'level', nullif(pr ->> 'board_name', ''), nullif(pr ->> 'exam_year', '')::int, nullif(pr ->> 'roll_no', ''), nullif(pr ->> 'registration_no', ''),
+              nullif(pr ->> 'school_name', ''), nullif(pr ->> 'district_code', ''), nullif(pr ->> 'school_code', ''), nullif(pr ->> 'result', ''), nullif(pr ->> 'percentage', '')::numeric)
+      on conflict (student_id, level) do nothing;
+    end if;
+  end loop;
+
+  -- documents (same private files, now attached to the student)
+  for d in select * from public.application_documents where application_id = app loop
+    insert into public.student_documents (school_id, student_id, doc_type, title, status, file_path, file_name, mime_type, size_bytes, due_by, uploaded_by, uploaded_by_name,
+                                          uploaded_at, verified_by, verified_by_name, verified_at, reject_reason, remark)
+    values (sid, stu, d.doc_type, d.title, d.status, d.file_path, d.file_name, d.mime_type, d.size_bytes, d.due_by, d.uploaded_by, d.uploaded_by_name,
+            d.uploaded_at, d.verified_by, d.verified_by_name, d.verified_at, d.reject_reason, d.remark)
+    on conflict (student_id, doc_type) where doc_type <> 'other' do nothing;
+  end loop;
+
+  billed := public.bill_student_dues(sid, stu);
+  if a.enquiry_id is not null then update public.enquiries set status = 'admitted', student_id = stu where id = a.enquiry_id and school_id = sid; end if;
+  perform set_config('app.admitting', '1', true);
+  update public.admission_applications set status = 'admitted', student_id = stu, admitted_on = coalesce(p_admission_date, today), class_id = p_class where id = app;
+  perform set_config('app.admitting', '', true);
+  return stu;
+end $$;
+
+-- seats and demand per class
+create or replace function public.admission_seats(sid uuid, sess uuid) returns table (class_id uuid, seats int, active_students bigint, approved bigint, waitlisted bigint, applications bigint)
+language sql stable set search_path = public as $$
+  select c.id, c.seats,
+         (select count(*) from public.students s where s.class_id = c.id and s.status = 'active'),
+         (select count(*) from public.admission_applications a where a.class_id = c.id and a.session_id = sess and a.status = 'approved'),
+         (select count(*) from public.admission_applications a where a.class_id = c.id and a.session_id = sess and a.status = 'waitlisted'),
+         (select count(*) from public.admission_applications a where a.class_id = c.id and a.session_id = sess and a.status not in ('cancelled'))
+    from public.classes c where c.school_id = sid order by c.sort;
+$$;
+
+-- ═════════════════════════ Audit coverage and masking (extends 0008) ═════════════════════════
+create or replace function public.audit_row() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare o jsonb := case when tg_op <> 'INSERT' then to_jsonb(old) end;
+        n jsonb := case when tg_op <> 'DELETE' then to_jsonb(new) end;
+        diff jsonb := '{}'; k text; sid uuid;
+        masked text[] := case tg_table_name
+          when 'students' then array['portal_token','notes','address','permanent_address','street','email','alt_phone','guardian_phone','mobile','blood_group']
+          when 'guardians' then array['phone','occupation']
+          when 'student_sensitive' then array['allergies','medical_conditions','medication','disability','accommodations','doctor_name','doctor_phone','internal_notes','identity_note','aadhaar_enc','aadhaar_last4']
+          when 'student_documents' then array['file_path','file_name']
+          when 'application_documents' then array['file_path','file_name']
+          when 'admission_applications' then array['form','phone']
+          when 'staff' then array['pan','uan','bank_account','ifsc','bank_name','address','phone','email']
+          else array[]::text[] end;
+begin
+  if tg_op = 'UPDATE' then
+    for k in select jsonb_object_keys(n) loop
+      if k not in ('updated_at','marked_at') and (o -> k) is distinct from (n -> k) then
+        diff := diff || jsonb_build_object(k, case when k = any(masked) then jsonb_build_array('•', '•') else jsonb_build_array(o -> k, n -> k) end);
+      end if;
+    end loop;
+    if diff = '{}' then return new; end if;
+  end if;
+  sid := coalesce((coalesce(n, o) ->> 'school_id')::uuid, case when tg_table_name = 'schools' then (coalesce(n, o) ->> 'id')::uuid end);
+  perform public.log_event(lower(tg_op), sid, tg_table_name, coalesce(coalesce(n, o) ->> 'id', coalesce(n, o) ->> 'student_id'),
+    case when tg_op = 'UPDATE' then jsonb_build_object('changed', diff)
+         when tg_op = 'DELETE' then jsonb_build_object('row', o - masked)
+         else jsonb_build_object('row', n - masked) end);
+  return coalesce(new, old);
+end $$;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['admission_applications','application_documents','student_prior_exams','student_board_subjects','classes'] loop
+    execute format('drop trigger if exists audit_%1$s on public.%1$I', t);
+    execute format('create trigger audit_%1$s after insert or update or delete on public.%1$I for each row execute function public.audit_row()', t);
+  end loop;
+end $$;
+
+-- new permission keys for schools that already exist (only adds what is missing)
+insert into public.role_permissions (role_id, perm_key, scope)
+select r.id, t.perm_key, t.scope
+  from public.roles r
+  join public.role_template_permissions t on t.template_code = r.template_code
+ where t.perm_key like 'frontdesk.admissions.%'
+on conflict (role_id, perm_key) do nothing;
+
+-- Helpers that only other (security definer) functions and triggers call: not exposed to the API.
+-- (A security-definer function with no permission check is callable by anyone with the API key.)
+revoke execute on function public.build_board_snapshot(uuid, uuid) from public, anon, authenticated;
+revoke execute on function public.open_enrolment(public.students) from public, anon, authenticated;
+revoke execute on function public.lwp_days(uuid, date, date) from public, anon, authenticated;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Step 9: (a) public online admission form for parents, (b) Documents & templates:
+--         school-editable templates (TC, bonafide, character, study, ID cards, letters …),
+--         versioned, rendered in the database and issued with numbers; bulk ID cards.
+-- Safe to run again.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- ═════════════════════════ (a) Online admission ═════════════════════════
+create table if not exists public.online_admission_settings (
+  school_id      uuid primary key references public.schools(id) on delete cascade,
+  enabled        boolean not null default false,
+  class_ids      uuid[] not null default '{}',          -- classes open for online applications (empty = all)
+  intro          text,
+  instructions   text,
+  fee_note       text,
+  closes_on      date,
+  ask_documents  boolean not null default true,
+  updated_by     uuid default auth.uid() references auth.users(id) on delete set null,
+  updated_at     timestamptz not null default now()
+);
+drop trigger if exists online_admission_settings_touch on public.online_admission_settings;
+create trigger online_admission_settings_touch before update on public.online_admission_settings for each row execute function public.touch_row();
+
+-- abuse control for the public form / status lookup (no policies: only the functions touch it)
+create table if not exists public.online_submissions (
+  id         bigint generated always as identity primary key,
+  school_id  uuid not null references public.schools(id) on delete cascade,
+  kind       text not null default 'apply' check (kind in ('apply','status')),
+  ip_hash    text,
+  phone      text,
+  application_id uuid references public.admission_applications(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+create index if not exists online_submissions_idx on public.online_submissions (school_id, kind, created_at desc);
+
+alter table public.online_admission_settings enable row level security;
+alter table public.online_submissions enable row level security;
+drop policy if exists "read" on public.online_admission_settings;
+create policy "read" on public.online_admission_settings for select to authenticated using (public.has_perm_school(school_id, 'frontdesk.online_form.view'));
+drop policy if exists "write" on public.online_admission_settings;
+create policy "write" on public.online_admission_settings for all to authenticated
+  using (public.has_perm_school(school_id, 'frontdesk.online_form.edit')) with check (public.has_perm_school(school_id, 'frontdesk.online_form.edit'));
+
+-- the numbering / duplicate / enquiry logic of 0010 as an internal function, so staff and the public form share it
+create or replace function public.create_application_core(sid uuid, p_class uuid, p_enquiry uuid, p_form jsonb, p_rte boolean, p_rte_ref text, p_source text, p_session uuid)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare sess uuid := coalesce(p_session, (select id from public.sessions where school_id = sid and is_current limit 1));
+        sname text; n int; num text; nm text; dup text; aid uuid; f jsonb := coalesce(p_form, '{}'::jsonb);
+begin
+  if coalesce(btrim(f ->> 'first_name'), '') = '' then raise exception 'The student''s first name is required.'; end if;
+  if p_class is not null and not exists (select 1 from public.classes where id = p_class and school_id = sid) then raise exception 'Class not found.'; end if;
+  if p_enquiry is not null and not exists (select 1 from public.enquiries where id = p_enquiry and school_id = sid) then raise exception 'Enquiry not found.'; end if;
+  nm := btrim(concat_ws(' ', f ->> 'first_name', f ->> 'middle_name', f ->> 'last_name'));
+  select application_no into dup from public.admission_applications
+   where school_id = sid and session_id is not distinct from sess and status not in ('cancelled','rejected')
+     and lower(applicant_name) = lower(nm) and coalesce(form ->> 'dob', '') = coalesce(f ->> 'dob', '') and coalesce(lower(father_name), '') = coalesce(lower(f ->> 'father_name'), '')
+   limit 1;
+  if dup is not null and coalesce((f ->> 'allow_duplicate')::boolean, false) is not true then
+    raise exception 'An application for the same student already exists (no. %).', dup;
+  end if;
+  select coalesce((select name from public.sessions where id = sess), 'NA') into sname;
+  insert into public.certificate_counters (school_id, kind, session_name, next_no) values (sid, 'application', sname, 2)
+  on conflict (school_id, kind, session_name) do update set next_no = public.certificate_counters.next_no + 1 returning next_no - 1 into n;
+  num := 'APP/' || sname || '/' || lpad(n::text, 4, '0');
+  insert into public.admission_applications (school_id, application_no, session_id, class_id, enquiry_id, applicant_name, father_name, phone, form, rte_applicant, rte_reference, source)
+  values (sid, num, sess, p_class, p_enquiry, nm, nullif(btrim(f ->> 'father_name'), ''), nullif(btrim(f ->> 'guardian_phone'), ''), f - 'allow_duplicate', coalesce(p_rte, false),
+          nullif(btrim(coalesce(p_rte_ref, '')), ''), nullif(btrim(coalesce(p_source, '')), ''))
+  returning id into aid;
+  if p_enquiry is not null then update public.enquiries set status = case when status in ('new','contacted','visited') then 'test' else status end where id = p_enquiry and school_id = sid; end if;
+  return aid;
+end $$;
+revoke execute on function public.create_application_core(uuid, uuid, uuid, jsonb, boolean, text, text, uuid) from public, anon, authenticated;
+
+create or replace function public.create_application(sid uuid, p_class uuid, p_enquiry uuid, p_form jsonb, p_rte boolean default false,
+                                                     p_rte_ref text default null, p_source text default null, p_session uuid default null)
+returns uuid language plpgsql security definer set search_path = public as $$
+begin
+  if not public.has_perm_school(sid, 'frontdesk.admissions.create') then raise exception 'not allowed'; end if;
+  return public.create_application_core(sid, p_class, p_enquiry, p_form, p_rte, p_rte_ref, p_source, p_session);
+end $$;
+
+-- called only by the app server with the secret key
+create or replace function public.public_create_application(p_code text, p_class uuid, p_form jsonb, p_rte boolean, p_ip_hash text)
+returns json language plpgsql security definer set search_path = public as $$
+declare sid uuid; st record; aid uuid; no text; ph text := nullif(regexp_replace(coalesce(p_form ->> 'guardian_phone', ''), '\D', '', 'g'), '');
+begin
+  select id into sid from public.schools where code = lower(btrim(p_code)) and archived_at is null;
+  if sid is null then raise exception 'School not found.'; end if;
+  select * into st from public.online_admission_settings where school_id = sid;
+  if st.school_id is null or not st.enabled then raise exception 'Online admission is not open for this school.'; end if;
+  if st.closes_on is not null and st.closes_on < public.today_ist() then raise exception 'Online admission closed on %.', to_char(st.closes_on, 'DD Mon YYYY'); end if;
+  if cardinality(st.class_ids) > 0 and not (p_class = any(st.class_ids)) then raise exception 'That class is not open for online admission.'; end if;
+  if not public.school_writable(sid) then raise exception 'This school is not accepting applications right now.'; end if;
+  if ph is null or ph !~ '^(91)?[6-9][0-9]{9}$' then raise exception 'A valid 10-digit parent mobile number is required.'; end if;
+  if (select count(*) from public.online_submissions where school_id = sid and kind = 'apply' and ip_hash = p_ip_hash and created_at > now() - interval '1 hour') >= 5 then
+    raise exception 'Too many forms from this network. Please try again in an hour.';
+  end if;
+  if (select count(*) from public.online_submissions where school_id = sid and kind = 'apply' and phone = right(ph, 10) and created_at > now() - interval '1 day') >= 4 then
+    raise exception 'This mobile number has already submitted several forms today.';
+  end if;
+  aid := public.create_application_core(sid, p_class, null, p_form, p_rte, null, 'Online', null);
+  insert into public.online_submissions (school_id, kind, ip_hash, phone, application_id) values (sid, 'apply', p_ip_hash, right(ph, 10), aid);
+  select application_no into no from public.admission_applications where id = aid;
+  return json_build_object('id', aid, 'application_no', no, 'school_id', sid);
+end $$;
+revoke execute on function public.public_create_application(text, uuid, jsonb, boolean, text) from public, anon, authenticated;
+grant execute on function public.public_create_application(text, uuid, jsonb, boolean, text) to service_role;
+
+-- parents track their application with the application number + the mobile number they gave
+create or replace function public.public_application_status(p_code text, p_no text, p_phone text, p_ip_hash text)
+returns json language plpgsql security definer set search_path = public as $$
+declare sid uuid; a record; ph text := right(regexp_replace(coalesce(p_phone, ''), '\D', '', 'g'), 10); docs json;
+begin
+  select id into sid from public.schools where code = lower(btrim(p_code));
+  if sid is null then return null; end if;
+  if (select count(*) from public.online_submissions where school_id = sid and kind = 'status' and ip_hash = p_ip_hash and created_at > now() - interval '1 hour') >= 20 then
+    raise exception 'Too many lookups. Please try again later.';
+  end if;
+  insert into public.online_submissions (school_id, kind, ip_hash) values (sid, 'status', p_ip_hash);
+  select * into a from public.admission_applications where school_id = sid and upper(application_no) = upper(btrim(p_no));
+  if a.id is null or ph !~ '^[6-9][0-9]{9}$' or right(regexp_replace(coalesce(a.phone, ''), '\D', '', 'g'), 10) <> ph then return null; end if;
+  select coalesce(json_agg(json_build_object('doc_type', doc_type, 'status', status, 'due_by', due_by, 'reason', reject_reason)), '[]'::json) into docs
+    from public.application_documents where application_id = a.id;
+  return json_build_object('application_no', a.application_no, 'name', a.applicant_name, 'status', a.status, 'applied_on', a.applied_on,
+    'class', (select name from public.classes where id = a.class_id), 'test_on', a.test_on, 'interview_on', a.interview_on, 'waitlist_no', a.waitlist_no,
+    'decision_note', case when a.status = 'rejected' then null else a.decision_note end, 'documents', docs, 'school', (select name from public.schools where id = sid));
+end $$;
+revoke execute on function public.public_application_status(text, text, text, text) from public, anon, authenticated;
+grant execute on function public.public_application_status(text, text, text, text) to service_role;
+
+-- ═════════════════════════ (b) Documents & templates ═════════════════════════
+create or replace function public.sanitize_template_html(h text) returns text
+language plpgsql immutable as $$
+begin
+  h := coalesce(h, '');
+  h := regexp_replace(h, '<\s*(script|iframe|object|embed|style|link|meta|base|form|input|button|textarea|svg|math)\y[^>]*>.*?<\s*/\s*\1\s*>', '', 'gis');
+  h := regexp_replace(h, '<\s*/?\s*(script|iframe|object|embed|style|link|meta|base|form|input|button|textarea|svg|math)\y[^>]*>', '', 'gi');
+  h := regexp_replace(h, '\son[a-z]+\s*=\s*("[^"]*"|''[^'']*''|[^\s>]+)', '', 'gi');
+  h := regexp_replace(h, 'javascript\s*:', '', 'gi');
+  h := regexp_replace(h, 'vbscript\s*:', '', 'gi');
+  h := regexp_replace(h, 'expression\s*\(', '', 'gi');
+  h := regexp_replace(h, '@import', '', 'gi');
+  return h;
+end $$;
+
+create table if not exists public.document_templates (
+  id              uuid primary key default gen_random_uuid(),
+  school_id       uuid not null references public.schools(id) on delete cascade,
+  code            text not null check (code ~ '^[a-z0-9_]{2,40}$'),
+  name            text not null check (length(btrim(name)) > 0),
+  category        text not null default 'certificate' check (category in ('certificate','id_card','letter','other')),
+  audience        text not null default 'student' check (audience in ('student','staff')),
+  body_html       text not null default '',
+  page_size       text not null default 'A4' check (page_size in ('A4','A5','card')),
+  orientation     text not null default 'portrait' check (orientation in ('portrait','landscape')),
+  card_width_mm   int check (card_width_mm is null or card_width_mm between 30 and 300),
+  card_height_mm  int check (card_height_mm is null or card_height_mm between 30 and 300),
+  numbering_prefix text not null default 'DOC' check (numbering_prefix ~ '^[A-Za-z0-9]{1,8}$'),
+  on_issue        text not null default 'none' check (on_issue in ('none','mark_transferred')),
+  one_per_student boolean not null default false,
+  valid_days      int check (valid_days is null or valid_days between 1 and 3650),
+  fields          jsonb not null default '[]' check (jsonb_typeof(fields) = 'array'),   -- [{key,label,type text|date|number,required}]
+  active          boolean not null default true,
+  is_system       boolean not null default false,
+  version         int not null default 1,
+  created_by      uuid default auth.uid() references auth.users(id) on delete set null,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now(),
+  unique (school_id, code)
+);
+
+create table if not exists public.document_template_versions (
+  id          uuid primary key default gen_random_uuid(),
+  template_id uuid not null references public.document_templates(id) on delete cascade,
+  school_id   uuid not null references public.schools(id) on delete cascade,
+  version     int not null,
+  name        text,
+  body_html   text not null,
+  fields      jsonb not null default '[]',
+  changed_by  uuid default auth.uid() references auth.users(id) on delete set null,
+  changed_at  timestamptz not null default now(),
+  unique (template_id, version)
+);
+
+create or replace function public.template_guard() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  new.body_html := public.sanitize_template_html(new.body_html);
+  if tg_op = 'UPDATE' then
+    if new.body_html is distinct from old.body_html or new.fields is distinct from old.fields then new.version := old.version + 1; else new.version := old.version; end if;
+    new.updated_at := now();
+    new.code := old.code; new.school_id := old.school_id;
+  end if;
+  return new;
+end $$;
+drop trigger if exists document_templates_guard on public.document_templates;
+create trigger document_templates_guard before insert or update on public.document_templates for each row execute function public.template_guard();
+
+create or replace function public.template_version_log() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if tg_op = 'INSERT' or new.version is distinct from old.version then
+    insert into public.document_template_versions (template_id, school_id, version, name, body_html, fields, changed_by)
+    values (new.id, new.school_id, new.version, new.name, new.body_html, new.fields, auth.uid()) on conflict (template_id, version) do nothing;
+  end if;
+  return null;
+end $$;
+drop trigger if exists document_templates_version on public.document_templates;
+create trigger document_templates_version after insert or update on public.document_templates for each row execute function public.template_version_log();
+
+create table if not exists public.issued_documents (
+  id               uuid primary key default gen_random_uuid(),
+  school_id        uuid not null references public.schools(id) on delete cascade,
+  template_id      uuid references public.document_templates(id) on delete set null,
+  template_code    text not null,
+  template_name    text not null,
+  template_version int not null,
+  category         text not null,
+  audience         text not null,
+  student_id       uuid references public.students(id) on delete cascade,
+  staff_id         uuid references public.staff(id) on delete cascade,
+  doc_no           text not null,
+  issued_on        date not null default public.today_ist(),
+  valid_until      date,
+  is_duplicate     boolean not null default false,
+  data             jsonb not null default '{}',
+  html             text not null,
+  page_size        text not null default 'A4',
+  orientation      text not null default 'portrait',
+  card_width_mm    int,
+  card_height_mm   int,
+  status           text not null default 'issued' check (status in ('issued','cancelled')),
+  cancelled_reason text,
+  cancelled_at     timestamptz,
+  cancelled_by     uuid references auth.users(id) on delete set null,
+  issued_by        uuid default auth.uid() references auth.users(id) on delete set null,
+  issued_by_name   text,
+  created_at       timestamptz not null default now(),
+  unique (school_id, doc_no),
+  check (num_nonnulls(student_id, staff_id) = 1)
+);
+create index if not exists issued_documents_student_idx on public.issued_documents (school_id, student_id);
+create index if not exists issued_documents_template_idx on public.issued_documents (school_id, template_code, created_at desc);
+
+-- small SQL helpers for rendering
+create or replace function public.number_words(n int) returns text
+language plpgsql immutable as $$
+declare o text[] := array['Zero','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+        t text[] := array['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+begin
+  if n < 20 then return o[n + 1]; end if;
+  if n < 100 then return t[n / 10 + 1] || case when n % 10 > 0 then '-' || o[n % 10 + 1] else '' end; end if;
+  if n < 1000 then return o[n / 100 + 1] || ' Hundred' || case when n % 100 > 0 then ' ' || public.number_words(n % 100) else '' end; end if;
+  return public.number_words(n / 1000) || ' Thousand' || case when n % 1000 > 0 then ' ' || public.number_words(n % 1000) else '' end;
+end $$;
+
+create or replace function public.date_words(d date) returns text
+language sql immutable as $$
+  select case when d is null then '' else
+    to_char(d, 'DD/MM/YYYY') || ' (' ||
+    (array['First','Second','Third','Fourth','Fifth','Sixth','Seventh','Eighth','Ninth','Tenth','Eleventh','Twelfth','Thirteenth','Fourteenth','Fifteenth','Sixteenth','Seventeenth','Eighteenth','Nineteenth','Twentieth',
+           'Twenty-first','Twenty-second','Twenty-third','Twenty-fourth','Twenty-fifth','Twenty-sixth','Twenty-seventh','Twenty-eighth','Twenty-ninth','Thirtieth','Thirty-first'])[extract(day from d)::int]
+    || ' ' || trim(to_char(d, 'Month')) || ', ' || public.number_words(extract(year from d)::int) || ')' end;
+$$;
+
+create or replace function public.html_escape(t text) returns text
+language sql immutable as $$
+  select replace(replace(replace(replace(replace(coalesce(t, ''), '&', '&amp;'), '<', '&lt;'), '>', '&gt;'), '"', '&quot;'), '''', '&#39;');
+$$;
+
+-- {{a.b}} → value (HTML-escaped). Special: {{student.photo}} and {{school.logo}} become <img> tags.
+create or replace function public.render_document(body text, data jsonb) returns text
+language plpgsql immutable as $$
+declare out text := regexp_replace(coalesce(body, ''), '\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}', '{{\1}}', 'g'); k text; v text;
+begin
+  for k in select distinct t.m[1] from regexp_matches(out, '\{\{([a-zA-Z0-9_.]+)\}\}', 'g') as t(m) loop
+    v := data #>> string_to_array(k, '.');
+    if k = 'student.photo' then
+      out := replace(out, '{{' || k || '}}', '<img class="doc-photo" data-photo="1" src="" alt="Photograph" style="width:100%;height:100%;object-fit:cover">');
+    elsif k = 'school.logo' then
+      out := replace(out, '{{' || k || '}}', case when v ~* '^https://' then '<img class="doc-logo" src="' || public.html_escape(v) || '" alt="Logo" style="width:100%;height:100%;object-fit:contain">' else '' end);
+    else
+      out := replace(out, '{{' || k || '}}', public.html_escape(v));
+    end if;
+  end loop;
+  return out;
+end $$;
+
+-- the data a template can use (built on the server from the records, never from the browser)
+create or replace function public.document_data(sid uuid, stu uuid, stf uuid, doc_no text, on_day date, valid_until date, p_extra jsonb)
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare s record; w record; sc record; sess record; owed numeric; d jsonb;
+begin
+  select * into sc from public.schools where id = sid;
+  select name, start_date, end_date into sess from public.sessions where school_id = sid and is_current limit 1;
+  d := jsonb_build_object(
+    'school', jsonb_build_object('name', sc.name, 'address', sc.address, 'city', sc.city, 'state', sc.state, 'pincode', sc.pincode, 'phone', sc.phone, 'email', sc.email,
+      'board', sc.board, 'affiliation_no', sc.affiliation_no, 'udise_code', sc.udise_code, 'principal_name', sc.principal_name, 'logo', sc.logo_url),
+    'doc', jsonb_build_object('no', doc_no, 'date', to_char(on_day, 'DD/MM/YYYY'), 'session', sess.name, 'valid_until', case when valid_until is null then '' else to_char(valid_until, 'DD/MM/YYYY') end),
+    'extra', coalesce(p_extra, '{}'::jsonb));
+  if stu is not null then
+    select st.*, c.name as cname, sec.name as sname, ac.name as acname,
+           ss.apaar_id as apaar, ss.apaar_status as apaar_status
+      into s from public.students st
+      left join public.classes c on c.id = st.class_id left join public.sections sec on sec.id = st.section_id
+      left join public.classes ac on ac.id = st.admission_class_id left join public.student_sensitive ss on ss.student_id = st.id
+     where st.id = stu and st.school_id = sid;
+    if s.id is null then raise exception 'Student not found.'; end if;
+    select coalesce(sum(greatest(amount - concession + fine - paid, 0)), 0) into owed from public.fee_dues where student_id = stu and school_id = sid;
+    d := d || jsonb_build_object(
+      'student', jsonb_build_object(
+        'name', btrim(concat_ws(' ', s.first_name, s.middle_name, s.last_name)), 'first_name', s.first_name, 'last_name', s.last_name, 'name_hi', s.name_hi,
+        'admission_no', s.admission_no, 'roll_no', s.roll_no, 'class', s.cname, 'section', s.sname, 'class_section', s.cname || coalesce('-' || s.sname, ''),
+        'father_name', s.father_name, 'father_name_hi', s.father_name_hi, 'mother_name', s.mother_name, 'mother_name_hi', s.mother_name_hi,
+        'dob', to_char(s.dob, 'DD/MM/YYYY'), 'dob_words', public.date_words(s.dob),
+        'gender', case s.gender when 'M' then 'Male' when 'F' then 'Female' when 'O' then 'Other' else '' end,
+        'son_daughter', case s.gender when 'F' then 'daughter' when 'M' then 'son' else 'ward' end,
+        'he_she', case s.gender when 'F' then 'she' when 'M' then 'he' else 'the student' end,
+        'his_her', case s.gender when 'F' then 'her' when 'M' then 'his' else 'the' end,
+        'category', s.category, 'religion', s.religion, 'caste', s.caste, 'nationality', coalesce(s.nationality, 'Indian'), 'blood_group', s.blood_group,
+        'address', btrim(concat_ws(', ', s.street, s.address, s.city, s.post_office, s.block_tehsil, s.district, s.state, s.pincode)), 'permanent_address', s.permanent_address,
+        'phone', s.guardian_phone, 'guardian_phone', s.guardian_phone, 'mobile', s.mobile, 'email', s.email,
+        'admission_date', to_char(s.admission_date, 'DD/MM/YYYY'), 'admission_class', s.acname,
+        'apaar_id', case when s.apaar_status in ('generated','verified') then s.apaar else null end,
+        'tc_no', s.tc_no,
+        'transport_route', (select r.name from public.transport_allocations a join public.transport_routes r on r.id = a.route_id where a.student_id = stu and a.end_date is null limit 1),
+        'transport_stop', (select p.name from public.transport_allocations a join public.transport_stops p on p.id = a.stop_id where a.student_id = stu and a.end_date is null limit 1)),
+      'dues', jsonb_build_object('outstanding', owed, 'text', case when owed > 0 then 'Rs. ' || owed::text || ' outstanding' else 'All dues cleared' end));
+  end if;
+  if stf is not null then
+    select * into w from public.staff where id = stf and school_id = sid;
+    if w.id is null then raise exception 'Staff member not found.'; end if;
+    d := d || jsonb_build_object('staff', jsonb_build_object('name', w.name, 'designation', w.designation, 'department', w.department, 'emp_code', w.emp_code,
+        'phone', w.phone, 'email', w.email, 'joining_date', to_char(w.joining_date, 'DD/MM/YYYY'), 'leaving_date', to_char(w.leaving_date, 'DD/MM/YYYY'),
+        'qualification', w.qualification, 'dob', to_char(w.dob, 'DD/MM/YYYY')));
+  end if;
+  return d;
+end $$;
+revoke execute on function public.document_data(uuid, uuid, uuid, text, date, date, jsonb) from public, anon, authenticated;
+
+-- issue one document
+create or replace function public.issue_document(sid uuid, tpl uuid, stu uuid, stf uuid, p_issued_on date, p_extra jsonb default '{}', p_mark_left boolean default false, p_by text default null)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare t record; sname text; n int; num text; on_day date := coalesce(p_issued_on, public.today_ist()); valid date; dup boolean := coalesce((p_extra ->> 'duplicate')::boolean, false);
+        prev text; d jsonb; html text; allowed text[]; k text; ex jsonb := '{}'; cid uuid; st record;
+begin
+  if not public.has_perm_school(sid, 'documents.issue.create') then raise exception 'not allowed'; end if;
+  select * into t from public.document_templates where id = tpl and school_id = sid;
+  if t.id is null then raise exception 'Template not found.'; end if;
+  if not t.active then raise exception 'This template is switched off.'; end if;
+  if (t.audience = 'student' and (stu is null or stf is not null)) or (t.audience = 'staff' and (stf is null or stu is not null)) then
+    raise exception 'This template is for % only.', t.audience;
+  end if;
+  if on_day > public.today_ist() then raise exception 'The issue date cannot be in the future.'; end if;
+  -- only the fields the template declares (plus a few standard ones) are accepted from the form
+  allowed := array['reason','remarks','last_exam','result','promotion','conduct','working_days','days_present','left_on']
+             || coalesce((select array_agg(f ->> 'key') from jsonb_array_elements(t.fields) f), '{}');
+  for k in select jsonb_object_keys(coalesce(p_extra, '{}'::jsonb)) loop
+    if k = any(allowed) then ex := ex || jsonb_build_object(k, left(coalesce(p_extra ->> k, ''), 300)); end if;
+  end loop;
+  -- required custom fields
+  for k in select f ->> 'key' from jsonb_array_elements(t.fields) f where coalesce((f ->> 'required')::boolean, false) loop
+    if coalesce(btrim(ex ->> k), '') = '' then raise exception 'Fill in: %.', coalesce((select f ->> 'label' from jsonb_array_elements(t.fields) f where f ->> 'key' = k limit 1), k); end if;
+  end loop;
+
+  if t.one_per_student then
+    select doc_no into prev from public.issued_documents
+     where school_id = sid and template_code = t.code and status = 'issued' and not is_duplicate and student_id is not distinct from stu and staff_id is not distinct from stf order by created_at limit 1;
+    if prev is not null and not dup then raise exception 'Already issued (no. %). Tick "Duplicate copy" to issue another.', prev; end if;
+    if prev is null then dup := false; end if;
+  else
+    dup := false;
+  end if;
+
+  select coalesce((select name from public.sessions where school_id = sid and is_current limit 1), 'NA') into sname;
+  insert into public.certificate_counters (school_id, kind, session_name, next_no) values (sid, 'doc:' || t.code, sname, 2)
+  on conflict (school_id, kind, session_name) do update set next_no = public.certificate_counters.next_no + 1 returning next_no - 1 into n;
+  num := t.numbering_prefix || '/' || sname || '/' || lpad(n::text, 4, '0') || case when dup then '-D' else '' end;
+  valid := case when t.valid_days is not null then on_day + t.valid_days else null end;
+  if valid is null and t.category = 'id_card' then valid := (select end_date from public.sessions where school_id = sid and is_current limit 1); end if;
+
+  d := public.document_data(sid, stu, stf, num, on_day, valid, ex);
+  html := public.render_document(t.body_html, d);
+
+  insert into public.issued_documents (school_id, template_id, template_code, template_name, template_version, category, audience, student_id, staff_id, doc_no, issued_on, valid_until,
+      is_duplicate, data, html, page_size, orientation, card_width_mm, card_height_mm, issued_by_name)
+  values (sid, t.id, t.code, t.name, t.version, t.category, t.audience, stu, stf, num, on_day, valid, dup, d, html, t.page_size, t.orientation, t.card_width_mm, t.card_height_mm, p_by)
+  returning id into cid;
+
+  if t.on_issue = 'mark_transferred' and stu is not null then
+    select status into st from public.students where id = stu;
+    if p_mark_left and st.status = 'active' then
+      update public.students set status = 'transferred', left_on = coalesce(nullif(ex ->> 'left_on', '')::date, on_day),
+             left_reason = coalesce(nullif(ex ->> 'reason', ''), 'Transfer certificate issued'), tc_no = num, tc_issued_on = on_day where id = stu;
+    elsif not dup then
+      update public.students set tc_no = num, tc_issued_on = on_day where id = stu;
+    end if;
+  end if;
+  return cid;
+end $$;
+
+-- ID cards etc. for a whole class / section / all staff in one go (skips people who already have a live one)
+create or replace function public.issue_documents_bulk(sid uuid, tpl uuid, p_class uuid, p_section uuid, p_by text default null)
+returns int language plpgsql security definer set search_path = public as $$
+declare t record; r record; cnt int := 0;
+begin
+  if not public.has_perm_school(sid, 'documents.issue.create') then raise exception 'not allowed'; end if;
+  select * into t from public.document_templates where id = tpl and school_id = sid and active;
+  if t.id is null then raise exception 'Template not found.'; end if;
+  if t.one_per_student then raise exception 'Documents of this type are issued one by one (they need a reason or details).'; end if;
+  if t.audience = 'student' then
+    if p_class is null then raise exception 'Choose the class.'; end if;
+    for r in select s.id from public.students s where s.school_id = sid and s.status = 'active' and s.class_id = p_class and (p_section is null or s.section_id = p_section)
+              and not exists (select 1 from public.issued_documents i where i.template_code = t.code and i.student_id = s.id and i.status = 'issued')
+              order by s.roll_no nulls last, s.first_name limit 3000 loop
+      perform public.issue_document(sid, tpl, r.id, null, null, '{}', false, p_by); cnt := cnt + 1;
+    end loop;
+  else
+    for r in select w.id from public.staff w where w.school_id = sid and w.status = 'active'
+              and not exists (select 1 from public.issued_documents i where i.template_code = t.code and i.staff_id = w.id and i.status = 'issued')
+              order by w.name limit 3000 loop
+      perform public.issue_document(sid, tpl, null, r.id, null, '{}', false, p_by); cnt := cnt + 1;
+    end loop;
+  end if;
+  return cnt;
+end $$;
+
+create or replace function public.preview_document(tpl uuid, stu uuid, stf uuid) returns text
+language plpgsql stable security definer set search_path = public as $$
+declare t record;
+begin
+  select * into t from public.document_templates where id = tpl;
+  if t.id is null or not (public.has_perm_school(t.school_id, 'documents.templates.view') or public.has_perm_school(t.school_id, 'documents.issue.create')) then raise exception 'not allowed'; end if;
+  return public.render_document(t.body_html, public.document_data(t.school_id, stu, stf, 'PREVIEW', public.today_ist(), null,
+         (select coalesce(jsonb_object_agg(f ->> 'key', '[' || (f ->> 'label') || ']'), '{}'::jsonb) from jsonb_array_elements(t.fields) f)
+         || jsonb_build_object('reason', '[reason]', 'remarks', '[remarks]', 'last_exam', '[last exam]', 'result', '[result]', 'promotion', '[promotion]', 'conduct', 'Good',
+                               'working_days', '[days]', 'days_present', '[days]', 'left_on', to_char(public.today_ist(), 'DD/MM/YYYY'))));
+end $$;
+
+create or replace function public.cancel_issued_document(did uuid, p_reason text) returns void
+language plpgsql security definer set search_path = public as $$
+declare d record;
+begin
+  select * into d from public.issued_documents where id = did;
+  if d.id is null then raise exception 'Document not found.'; end if;
+  if not public.has_perm_school(d.school_id, 'documents.issue.approve') then raise exception 'not allowed'; end if;
+  if coalesce(btrim(p_reason), '') = '' then raise exception 'Write the reason for cancelling.'; end if;
+  if d.status = 'cancelled' then raise exception 'Already cancelled.'; end if;
+  update public.issued_documents set status = 'cancelled', cancelled_reason = btrim(p_reason), cancelled_at = now(), cancelled_by = auth.uid() where id = did;
+end $$;
+
+alter table public.document_templates enable row level security;
+alter table public.document_template_versions enable row level security;
+alter table public.issued_documents enable row level security;
+drop policy if exists "read" on public.document_templates;
+create policy "read" on public.document_templates for select to authenticated
+  using (public.has_perm_school(school_id, 'documents.templates.view') or public.has_perm_school(school_id, 'documents.issue.view') or public.has_perm_school(school_id, 'documents.issue.create'));
+drop policy if exists "create" on public.document_templates;
+create policy "create" on public.document_templates for insert to authenticated with check (public.has_perm_school(school_id, 'documents.templates.create'));
+drop policy if exists "edit" on public.document_templates;
+create policy "edit" on public.document_templates for update to authenticated
+  using (public.has_perm_school(school_id, 'documents.templates.edit')) with check (public.has_perm_school(school_id, 'documents.templates.edit'));
+drop policy if exists "delete" on public.document_templates;
+create policy "delete" on public.document_templates for delete to authenticated using (public.has_perm_school(school_id, 'documents.templates.delete') and not is_system);
+drop policy if exists "read" on public.document_template_versions;
+create policy "read" on public.document_template_versions for select to authenticated using (public.has_perm_school(school_id, 'documents.templates.view'));
+drop policy if exists "read" on public.issued_documents;
+create policy "read" on public.issued_documents for select to authenticated using (public.has_perm_school(school_id, 'documents.issue.view'));
+-- issued only through issue_document() / issue_documents_bulk(); cancelled only through cancel_issued_document()
+
+-- ───────────── default templates ─────────────
+create or replace function public.seed_templates_internal(sid uuid) returns int
+language plpgsql security definer set search_path = public as $$
+declare cnt int := 0; hdr text := $h$<div style="text-align:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:10px"><div style="width:60px;height:60px;margin:0 auto 4px">{{school.logo}}</div><div style="font-size:22px;font-weight:800;text-transform:uppercase">{{school.name}}</div><div style="font-size:12px">{{school.address}}, {{school.city}} {{school.pincode}}</div><div style="font-size:12px">{{school.board}} · Aff. No. {{school.affiliation_no}} · UDISE {{school.udise_code}} · {{school.phone}}</div></div>$h$;
+        ftr text := $f$<div style="display:flex;justify-content:space-between;margin-top:70px;font-size:13px"><span>Prepared by</span><span style="text-align:center">Principal<br><small>(signature &amp; school seal)</small></span></div>$f$;
+begin
+  insert into public.document_templates (school_id, code, name, category, audience, body_html, numbering_prefix, on_issue, one_per_student, fields, is_system) values
+  (sid, 'transfer_certificate', 'Transfer certificate (TC)', 'certificate', 'student',
+   '<div style="font-size:14px;line-height:1.7">' || hdr || $b$<div style="display:flex;justify-content:space-between;font-size:13px"><span>No.: <b>{{doc.no}}</b></span><span>Date: <b>{{doc.date}}</b></span></div>
+<h2 style="text-align:center;text-decoration:underline;text-transform:uppercase;margin:14px 0">Transfer Certificate</h2>
+<table style="width:100%;border-collapse:collapse;font-size:13.5px">
+<tr><td style="border:1px solid #000;padding:4px 8px;width:40px">1</td><td style="border:1px solid #000;padding:4px 8px;width:42%">Name of the student</td><td style="border:1px solid #000;padding:4px 8px"><b>{{student.name}}</b></td></tr>
+<tr><td style="border:1px solid #000;padding:4px 8px">2</td><td style="border:1px solid #000;padding:4px 8px">Admission no.</td><td style="border:1px solid #000;padding:4px 8px"><b>{{student.admission_no}}</b></td></tr>
+<tr><td style="border:1px solid #000;padding:4px 8px">3</td><td style="border:1px solid #000;padding:4px 8px">Father's / guardian's name</td><td style="border:1px solid #000;padding:4px 8px"><b>{{student.father_name}}</b></td></tr>
+<tr><td style="border:1px solid #000;padding:4px 8px">4</td><td style="border:1px solid #000;padding:4px 8px">Mother's name</td><td style="border:1px solid #000;padding:4px 8px"><b>{{student.mother_name}}</b></td></tr>
+<tr><td style="border:1px solid #000;padding:4px 8px">5</td><td style="border:1px solid #000;padding:4px 8px">Nationality / category</td><td style="border:1px solid #000;padding:4px 8px"><b>{{student.nationality}} / {{student.category}}</b></td></tr>
+<tr><td style="border:1px solid #000;padding:4px 8px">6</td><td style="border:1px solid #000;padding:4px 8px">Date of birth (as per school record)</td><td style="border:1px solid #000;padding:4px 8px"><b>{{student.dob_words}}</b></td></tr>
+<tr><td style="border:1px solid #000;padding:4px 8px">7</td><td style="border:1px solid #000;padding:4px 8px">Date of admission / class at admission</td><td style="border:1px solid #000;padding:4px 8px"><b>{{student.admission_date}} / {{student.admission_class}}</b></td></tr>
+<tr><td style="border:1px solid #000;padding:4px 8px">8</td><td style="border:1px solid #000;padding:4px 8px">Class in which last studied</td><td style="border:1px solid #000;padding:4px 8px"><b>{{student.class_section}}</b></td></tr>
+<tr><td style="border:1px solid #000;padding:4px 8px">9</td><td style="border:1px solid #000;padding:4px 8px">Last examination passed / result</td><td style="border:1px solid #000;padding:4px 8px"><b>{{extra.last_exam}} {{extra.result}}</b></td></tr>
+<tr><td style="border:1px solid #000;padding:4px 8px">10</td><td style="border:1px solid #000;padding:4px 8px">Whether qualified for promotion</td><td style="border:1px solid #000;padding:4px 8px"><b>{{extra.promotion}}</b></td></tr>
+<tr><td style="border:1px solid #000;padding:4px 8px">11</td><td style="border:1px solid #000;padding:4px 8px">Fee dues</td><td style="border:1px solid #000;padding:4px 8px"><b>{{dues.text}}</b></td></tr>
+<tr><td style="border:1px solid #000;padding:4px 8px">12</td><td style="border:1px solid #000;padding:4px 8px">Date of leaving / reason</td><td style="border:1px solid #000;padding:4px 8px"><b>{{extra.left_on}} — {{extra.reason}}</b></td></tr>
+<tr><td style="border:1px solid #000;padding:4px 8px">13</td><td style="border:1px solid #000;padding:4px 8px">Working days / days present</td><td style="border:1px solid #000;padding:4px 8px"><b>{{extra.working_days}} / {{extra.days_present}}</b></td></tr>
+<tr><td style="border:1px solid #000;padding:4px 8px">14</td><td style="border:1px solid #000;padding:4px 8px">General conduct</td><td style="border:1px solid #000;padding:4px 8px"><b>{{extra.conduct}}</b></td></tr>
+<tr><td style="border:1px solid #000;padding:4px 8px">15</td><td style="border:1px solid #000;padding:4px 8px">APAAR ID / remarks</td><td style="border:1px solid #000;padding:4px 8px"><b>{{student.apaar_id}} {{extra.remarks}}</b></td></tr>
+</table>$b$ || ftr || '</div>', 'TC', 'mark_transferred', true,
+   '[{"key":"last_exam","label":"Last examination passed","type":"text"},{"key":"result","label":"Result","type":"text"},{"key":"promotion","label":"Promotion","type":"text"},{"key":"reason","label":"Reason for leaving","type":"text","required":true},{"key":"left_on","label":"Date of leaving","type":"date"},{"key":"working_days","label":"Working days","type":"number"},{"key":"days_present","label":"Days present","type":"number"},{"key":"conduct","label":"Conduct","type":"text"},{"key":"remarks","label":"Remarks","type":"text"}]'::jsonb, true),
+  (sid, 'bonafide_certificate', 'Bonafide certificate', 'certificate', 'student',
+   '<div style="font-size:15px;line-height:2">' || hdr || $b$<div style="display:flex;justify-content:space-between;font-size:13px"><span>No.: <b>{{doc.no}}</b></span><span>Date: <b>{{doc.date}}</b></span></div>
+<h2 style="text-align:center;text-decoration:underline;text-transform:uppercase;margin:16px 0">Bonafide Certificate</h2>
+<p style="text-align:justify">This is to certify that <b>{{student.name}}</b>, {{student.son_daughter}} of <b>{{student.father_name}}</b>, is a bonafide student of this school, studying in Class <b>{{student.class_section}}</b> in the session <b>{{doc.session}}</b> (Admission no. {{student.admission_no}}). As per the school record {{student.his_her}} date of birth is <b>{{student.dob_words}}</b>. {{extra.remarks}}</p>$b$ || ftr || '</div>', 'BC', 'none', false,
+   '[{"key":"remarks","label":"Purpose / remarks","type":"text"}]'::jsonb, true),
+  (sid, 'character_certificate', 'Character certificate', 'certificate', 'student',
+   '<div style="font-size:15px;line-height:2">' || hdr || $b$<div style="display:flex;justify-content:space-between;font-size:13px"><span>No.: <b>{{doc.no}}</b></span><span>Date: <b>{{doc.date}}</b></span></div>
+<h2 style="text-align:center;text-decoration:underline;text-transform:uppercase;margin:16px 0">Character Certificate</h2>
+<p style="text-align:justify">This is to certify that <b>{{student.name}}</b>, {{student.son_daughter}} of <b>{{student.father_name}}</b> (Admission no. {{student.admission_no}}) has been a student of this school since {{student.admission_date}} and is studying in Class <b>{{student.class_section}}</b>. To the best of my knowledge {{student.he_she}} bears a <b>{{extra.conduct}}</b> moral character and {{student.his_her}} conduct has been <b>{{extra.conduct}}</b>. {{extra.remarks}}</p>$b$ || ftr || '</div>', 'CC', 'none', false,
+   '[{"key":"conduct","label":"Conduct","type":"text"},{"key":"remarks","label":"Remarks","type":"text"}]'::jsonb, true),
+  (sid, 'study_certificate', 'Study certificate', 'certificate', 'student',
+   '<div style="font-size:15px;line-height:2">' || hdr || $b$<div style="display:flex;justify-content:space-between;font-size:13px"><span>No.: <b>{{doc.no}}</b></span><span>Date: <b>{{doc.date}}</b></span></div>
+<h2 style="text-align:center;text-decoration:underline;text-transform:uppercase;margin:16px 0">Study Certificate</h2>
+<p style="text-align:justify">This is to certify that <b>{{student.name}}</b>, {{student.son_daughter}} of <b>{{student.father_name}}</b> (Admission no. {{student.admission_no}}) is studying in Class <b>{{student.class_section}}</b> of this school in the session <b>{{doc.session}}</b>. {{extra.remarks}}</p>$b$ || ftr || '</div>', 'SC', 'none', false,
+   '[{"key":"remarks","label":"Remarks","type":"text"}]'::jsonb, true),
+  (sid, 'no_dues_certificate', 'No-dues certificate', 'certificate', 'student',
+   '<div style="font-size:15px;line-height:2">' || hdr || $b$<div style="display:flex;justify-content:space-between;font-size:13px"><span>No.: <b>{{doc.no}}</b></span><span>Date: <b>{{doc.date}}</b></span></div>
+<h2 style="text-align:center;text-decoration:underline;text-transform:uppercase;margin:16px 0">No Dues Certificate</h2>
+<p style="text-align:justify">This is to certify that <b>{{student.name}}</b>, {{student.son_daughter}} of <b>{{student.father_name}}</b> (Admission no. {{student.admission_no}}, Class {{student.class_section}}) — school fee status on {{doc.date}}: <b>{{dues.text}}</b>. {{extra.remarks}}</p>$b$ || ftr || '</div>', 'ND', 'none', false,
+   '[{"key":"remarks","label":"Remarks","type":"text"}]'::jsonb, true),
+  (sid, 'admission_letter', 'Admission confirmation letter', 'letter', 'student',
+   '<div style="font-size:15px;line-height:1.9">' || hdr || $b$<div style="display:flex;justify-content:space-between;font-size:13px"><span>Ref.: <b>{{doc.no}}</b></span><span>Date: <b>{{doc.date}}</b></span></div>
+<p>To,<br>{{student.father_name}}<br>{{student.address}}</p>
+<p><b>Subject: Confirmation of admission</b></p>
+<p style="text-align:justify">Dear Parent, we are pleased to confirm the admission of <b>{{student.name}}</b> to Class <b>{{student.class_section}}</b> for the session <b>{{doc.session}}</b>. Admission no.: <b>{{student.admission_no}}</b>. Please complete the formalities and fee payment as advised by the school office.</p>$b$ || ftr || '</div>', 'AL', 'none', false, '[]'::jsonb, true),
+  (sid, 'student_id_card', 'Student ID card', 'id_card', 'student',
+   $c$<div style="width:86mm;height:54mm;box-sizing:border-box;border:1px solid #1e3a8a;border-radius:6px;overflow:hidden;font-family:Arial,sans-serif;font-size:9px;line-height:1.35;color:#111;background:#fff">
+<div style="background:#1e3a8a;color:#fff;padding:3px 6px;display:flex;align-items:center;gap:6px"><div style="width:9mm;height:9mm;background:#fff;border-radius:3px">{{school.logo}}</div><div><div style="font-size:11px;font-weight:700">{{school.name}}</div><div style="font-size:7.5px">{{school.city}} · {{school.phone}}</div></div></div>
+<div style="display:flex;gap:6px;padding:5px 6px"><div style="width:20mm;height:25mm;border:1px solid #999;flex:none">{{student.photo}}</div>
+<div style="flex:1"><div style="font-size:11px;font-weight:700">{{student.name}}</div>
+<div>Class: <b>{{student.class_section}}</b> · Roll: <b>{{student.roll_no}}</b></div><div>Adm. no.: <b>{{student.admission_no}}</b></div><div>S/D of: {{student.father_name}}</div><div>DOB: {{student.dob}} · Blood: {{student.blood_group}}</div><div>Ph: {{student.phone}}</div></div></div>
+<div style="display:flex;justify-content:space-between;padding:0 6px;font-size:7.5px"><span>Valid upto: {{doc.valid_until}}</span><span>Principal</span></div></div>$c$,
+   'ID', 'none', false, '[]'::jsonb, true),
+  (sid, 'staff_id_card', 'Staff ID card', 'id_card', 'staff',
+   $c$<div style="width:86mm;height:54mm;box-sizing:border-box;border:1px solid #14532d;border-radius:6px;overflow:hidden;font-family:Arial,sans-serif;font-size:9px;line-height:1.4;color:#111;background:#fff">
+<div style="background:#14532d;color:#fff;padding:3px 6px;display:flex;align-items:center;gap:6px"><div style="width:9mm;height:9mm;background:#fff;border-radius:3px">{{school.logo}}</div><div><div style="font-size:11px;font-weight:700">{{school.name}}</div><div style="font-size:7.5px">{{school.city}} · {{school.phone}}</div></div></div>
+<div style="padding:8px 8px"><div style="font-size:12px;font-weight:700">{{staff.name}}</div><div>{{staff.designation}} · {{staff.department}}</div><div>Emp. code: <b>{{staff.emp_code}}</b></div><div>Phone: {{staff.phone}}</div><div>Joined: {{staff.joining_date}}</div></div>
+<div style="display:flex;justify-content:space-between;padding:0 8px;font-size:7.5px"><span>Valid upto: {{doc.valid_until}}</span><span>Principal</span></div></div>$c$,
+   'SID', 'none', false, '[]'::jsonb, true),
+  (sid, 'experience_certificate', 'Experience certificate (staff)', 'certificate', 'staff',
+   '<div style="font-size:15px;line-height:2">' || hdr || $b$<div style="display:flex;justify-content:space-between;font-size:13px"><span>No.: <b>{{doc.no}}</b></span><span>Date: <b>{{doc.date}}</b></span></div>
+<h2 style="text-align:center;text-decoration:underline;text-transform:uppercase;margin:16px 0">Experience Certificate</h2>
+<p style="text-align:justify">This is to certify that <b>{{staff.name}}</b> worked in this school as <b>{{staff.designation}}</b> ({{staff.department}}) from <b>{{staff.joining_date}}</b> to <b>{{staff.leaving_date}}</b>. {{extra.remarks}} We wish {{staff.name}} all the best.</p>$b$ || ftr || '</div>', 'EXP', 'none', true,
+   '[{"key":"remarks","label":"Remarks","type":"text"}]'::jsonb, true)
+  on conflict (school_id, code) do nothing;
+  get diagnostics cnt = row_count;
+  update public.document_templates set page_size = 'card', card_width_mm = 86, card_height_mm = 54, valid_days = null
+   where school_id = sid and code in ('student_id_card', 'staff_id_card') and card_width_mm is null;
+  return cnt;
+end $$;
+revoke execute on function public.seed_templates_internal(uuid) from public, anon, authenticated;
+
+create or replace function public.seed_document_templates(sid uuid) returns int
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.has_perm_school(sid, 'documents.templates.create') then raise exception 'not allowed'; end if;
+  return public.seed_templates_internal(sid);
+end $$;
+
+create or replace function public.seed_templates_on_school() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin perform public.seed_templates_internal(new.id); return null; end $$;
+drop trigger if exists schools_seed_templates on public.schools;
+create trigger schools_seed_templates after insert on public.schools for each row execute function public.seed_templates_on_school();
+
+select public.seed_templates_internal(id) from public.schools;
+
+-- every plan includes the new module
+update public.plans set modules = array_append(modules, 'documents') where not ('documents' = any(modules));
+insert into public.school_modules (school_id, module_code, licensed, enabled)
+select s.id, 'documents', true, true from public.schools s on conflict do nothing;
+
+-- audit
+do $$
+declare t text;
+begin
+  foreach t in array array['online_admission_settings','document_templates','issued_documents'] loop
+    execute format('drop trigger if exists audit_%1$s on public.%1$I', t);
+    execute format('create trigger audit_%1$s after insert or update or delete on public.%1$I for each row execute function public.audit_row()', t);
+  end loop;
+end $$;
+
+-- new permission keys for schools that already exist
+insert into public.role_permissions (role_id, perm_key, scope)
+select r.id, t.perm_key, t.scope
+  from public.roles r
+  join public.role_template_permissions t on t.template_code = r.template_code
+ where t.perm_key like 'documents.%' or t.perm_key like 'frontdesk.online_form.%'
+on conflict (role_id, perm_key) do nothing;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Step 10: Fees 2.0 — every way a school manages fees.
+--   billing   : deposit heads, ad-hoc charges, due-date extension, waiver, amount change, arrears carry-forward
+--   concession: categories, approval workflow, validity window
+--   late fine : school rule (per day / per month / flat, grace, cap), automatic, waivable
+--   collection: choose instalments, split modes, cheques, advance / wallet, day-end closing
+--   cheques   : register with deposit / clear / bounce
+--   refunds   : request → approve → pay (wallet, deposits, withdrawal)
+--   online    : orders + automatic receipt on payment (Razorpay, school's own account)
+--   reports   : collection by day / head / class / mode / collector, ageing
+-- Safe to run again.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- ───────────── Settings ─────────────
+create table if not exists public.fee_settings (
+  school_id            uuid primary key references public.schools(id) on delete cascade,
+  fine_enabled         boolean not null default false,
+  fine_mode            text not null default 'per_day' check (fine_mode in ('per_day','per_month','flat')),
+  fine_amount          numeric(10,2) not null default 0 check (fine_amount >= 0),
+  fine_grace_days      int not null default 0 check (fine_grace_days >= 0),
+  fine_cap             numeric(10,2) not null default 0 check (fine_cap >= 0),     -- 0 = no cap
+  concession_approval  boolean not null default false,    -- requests by staff wait for the principal
+  advance_allowed      boolean not null default true,     -- take more than is due (kept as a wallet balance)
+  bounce_charge        numeric(10,2) not null default 0 check (bounce_charge >= 0),
+  online_enabled       boolean not null default false,
+  online_min_amount    numeric(10,2) not null default 1 check (online_min_amount >= 0),
+  online_allow_partial boolean not null default true,
+  receipt_footer       text,
+  updated_by           uuid default auth.uid() references auth.users(id) on delete set null,
+  updated_at           timestamptz not null default now()
+);
+drop trigger if exists fee_settings_touch on public.fee_settings;
+create trigger fee_settings_touch before update on public.fee_settings for each row execute function public.touch_row();
+
+-- ───────────── Column additions ─────────────
+alter table public.fee_heads add column if not exists kind text not null default 'regular' check (kind in ('regular','deposit','other'));
+alter table public.fee_heads add column if not exists active boolean not null default true;
+
+alter table public.fee_dues add column if not exists fine_auto numeric(10,2) not null default 0 check (fine_auto >= 0);
+alter table public.fee_dues add column if not exists fine_waived numeric(10,2) not null default 0 check (fine_waived >= 0);
+alter table public.fee_dues add column if not exists kind text not null default 'plan' check (kind in ('plan','charge','arrears','bounce'));
+alter table public.fee_dues add column if not exists note text;
+alter table public.fee_dues add column if not exists original_due_date date;
+
+alter table public.student_concessions
+  add column if not exists category text not null default 'other' check (category in ('rte','staff_ward','sibling','merit','sports','hardship','other')),
+  add column if not exists status text not null default 'approved' check (status in ('pending','approved','rejected')),
+  add column if not exists requested_by uuid default auth.uid() references auth.users(id) on delete set null,
+  add column if not exists decided_by uuid references auth.users(id) on delete set null,
+  add column if not exists decided_at timestamptz,
+  add column if not exists decision_note text,
+  add column if not exists valid_from date,
+  add column if not exists valid_to date,
+  add column if not exists created_at timestamptz not null default now();
+
+alter table public.fee_receipts drop constraint if exists fee_receipts_mode_check;
+alter table public.fee_receipts add constraint fee_receipts_mode_check check (mode in ('cash','upi','cheque','bank_transfer','card','online','mixed','wallet'));
+alter table public.fee_receipts add column if not exists advance_amount numeric(10,2) not null default 0 check (advance_amount >= 0);
+alter table public.fee_receipts add column if not exists wallet_used numeric(10,2) not null default 0 check (wallet_used >= 0);
+alter table public.fee_receipts drop constraint if exists fee_receipts_amount_check;
+alter table public.fee_receipts add constraint fee_receipts_amount_check check (amount >= 0);
+
+-- ───────────── Money trail tables ─────────────
+create table if not exists public.fee_receipt_payments (
+  id         uuid primary key default gen_random_uuid(),
+  school_id  uuid not null references public.schools(id) on delete cascade,
+  receipt_id uuid not null references public.fee_receipts(id) on delete cascade,
+  mode       text not null check (mode in ('cash','upi','cheque','bank_transfer','card','online')),
+  amount     numeric(10,2) not null check (amount > 0),
+  reference  text
+);
+create index if not exists fee_receipt_payments_receipt_idx on public.fee_receipt_payments (receipt_id);
+-- receipts made before this step get one payment row each
+insert into public.fee_receipt_payments (school_id, receipt_id, mode, amount, reference)
+select r.school_id, r.id, r.mode, r.amount, r.reference from public.fee_receipts r
+ where r.mode in ('cash','upi','cheque','bank_transfer','card','online') and r.amount > 0
+   and not exists (select 1 from public.fee_receipt_payments p where p.receipt_id = r.id);
+
+create table if not exists public.fee_wallet_entries (
+  id         uuid primary key default gen_random_uuid(),
+  school_id  uuid not null references public.schools(id) on delete cascade,
+  student_id uuid not null references public.students(id) on delete cascade,
+  kind       text not null check (kind in ('advance','applied','reversal','refund','adjust')),
+  amount     numeric(10,2) not null check (amount <> 0),     -- + credit / − debit
+  receipt_id uuid references public.fee_receipts(id) on delete set null,
+  note       text,
+  created_by text,
+  created_at timestamptz not null default now()
+);
+create index if not exists fee_wallet_student_idx on public.fee_wallet_entries (student_id);
+
+create table if not exists public.fee_cheques (
+  id           uuid primary key default gen_random_uuid(),
+  school_id    uuid not null references public.schools(id) on delete cascade,
+  receipt_id   uuid not null references public.fee_receipts(id) on delete cascade,
+  student_id   uuid not null references public.students(id) on delete cascade,
+  cheque_no    text not null,
+  bank         text,
+  cheque_date  date,
+  amount       numeric(10,2) not null check (amount > 0),
+  status       text not null default 'received' check (status in ('received','deposited','cleared','bounced')),
+  deposited_on date, cleared_on date, bounced_on date,
+  bounce_reason text,
+  bounce_charge numeric(10,2) not null default 0,
+  created_at   timestamptz not null default now()
+);
+create index if not exists fee_cheques_status_idx on public.fee_cheques (school_id, status);
+
+create table if not exists public.fee_adjustments (
+  id         uuid primary key default gen_random_uuid(),
+  school_id  uuid not null references public.schools(id) on delete cascade,
+  due_id     uuid references public.fee_dues(id) on delete cascade,
+  student_id uuid not null references public.students(id) on delete cascade,
+  kind       text not null check (kind in ('reversal','waiver','carried','extension','amount_change','fine_waiver')),
+  amount     numeric(10,2) not null default 0,
+  old_value  text, new_value text,
+  reason     text not null,
+  created_by uuid default auth.uid() references auth.users(id) on delete set null,
+  created_by_name text,
+  created_at timestamptz not null default now()
+);
+create index if not exists fee_adjustments_due_idx on public.fee_adjustments (due_id);
+
+create table if not exists public.fee_refunds (
+  id           uuid primary key default gen_random_uuid(),
+  school_id    uuid not null references public.schools(id) on delete cascade,
+  student_id   uuid not null references public.students(id) on delete cascade,
+  amount       numeric(10,2) not null check (amount > 0),
+  reason       text not null,
+  status       text not null default 'requested' check (status in ('requested','approved','paid','rejected')),
+  mode         text check (mode in ('cash','upi','cheque','bank_transfer')),
+  reference    text,
+  requested_by uuid default auth.uid() references auth.users(id) on delete set null,
+  requested_by_name text,
+  decided_by   uuid references auth.users(id) on delete set null,
+  decided_at   timestamptz,
+  decision_note text,
+  paid_on      date,
+  created_at   timestamptz not null default now()
+);
+create index if not exists fee_refunds_idx on public.fee_refunds (school_id, status);
+
+create table if not exists public.fee_day_close (
+  id            uuid primary key default gen_random_uuid(),
+  school_id     uuid not null references public.schools(id) on delete cascade,
+  day           date not null,
+  collector     text not null,
+  expected_cash numeric(12,2) not null,
+  counted_cash  numeric(12,2) not null,
+  difference    numeric(12,2) generated always as (counted_cash - expected_cash) stored,
+  note          text,
+  closed_by     uuid default auth.uid() references auth.users(id) on delete set null,
+  closed_at     timestamptz not null default now(),
+  unique (school_id, day, collector)
+);
+
+create table if not exists public.fee_online_orders (
+  id          uuid primary key default gen_random_uuid(),
+  school_id   uuid not null references public.schools(id) on delete cascade,
+  student_id  uuid not null references public.students(id) on delete cascade,
+  amount      numeric(10,2) not null check (amount > 0),
+  status      text not null default 'created' check (status in ('created','paid','failed','expired','cancelled')),
+  provider    text not null default 'razorpay',
+  link_id     text,
+  link_url    text,
+  payment_id  text,
+  due_ids     uuid[],
+  receipt_id  uuid references public.fee_receipts(id) on delete set null,
+  error       text,
+  created_at  timestamptz not null default now(),
+  paid_at     timestamptz
+);
+create unique index if not exists fee_online_orders_payment on public.fee_online_orders (school_id, payment_id) where payment_id is not null;
+create unique index if not exists fee_online_orders_link on public.fee_online_orders (link_id) where link_id is not null;
+create index if not exists fee_online_orders_idx on public.fee_online_orders (school_id, status, created_at desc);
+
+-- ───────────── recalc: reversals reduce what was paid ─────────────
+create or replace function public.recalc_due(did uuid) returns void
+language sql security definer set search_path = public as $$
+  update public.fee_dues d set paid = greatest(coalesce((
+      select sum(l.amount) from public.fee_receipt_lines l join public.fee_receipts r on r.id = l.receipt_id
+       where l.due_id = did and not r.cancelled), 0)
+    - coalesce((select sum(a.amount) from public.fee_adjustments a where a.due_id = did and a.kind = 'reversal'), 0), 0)
+  where d.id = did;
+$$;
+revoke execute on function public.recalc_due(uuid) from public, anon, authenticated;
+
+create or replace function public.wallet_balance(stu uuid) returns numeric
+language sql stable security definer set search_path = public as $$
+  select coalesce(sum(amount), 0) from public.fee_wallet_entries
+   where student_id = stu and (public.can_student(school_id, 'fees.collection.view', student_id) or public.is_service());
+$$;
+
+-- ───────────── Concessions: approval workflow + only approved ones are billed ─────────────
+create or replace function public.concession_guard() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare need boolean; actor boolean := auth.uid() is not null and not public.is_service();
+begin
+  if tg_op = 'INSERT' then
+    select coalesce(concession_approval, false) into need from public.fee_settings where school_id = new.school_id;
+    if actor and coalesce(need, false) and not public.has_perm_school(new.school_id, 'fees.concessions.approve') then
+      new.status := 'pending'; new.decided_by := null; new.decided_at := null;
+    elsif new.status = 'approved' then new.decided_by := auth.uid(); new.decided_at := now();
+    end if;
+    if new.status = 'rejected' then new.status := 'pending'; end if;
+  elsif new.status is distinct from old.status then
+    if actor and not public.has_perm_school(new.school_id, 'fees.concessions.approve') then raise exception 'Only the principal can approve or reject concessions.'; end if;
+    new.decided_by := auth.uid(); new.decided_at := now();
+  end if;
+  if new.valid_from is not null and new.valid_to is not null and new.valid_to < new.valid_from then raise exception 'The end date is before the start date.'; end if;
+  return new;
+end $$;
+drop trigger if exists student_concessions_guard on public.student_concessions;
+create trigger student_concessions_guard before insert or update on public.student_concessions for each row execute function public.concession_guard();
+
+drop policy if exists "edit" on public.student_concessions;
+create policy "edit" on public.student_concessions for update to authenticated
+  using (public.has_perm_school(school_id, 'fees.concessions.approve')) with check (public.has_perm_school(school_id, 'fees.concessions.approve'));
+
+-- the concession on one instalment, from approved concessions valid on its due date
+create or replace function public.concession_for(stu uuid, head uuid, amt numeric, due date) returns numeric
+language sql stable security definer set search_path = public as $$
+  select least(amt, coalesce(sum(case when c.kind = 'percent' then amt * c.value / 100 else c.value end), 0))
+    from public.student_concessions c
+   where c.student_id = stu and c.status = 'approved' and (c.fee_head_id is null or c.fee_head_id = head)
+     and (c.valid_from is null or c.valid_from <= due) and (c.valid_to is null or c.valid_to >= due);
+$$;
+revoke execute on function public.concession_for(uuid, uuid, numeric, date) from public, anon, authenticated;
+
+create or replace function public.generate_dues(sid uuid, sess uuid, cls uuid default null) returns int
+language plpgsql security definer set search_path = public as $$
+declare cnt int;
+begin
+  if not public.has_perm_school(sid, 'fees.dues.create') then raise exception 'not allowed'; end if;
+  insert into public.fee_dues (school_id, session_id, student_id, fee_plan_id, fee_head_id, label, due_date, amount, concession)
+  select p.school_id, p.session_id, s.id, p.id, p.fee_head_id, h.name || ' · ' || p.label, p.due_date, p.amount,
+         public.concession_for(s.id, p.fee_head_id, p.amount, p.due_date)
+  from public.fee_plans p
+  join public.fee_heads h on h.id = p.fee_head_id
+  join public.students s on s.class_id = p.class_id and s.school_id = p.school_id and s.status = 'active'
+  where p.school_id = sid and p.session_id = sess and (cls is null or p.class_id = cls)
+  on conflict (student_id, fee_plan_id) do nothing;
+  get diagnostics cnt = row_count;
+  return cnt;
+end $$;
+
+create or replace function public.bill_student_dues(sid uuid, stu uuid) returns int
+language plpgsql security definer set search_path = public as $$
+declare cnt int; sess uuid;
+begin
+  select id into sess from public.sessions where school_id = sid and is_current limit 1;
+  if sess is null then return 0; end if;
+  insert into public.fee_dues (school_id, session_id, student_id, fee_plan_id, fee_head_id, label, due_date, amount, concession)
+  select p.school_id, p.session_id, s.id, p.id, p.fee_head_id, h.name || ' · ' || p.label, p.due_date, p.amount,
+         public.concession_for(s.id, p.fee_head_id, p.amount, p.due_date)
+    from public.fee_plans p
+    join public.fee_heads h on h.id = p.fee_head_id
+    join public.students s on s.class_id = p.class_id and s.school_id = p.school_id and s.id = stu and s.status = 'active'
+   where p.school_id = sid and p.session_id = sess
+  on conflict (student_id, fee_plan_id) do nothing;
+  get diagnostics cnt = row_count;
+  return cnt;
+end $$;
+revoke execute on function public.bill_student_dues(uuid, uuid) from public, anon, authenticated;
+
+create or replace function public.generate_transport_dues(sid uuid, sess uuid, p_label text, p_due date, p_months numeric default 1) returns int
+language plpgsql security definer set search_path = public as $$
+declare head uuid; cnt int; k text;
+begin
+  if not public.has_perm_school(sid, 'fees.dues.create') then raise exception 'not allowed'; end if;
+  if coalesce(trim(p_label), '') = '' or p_due is null then raise exception 'Label and due date are required.'; end if;
+  if p_months is null or p_months <= 0 or p_months > 12 then raise exception 'Months must be between 1 and 12.'; end if;
+  if not exists (select 1 from public.sessions where id = sess and school_id = sid) then raise exception 'Session not found.'; end if;
+  select id into head from public.fee_heads where school_id = sid and name = 'Transport Fee';
+  if head is null then insert into public.fee_heads (school_id, name, sort) values (sid, 'Transport Fee', 50) returning id into head; end if;
+  k := 'transport:' || sess || ':' || lower(trim(p_label));
+  insert into public.fee_dues (school_id, session_id, student_id, fee_head_id, label, due_date, amount, concession, source_key)
+  select sid, sess, x.student_id, head, 'Transport Fee · ' || trim(p_label), p_due, x.amt, public.concession_for(x.student_id, head, x.amt, p_due), k
+    from (select a.student_id, round(coalesce(a.monthly_fee, st.monthly_fee) * p_months, 2) as amt
+            from public.transport_allocations a
+            join public.transport_stops st on st.id = a.stop_id
+            join public.students s on s.id = a.student_id and s.status = 'active'
+           where a.school_id = sid and a.session_id = sess and a.start_date <= p_due and (a.end_date is null or a.end_date >= p_due)) x
+   where x.amt > 0
+  on conflict (student_id, source_key) where source_key is not null do nothing;
+  get diagnostics cnt = row_count;
+  return cnt;
+end $$;
+
+-- recompute concessions on a student's unpaid instalments (waivers / carried amounts are kept)
+create or replace function public.reapply_concessions(sid uuid, stu uuid) returns int
+language plpgsql security definer set search_path = public as $$
+declare cnt int;
+begin
+  if not (public.has_perm_school(sid, 'fees.concessions.create') or public.has_perm_school(sid, 'fees.concessions.approve')) then raise exception 'not allowed'; end if;
+  update public.fee_dues d
+     set concession = least(d.amount, public.concession_for(d.student_id, d.fee_head_id, d.amount, d.due_date)
+                         + coalesce((select sum(a.amount) from public.fee_adjustments a where a.due_id = d.id and a.kind in ('waiver','carried')), 0))
+   where d.student_id = stu and d.school_id = sid and d.status <> 'paid' and d.kind = 'plan';
+  get diagnostics cnt = row_count;
+  return cnt;
+end $$;
+
+-- ───────────── Late fine ─────────────
+create or replace function public.apply_late_fines_core(sid uuid, stu uuid, on_day date) returns int
+language plpgsql security definer set search_path = public as $$
+declare st record; cnt int := 0;
+begin
+  select * into st from public.fee_settings where school_id = sid;
+  if st.school_id is null or not st.fine_enabled or st.fine_amount <= 0 then return 0; end if;
+  with calc as (
+    select d.id, d.fine_auto, d.fine_waived,
+           greatest(on_day - d.due_date - st.fine_grace_days, 0) as late
+      from public.fee_dues d
+     where d.school_id = sid and d.status <> 'paid' and d.kind in ('plan','charge') and d.due_date < on_day and (stu is null or d.student_id = stu)
+  ), amt as (
+    select id, fine_auto,
+           greatest(case when late <= 0 then 0
+                         when st.fine_mode = 'per_day' then late * st.fine_amount
+                         when st.fine_mode = 'per_month' then ceil(late / 30.0) * st.fine_amount
+                         else st.fine_amount end, 0) as raw, fine_waived
+      from calc
+  ), capped as (
+    select id, fine_auto, greatest(least(case when st.fine_cap > 0 then least(raw, st.fine_cap) else raw end, raw) - fine_waived, 0) as want from amt
+  ), up as (
+    update public.fee_dues d set fine = d.fine - d.fine_auto + c.want, fine_auto = c.want
+      from capped c where d.id = c.id and c.want > c.fine_auto returning d.id
+  )
+  select count(*) into cnt from up;
+  return cnt;
+end $$;
+revoke execute on function public.apply_late_fines_core(uuid, uuid, date) from public, anon, authenticated;
+
+create or replace function public.apply_late_fines(sid uuid, on_day date default null) returns int
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.has_perm_school(sid, 'fees.dues.create') then raise exception 'not allowed'; end if;
+  return public.apply_late_fines_core(sid, null, coalesce(on_day, public.today_ist()));
+end $$;
+
+-- run by the daily job (service role only)
+create or replace function public.apply_late_fines_all(on_day date default null) returns int
+language plpgsql security definer set search_path = public as $$
+declare s record; n int := 0;
+begin
+  if not public.is_service() then raise exception 'not allowed'; end if;
+  for s in select school_id from public.fee_settings where fine_enabled loop
+    n := n + public.apply_late_fines_core(s.school_id, null, coalesce(on_day, public.today_ist()));
+  end loop;
+  return n;
+end $$;
+revoke execute on function public.apply_late_fines_all(date) from public, anon, authenticated;
+grant execute on function public.apply_late_fines_all(date) to service_role;
+
+-- ───────────── Waive / adjust / extend / charge / carry forward ─────────────
+create or replace function public.waive_due(did uuid, p_amount numeric, p_reason text) returns void
+language plpgsql security definer set search_path = public as $$
+declare d record;
+begin
+  select * into d from public.fee_dues where id = did;
+  if d.id is null then raise exception 'Instalment not found.'; end if;
+  if not public.has_perm_school(d.school_id, 'fees.concessions.approve') then raise exception 'not allowed'; end if;
+  if coalesce(btrim(p_reason), '') = '' then raise exception 'Write the reason.'; end if;
+  if p_amount is null or p_amount <= 0 then raise exception 'Enter the amount to waive.'; end if;
+  if p_amount > greatest(d.amount - d.concession + d.fine - d.paid, 0) then raise exception 'You can waive at most the unpaid balance (%).', greatest(d.amount - d.concession + d.fine - d.paid, 0); end if;
+  update public.fee_dues set concession = concession + p_amount where id = did;
+  insert into public.fee_adjustments (school_id, due_id, student_id, kind, amount, reason, created_by_name) values (d.school_id, did, d.student_id, 'waiver', p_amount, btrim(p_reason), coalesce(auth.jwt() ->> 'email', ''));
+end $$;
+
+create or replace function public.waive_fine(did uuid, p_amount numeric, p_reason text) returns void
+language plpgsql security definer set search_path = public as $$
+declare d record; take numeric;
+begin
+  select * into d from public.fee_dues where id = did;
+  if d.id is null then raise exception 'Instalment not found.'; end if;
+  if not public.has_perm_school(d.school_id, 'fees.concessions.approve') then raise exception 'not allowed'; end if;
+  if coalesce(btrim(p_reason), '') = '' then raise exception 'Write the reason.'; end if;
+  take := least(coalesce(p_amount, d.fine), d.fine, greatest(d.amount - d.concession + d.fine - d.paid, 0));
+  if take is null or take <= 0 then raise exception 'There is no unpaid fine on this instalment.'; end if;
+  update public.fee_dues set fine = fine - take, fine_auto = greatest(fine_auto - take, 0), fine_waived = fine_waived + take where id = did;
+  insert into public.fee_adjustments (school_id, due_id, student_id, kind, amount, reason, created_by_name) values (d.school_id, did, d.student_id, 'fine_waiver', take, btrim(p_reason), coalesce(auth.jwt() ->> 'email', ''));
+end $$;
+
+create or replace function public.adjust_due_amount(did uuid, p_new numeric, p_reason text) returns void
+language plpgsql security definer set search_path = public as $$
+declare d record;
+begin
+  select * into d from public.fee_dues where id = did;
+  if d.id is null then raise exception 'Instalment not found.'; end if;
+  if not public.has_perm_school(d.school_id, 'fees.dues.create') then raise exception 'not allowed'; end if;
+  if coalesce(btrim(p_reason), '') = '' then raise exception 'Write the reason.'; end if;
+  if p_new is null or p_new < 0 then raise exception 'Enter the new amount.'; end if;
+  if p_new - d.concession + d.fine < d.paid then raise exception 'The new amount is less than what has already been paid (%).', d.paid; end if;
+  update public.fee_dues set amount = p_new, concession = least(concession, p_new) where id = did;
+  insert into public.fee_adjustments (school_id, due_id, student_id, kind, amount, old_value, new_value, reason, created_by_name)
+  values (d.school_id, did, d.student_id, 'amount_change', p_new - d.amount, d.amount::text, p_new::text, btrim(p_reason), coalesce(auth.jwt() ->> 'email', ''));
+end $$;
+
+create or replace function public.extend_dues(sid uuid, p_ids uuid[], p_date date, p_reason text) returns int
+language plpgsql security definer set search_path = public as $$
+declare cnt int := 0; d record;
+begin
+  if not public.has_perm_school(sid, 'fees.dues.create') then raise exception 'not allowed'; end if;
+  if coalesce(btrim(p_reason), '') = '' then raise exception 'Write the reason.'; end if;
+  if p_date is null then raise exception 'Choose the new due date.'; end if;
+  for d in select * from public.fee_dues where school_id = sid and id = any(p_ids) and status <> 'paid' loop
+    update public.fee_dues set original_due_date = coalesce(original_due_date, due_date), due_date = p_date where id = d.id;
+    insert into public.fee_adjustments (school_id, due_id, student_id, kind, old_value, new_value, reason, created_by_name)
+    values (sid, d.id, d.student_id, 'extension', d.due_date::text, p_date::text, btrim(p_reason), coalesce(auth.jwt() ->> 'email', ''));
+    cnt := cnt + 1;
+  end loop;
+  return cnt;
+end $$;
+
+-- one charge to chosen students, or to a whole class / section
+create or replace function public.add_charge(sid uuid, sess uuid, p_students uuid[], p_class uuid, p_section uuid, p_head uuid, p_label text, p_due date, p_amount numeric)
+returns int language plpgsql security definer set search_path = public as $$
+declare cnt int; k text := 'charge:' || gen_random_uuid()::text; hn text;
+begin
+  if not public.has_perm_school(sid, 'fees.dues.create') then raise exception 'not allowed'; end if;
+  if coalesce(btrim(p_label), '') = '' or p_due is null then raise exception 'Label and due date are required.'; end if;
+  if p_amount is null or p_amount <= 0 then raise exception 'Enter the amount.'; end if;
+  if not exists (select 1 from public.sessions where id = sess and school_id = sid) then raise exception 'Session not found.'; end if;
+  if p_head is not null and not exists (select 1 from public.fee_heads where id = p_head and school_id = sid) then raise exception 'Fee head not found.'; end if;
+  if coalesce(cardinality(p_students), 0) = 0 and p_class is null then raise exception 'Choose students or a class.'; end if;
+  select name into hn from public.fee_heads where id = p_head;
+  insert into public.fee_dues (school_id, session_id, student_id, fee_head_id, label, due_date, amount, kind, source_key)
+  select sid, sess, s.id, p_head, case when hn is null then btrim(p_label) else hn || ' · ' || btrim(p_label) end, p_due, p_amount, 'charge', k
+    from public.students s
+   where s.school_id = sid and s.status = 'active'
+     and ((coalesce(cardinality(p_students), 0) > 0 and s.id = any(p_students))
+          or (coalesce(cardinality(p_students), 0) = 0 and s.class_id = p_class and (p_section is null or s.section_id = p_section)));
+  get diagnostics cnt = row_count;
+  return cnt;
+end $$;
+
+create or replace function public.carry_forward_dues(sid uuid, from_sess uuid, to_sess uuid, p_due date) returns int
+language plpgsql security definer set search_path = public as $$
+declare r record; cnt int := 0; fname text;
+begin
+  if not public.has_perm_school(sid, 'fees.dues.create') then raise exception 'not allowed'; end if;
+  if from_sess = to_sess then raise exception 'Choose two different sessions.'; end if;
+  if not exists (select 1 from public.sessions where id = from_sess and school_id = sid) or not exists (select 1 from public.sessions where id = to_sess and school_id = sid) then raise exception 'Session not found.'; end if;
+  select name into fname from public.sessions where id = from_sess;
+  for r in
+    select d.student_id, sum(greatest(d.amount - d.concession + d.fine - d.paid, 0)) as bal
+      from public.fee_dues d join public.students s on s.id = d.student_id
+     where d.school_id = sid and d.session_id = from_sess and d.status <> 'paid' and s.status = 'active'
+     group by d.student_id having sum(greatest(d.amount - d.concession + d.fine - d.paid, 0)) > 0
+  loop
+    insert into public.fee_dues (school_id, session_id, student_id, label, due_date, amount, kind, source_key)
+    values (sid, to_sess, r.student_id, 'Arrears of ' || fname, p_due, r.bal, 'arrears', 'arrears:' || from_sess)
+    on conflict (student_id, source_key) where source_key is not null do nothing;
+    if found then
+      insert into public.fee_adjustments (school_id, due_id, student_id, kind, amount, reason, created_by_name)
+        select sid, d.id, d.student_id, 'carried', greatest(d.amount - d.concession + d.fine - d.paid, 0), 'Carried forward to ' || (select name from public.sessions where id = to_sess), coalesce(auth.jwt() ->> 'email', '')
+          from public.fee_dues d where d.student_id = r.student_id and d.session_id = from_sess and d.school_id = sid and d.status <> 'paid';
+      update public.fee_dues d set concession = concession + greatest(d.amount - d.concession + d.fine - d.paid, 0)
+       where d.student_id = r.student_id and d.session_id = from_sess and d.school_id = sid and d.status <> 'paid';
+      cnt := cnt + 1;
+    end if;
+  end loop;
+  return cnt;
+end $$;
+
+-- ───────────── Collection ─────────────
+-- Core (no permission check): used by the desk function and by the online-payment completion.
+create or replace function public.collect_fee_core(sid uuid, stu uuid, p_splits jsonb, p_due_ids uuid[], p_wallet_use numeric, p_paid_on date, p_note text, p_by text,
+                                                   p_fine numeric, p_force_advance boolean, p_online_order uuid default null)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare st record; sp jsonb; rid uuid; rno text; money numeric := 0; wuse numeric := coalesce(p_wallet_use, 0); bal numeric; wallet numeric; alloc numeric; excess numeric;
+        d record; take numeric; left_amt numeric; modes text[] := '{}'; m text; first_ref text; first_due uuid; pid uuid; any_line boolean := false;
+begin
+  if not exists (select 1 from public.students where id = stu and school_id = sid) then raise exception 'Student not found'; end if;
+  select * into st from public.fee_settings where school_id = sid;
+  for sp in select * from jsonb_array_elements(coalesce(p_splits, '[]'::jsonb)) loop
+    if (sp ->> 'mode') not in ('cash','upi','cheque','bank_transfer','card','online') then raise exception 'Unknown payment mode "%".', sp ->> 'mode'; end if;
+    if coalesce((sp ->> 'amount')::numeric, 0) <= 0 then raise exception 'Every payment line needs an amount.'; end if;
+    money := money + (sp ->> 'amount')::numeric;
+    if not ((sp ->> 'mode') = any(modes)) then modes := modes || (sp ->> 'mode'); end if;
+  end loop;
+  if money + wuse <= 0 then raise exception 'Amount must be more than zero'; end if;
+  if wuse < 0 then raise exception 'Wallet amount cannot be negative.'; end if;
+  select coalesce(sum(amount), 0) into wallet from public.fee_wallet_entries where student_id = stu;
+  if wuse > wallet then raise exception 'The wallet has only % — use less.', wallet; end if;
+
+  -- automatic late fine up to the payment date, then an optional manual fine
+  perform public.apply_late_fines_core(sid, stu, coalesce(p_paid_on, public.today_ist()));
+  if coalesce(p_fine, 0) > 0 then
+    select id into first_due from public.fee_dues where student_id = stu and school_id = sid and status <> 'paid' and (p_due_ids is null or id = any(p_due_ids)) order by due_date, label limit 1;
+    if first_due is null then raise exception 'No unpaid instalment to add the fine to'; end if;
+    update public.fee_dues set fine = fine + p_fine where id = first_due;
+  end if;
+
+  select coalesce(sum(greatest(amount - concession + fine - paid, 0)), 0) into bal from public.fee_dues
+   where student_id = stu and school_id = sid and status <> 'paid' and (p_due_ids is null or cardinality(p_due_ids) = 0 or id = any(p_due_ids));
+  excess := greatest(money + wuse - bal, 0);
+  if excess > 0 then
+    if wuse > 0 and excess > money then raise exception 'The wallet use is more than what is due. Use less.'; end if;
+    if not coalesce(st.advance_allowed, true) and not p_force_advance then raise exception 'Amount is more than the total due'; end if;
+  end if;
+  alloc := money + wuse - excess;
+
+  rno := public.next_school_number_core(sid, 'receipt');
+  insert into public.fee_receipts (school_id, receipt_no, student_id, paid_on, mode, reference, amount, note, collected_by, advance_amount, wallet_used, online_order_id)
+  values (sid, rno, stu, coalesce(p_paid_on, public.today_ist()),
+          case when cardinality(modes) > 1 then 'mixed' when cardinality(modes) = 1 then modes[1] else 'wallet' end,
+          nullif(p_splits -> 0 ->> 'reference', ''), alloc, p_note, p_by, excess, wuse, p_online_order)
+  returning id into rid;
+
+  for sp in select * from jsonb_array_elements(coalesce(p_splits, '[]'::jsonb)) loop
+    insert into public.fee_receipt_payments (school_id, receipt_id, mode, amount, reference)
+    values (sid, rid, sp ->> 'mode', (sp ->> 'amount')::numeric, nullif(btrim(coalesce(sp ->> 'reference', sp ->> 'cheque_no', '')), '')) returning id into pid;
+    if (sp ->> 'mode') = 'cheque' then
+      insert into public.fee_cheques (school_id, receipt_id, student_id, cheque_no, bank, cheque_date, amount)
+      values (sid, rid, stu, coalesce(nullif(btrim(coalesce(sp ->> 'cheque_no', sp ->> 'reference', '')), ''), 'N/A'), nullif(sp ->> 'bank', ''), nullif(sp ->> 'cheque_date', '')::date, (sp ->> 'amount')::numeric);
+    end if;
+  end loop;
+
+  left_amt := alloc;
+  for d in select id, greatest(amount - concession + fine - paid, 0) as b from public.fee_dues
+            where student_id = stu and school_id = sid and status <> 'paid' and (p_due_ids is null or cardinality(p_due_ids) = 0 or id = any(p_due_ids))
+            order by due_date, label for update loop
+    exit when left_amt <= 0;
+    take := least(d.b, left_amt);
+    if take > 0 then
+      insert into public.fee_receipt_lines (school_id, receipt_id, due_id, amount) values (sid, rid, d.id, take);
+      left_amt := left_amt - take; any_line := true;
+    end if;
+  end loop;
+  if wuse > 0 then insert into public.fee_wallet_entries (school_id, student_id, kind, amount, receipt_id, note, created_by) values (sid, stu, 'applied', -wuse, rid, 'Used against receipt ' || rno, p_by); end if;
+  if excess > 0 then insert into public.fee_wallet_entries (school_id, student_id, kind, amount, receipt_id, note, created_by) values (sid, stu, 'advance', excess, rid, 'Advance with receipt ' || rno, p_by); end if;
+  return rid;
+end $$;
+revoke execute on function public.collect_fee_core(uuid, uuid, jsonb, uuid[], numeric, date, text, text, numeric, boolean, uuid) from public, anon, authenticated;
+
+alter table public.fee_receipts add column if not exists online_order_id uuid;
+
+-- number allocator without the permission check (the callers have already checked)
+create or replace function public.next_school_number_core(sid uuid, kind text) returns text
+language plpgsql security definer set search_path = public as $$
+declare n int; p text;
+begin
+  if kind = 'receipt' then
+    update public.schools set next_receipt_no = next_receipt_no + 1 where id = sid returning next_receipt_no - 1, receipt_prefix into n, p;
+    return p || lpad(n::text, 5, '0');
+  end if;
+  raise exception 'unknown kind %', kind;
+end $$;
+revoke execute on function public.next_school_number_core(uuid, text) from public, anon, authenticated;
+
+create or replace function public.collect_fee_v2(sid uuid, stu uuid, p_splits jsonb, p_due_ids uuid[] default null, p_wallet_use numeric default 0,
+                                                 p_paid_on date default null, p_note text default null, p_by text default null, p_fine numeric default 0)
+returns uuid language plpgsql security definer set search_path = public as $$
+begin
+  if not public.has_perm_school(sid, 'fees.collection.create') then raise exception 'not allowed'; end if;
+  return public.collect_fee_core(sid, stu, p_splits, p_due_ids, p_wallet_use, p_paid_on, p_note, p_by, p_fine, false, null);
+end $$;
+
+-- the old single-mode entry point keeps working
+create or replace function public.collect_fee(sid uuid, stu uuid, amt numeric, p_mode text, p_ref text, p_note text, p_paid_on date, p_fine numeric, p_by text)
+returns uuid language plpgsql security definer set search_path = public as $$
+begin
+  if not public.has_perm_school(sid, 'fees.collection.create') then raise exception 'not allowed'; end if;
+  if amt is null or amt <= 0 then raise exception 'Amount must be more than zero'; end if;
+  return public.collect_fee_core(sid, stu, jsonb_build_array(jsonb_build_object('mode', p_mode, 'amount', amt, 'reference', p_ref)), null, 0, p_paid_on, p_note, p_by, p_fine, false, null);
+end $$;
+
+-- ───────────── Cheques ─────────────
+create or replace function public.set_cheque_status(cid uuid, p_status text, p_day date default null, p_reason text default null) returns void
+language plpgsql security definer set search_path = public as $$
+declare c record; ch numeric; st record; on_day date := coalesce(p_day, public.today_ist());
+begin
+  select * into c from public.fee_cheques where id = cid;
+  if c.id is null then raise exception 'Cheque not found.'; end if;
+  if p_status not in ('deposited','cleared','bounced') then raise exception 'Unknown status.'; end if;
+  if p_status = 'bounced' then
+    if not public.has_perm_school(c.school_id, 'fees.receipts.approve') then raise exception 'Only the principal can mark a cheque bounced.'; end if;
+  elsif not public.has_perm_school(c.school_id, 'fees.collection.create') then raise exception 'not allowed';
+  end if;
+  if c.status in ('cleared','bounced') then raise exception 'This cheque is already %.', c.status; end if;
+  if p_status = 'deposited' then
+    update public.fee_cheques set status = 'deposited', deposited_on = on_day where id = cid;
+  elsif p_status = 'cleared' then
+    update public.fee_cheques set status = 'cleared', cleared_on = on_day, deposited_on = coalesce(deposited_on, on_day) where id = cid;
+  else
+    if coalesce(btrim(p_reason), '') = '' then raise exception 'Write the reason (insufficient funds, signature…).'; end if;
+    select * into st from public.fee_settings where school_id = c.school_id;
+    ch := coalesce(st.bounce_charge, 0);
+    update public.fee_cheques set status = 'bounced', bounced_on = on_day, bounce_reason = btrim(p_reason), bounce_charge = ch where id = cid;
+    -- the receipt's money did not arrive: cancel it (dues come back), and bill the bank charge
+    update public.fee_receipts set cancelled = true, cancelled_reason = 'Cheque ' || c.cheque_no || ' bounced: ' || btrim(p_reason) where id = c.receipt_id and not cancelled;
+    if ch > 0 then
+      insert into public.fee_dues (school_id, session_id, student_id, label, due_date, amount, kind, source_key)
+      select c.school_id, coalesce((select session_id from public.fee_dues x join public.fee_receipt_lines l on l.due_id = x.id where l.receipt_id = c.receipt_id limit 1),
+                                   (select id from public.sessions where school_id = c.school_id and is_current limit 1)),
+             c.student_id, 'Cheque bounce charge · ' || c.cheque_no, on_day, ch, 'bounce', 'bounce:' || c.id
+       where exists (select 1 from public.sessions where school_id = c.school_id and is_current)
+      on conflict (student_id, source_key) where source_key is not null do nothing;
+    end if;
+  end if;
+end $$;
+
+-- ───────────── Wallet, reversal, refunds ─────────────
+create or replace function public.reverse_payment(did uuid, p_amount numeric, p_reason text) returns void
+language plpgsql security definer set search_path = public as $$
+declare d record;
+begin
+  select * into d from public.fee_dues where id = did;
+  if d.id is null then raise exception 'Instalment not found.'; end if;
+  if not public.has_perm_school(d.school_id, 'fees.refunds.approve') then raise exception 'not allowed'; end if;
+  if coalesce(btrim(p_reason), '') = '' then raise exception 'Write the reason.'; end if;
+  if p_amount is null or p_amount <= 0 or p_amount > d.paid then raise exception 'Enter an amount up to what was paid (%).', d.paid; end if;
+  insert into public.fee_adjustments (school_id, due_id, student_id, kind, amount, reason, created_by_name) values (d.school_id, did, d.student_id, 'reversal', p_amount, btrim(p_reason), coalesce(auth.jwt() ->> 'email', ''));
+  perform public.recalc_due(did);
+  insert into public.fee_wallet_entries (school_id, student_id, kind, amount, note, created_by)
+  values (d.school_id, d.student_id, 'reversal', p_amount, 'Payment moved back from "' || d.label || '": ' || btrim(p_reason), coalesce(auth.jwt() ->> 'email', ''));
+end $$;
+
+create or replace function public.request_refund(sid uuid, stu uuid, p_amount numeric, p_reason text) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare bal numeric; pend numeric; rid uuid;
+begin
+  if not public.has_perm_school(sid, 'fees.refunds.create') then raise exception 'not allowed'; end if;
+  if not exists (select 1 from public.students where id = stu and school_id = sid) then raise exception 'Student not found.'; end if;
+  if coalesce(btrim(p_reason), '') = '' then raise exception 'Write the reason.'; end if;
+  if p_amount is null or p_amount <= 0 then raise exception 'Enter the amount.'; end if;
+  select coalesce(sum(amount), 0) into bal from public.fee_wallet_entries where student_id = stu;
+  select coalesce(sum(amount), 0) into pend from public.fee_refunds where student_id = stu and status in ('requested','approved');
+  if p_amount > bal - pend then raise exception 'Only % is available in the wallet for refund (move a paid fee back to the wallet first).', greatest(bal - pend, 0); end if;
+  insert into public.fee_refunds (school_id, student_id, amount, reason, requested_by_name) values (sid, stu, p_amount, btrim(p_reason), coalesce(auth.jwt() ->> 'email', '')) returning id into rid;
+  return rid;
+end $$;
+
+create or replace function public.decide_refund(rid uuid, p_approve boolean, p_note text default null) returns void
+language plpgsql security definer set search_path = public as $$
+declare r record;
+begin
+  select * into r from public.fee_refunds where id = rid;
+  if r.id is null then raise exception 'Refund not found.'; end if;
+  if not public.has_perm_school(r.school_id, 'fees.refunds.approve') then raise exception 'not allowed'; end if;
+  if r.status <> 'requested' then raise exception 'This request is already %.', r.status; end if;
+  if not p_approve and coalesce(btrim(p_note), '') = '' then raise exception 'Write the reason for rejecting.'; end if;
+  update public.fee_refunds set status = case when p_approve then 'approved' else 'rejected' end, decided_by = auth.uid(), decided_at = now(), decision_note = nullif(btrim(coalesce(p_note, '')), '') where id = rid;
+end $$;
+
+create or replace function public.pay_refund(rid uuid, p_mode text, p_ref text, p_paid_on date default null) returns void
+language plpgsql security definer set search_path = public as $$
+declare r record; bal numeric;
+begin
+  select * into r from public.fee_refunds where id = rid for update;
+  if r.id is null then raise exception 'Refund not found.'; end if;
+  if not (public.has_perm_school(r.school_id, 'fees.refunds.approve') or public.has_perm_school(r.school_id, 'fees.refunds.create')) then raise exception 'not allowed'; end if;
+  if r.status <> 'approved' then raise exception 'Only an approved refund can be paid (this one is %).', r.status; end if;
+  if p_mode not in ('cash','upi','cheque','bank_transfer') then raise exception 'Choose how it was paid.'; end if;
+  select coalesce(sum(amount), 0) into bal from public.fee_wallet_entries where student_id = r.student_id;
+  if bal < r.amount then raise exception 'The wallet no longer has this amount (%).', bal; end if;
+  insert into public.fee_wallet_entries (school_id, student_id, kind, amount, note, created_by) values (r.school_id, r.student_id, 'refund', -r.amount, 'Refund: ' || r.reason, coalesce(auth.jwt() ->> 'email', ''));
+  update public.fee_refunds set status = 'paid', mode = p_mode, reference = nullif(btrim(coalesce(p_ref, '')), ''), paid_on = coalesce(p_paid_on, public.today_ist()) where id = rid;
+end $$;
+
+-- ───────────── Day-end closing ─────────────
+create or replace function public.cash_expected(sid uuid, p_day date, p_collector text) returns numeric
+language sql stable security definer set search_path = public as $$
+  select coalesce((select sum(p.amount) from public.fee_receipt_payments p join public.fee_receipts r on r.id = p.receipt_id
+                    where r.school_id = sid and r.paid_on = p_day and not r.cancelled and p.mode = 'cash' and coalesce(r.collected_by, '') = coalesce(p_collector, '')), 0)
+       - coalesce((select sum(f.amount) from public.fee_refunds f where f.school_id = sid and f.paid_on = p_day and f.status = 'paid' and f.mode = 'cash'), 0);
+$$;
+revoke execute on function public.cash_expected(uuid, date, text) from public, anon;
+
+create or replace function public.close_day(sid uuid, p_day date, p_collector text, p_counted numeric, p_note text default null) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare exp numeric; cid uuid;
+begin
+  if not public.has_perm_school(sid, 'fees.collection.create') then raise exception 'not allowed'; end if;
+  if p_counted is null or p_counted < 0 then raise exception 'Enter the cash counted.'; end if;
+  if p_day > public.today_ist() then raise exception 'A future day cannot be closed.'; end if;
+  exp := public.cash_expected(sid, p_day, p_collector);
+  insert into public.fee_day_close (school_id, day, collector, expected_cash, counted_cash, note) values (sid, p_day, coalesce(p_collector, ''), exp, p_counted, nullif(btrim(coalesce(p_note, '')), ''))
+  on conflict (school_id, day, collector) do update set expected_cash = excluded.expected_cash, counted_cash = excluded.counted_cash, note = excluded.note, closed_by = auth.uid(), closed_at = now()
+  returning id into cid;
+  return cid;
+end $$;
+
+-- ───────────── Online payments (service role) ─────────────
+create or replace function public.create_online_order(sid uuid, stu uuid, p_amount numeric, p_due_ids uuid[]) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare st record; bal numeric; oid uuid;
+begin
+  if not public.is_service() then raise exception 'not allowed'; end if;
+  select * into st from public.fee_settings where school_id = sid;
+  if st.school_id is null or not st.online_enabled then raise exception 'Online payment is not switched on for this school.'; end if;
+  if not public.school_writable(sid) then raise exception 'This school cannot take payments right now.'; end if;
+  if not exists (select 1 from public.students where id = stu and school_id = sid and status = 'active') then raise exception 'Student not found.'; end if;
+  select coalesce(sum(greatest(amount - concession + fine - paid, 0)), 0) into bal from public.fee_dues
+   where student_id = stu and school_id = sid and status <> 'paid' and (p_due_ids is null or cardinality(p_due_ids) = 0 or id = any(p_due_ids));
+  if bal <= 0 then raise exception 'Nothing is due.'; end if;
+  if p_amount is null or p_amount < st.online_min_amount then raise exception 'The minimum online payment is %.', st.online_min_amount; end if;
+  if p_amount > bal then raise exception 'The amount is more than what is due (%).', bal; end if;
+  if not st.online_allow_partial and p_amount < bal then raise exception 'Please pay the full amount due (%).', bal; end if;
+  update public.fee_online_orders set status = 'expired' where student_id = stu and status = 'created' and created_at < now() - interval '2 days';
+  insert into public.fee_online_orders (school_id, student_id, amount, due_ids) values (sid, stu, p_amount, nullif(p_due_ids, '{}')) returning id into oid;
+  return oid;
+end $$;
+revoke execute on function public.create_online_order(uuid, uuid, numeric, uuid[]) from public, anon, authenticated;
+grant execute on function public.create_online_order(uuid, uuid, numeric, uuid[]) to service_role;
+
+create or replace function public.complete_online_order(p_link text, p_payment text, p_paise bigint) returns json
+language plpgsql security definer set search_path = public as $$
+declare o record; rid uuid; rno text;
+begin
+  if not public.is_service() then raise exception 'not allowed'; end if;
+  select * into o from public.fee_online_orders where link_id = p_link for update;
+  if o.id is null then return json_build_object('ok', false, 'note', 'no matching order'); end if;
+  if o.status = 'paid' then return json_build_object('ok', true, 'note', 'already recorded', 'receipt_id', o.receipt_id); end if;
+  if p_payment is not null and exists (select 1 from public.fee_online_orders where school_id = o.school_id and payment_id = p_payment) then
+    return json_build_object('ok', true, 'note', 'payment already recorded');
+  end if;
+  if p_paise is not null and p_paise <> round(o.amount * 100) then
+    update public.fee_online_orders set status = 'failed', error = 'Amount mismatch: paid ' || (p_paise / 100.0)::text where id = o.id;
+    return json_build_object('ok', false, 'note', 'amount mismatch');
+  end if;
+  rid := public.collect_fee_core(o.school_id, o.student_id, jsonb_build_array(jsonb_build_object('mode', 'online', 'amount', o.amount, 'reference', p_payment)),
+                                 o.due_ids, 0, public.today_ist(), 'Paid online', 'Online payment', 0, true, o.id);
+  update public.fee_online_orders set status = 'paid', payment_id = p_payment, receipt_id = rid, paid_at = now() where id = o.id;
+  select receipt_no into rno from public.fee_receipts where id = rid;
+  return json_build_object('ok', true, 'receipt_id', rid, 'receipt_no', rno);
+end $$;
+revoke execute on function public.complete_online_order(text, text, bigint) from public, anon, authenticated;
+grant execute on function public.complete_online_order(text, text, bigint) to service_role;
+
+-- ───────────── Reports (RLS applies: staff see only what they may) ─────────────
+create or replace function public.fee_report(sid uuid, d1 date, d2 date, by text) returns table (key text, label text, receipts bigint, amount numeric)
+language plpgsql stable set search_path = public as $$
+begin
+  if by = 'day' then
+    return query select r.paid_on::text, to_char(r.paid_on, 'DD Mon YYYY'), count(*)::bigint, sum(r.amount) from public.fee_receipts r
+      where r.school_id = sid and not r.cancelled and r.paid_on between d1 and d2 group by r.paid_on order by r.paid_on;
+  elsif by = 'month' then
+    return query select to_char(r.paid_on, 'YYYY-MM'), to_char(r.paid_on, 'Mon YYYY'), count(*)::bigint, sum(r.amount) from public.fee_receipts r
+      where r.school_id = sid and not r.cancelled and r.paid_on between d1 and d2 group by 1, 2 order by 1;
+  elsif by = 'collector' then
+    return query select coalesce(r.collected_by, '—'), coalesce(r.collected_by, '—'), count(*)::bigint, sum(r.amount) from public.fee_receipts r
+      where r.school_id = sid and not r.cancelled and r.paid_on between d1 and d2 group by 1 order by 4 desc;
+  elsif by = 'mode' then
+    return query select p.mode, p.mode, count(distinct p.receipt_id)::bigint, sum(p.amount) from public.fee_receipt_payments p join public.fee_receipts r on r.id = p.receipt_id
+      where r.school_id = sid and not r.cancelled and r.paid_on between d1 and d2 group by p.mode order by 4 desc;
+  elsif by = 'head' then
+    return query select coalesce(h.id::text, 'other'), coalesce(h.name, 'Other charges'), count(distinct l.receipt_id)::bigint, sum(l.amount)
+      from public.fee_receipt_lines l join public.fee_receipts r on r.id = l.receipt_id join public.fee_dues d on d.id = l.due_id left join public.fee_heads h on h.id = d.fee_head_id
+      where r.school_id = sid and not r.cancelled and r.paid_on between d1 and d2 group by 1, 2 order by 4 desc;
+  elsif by = 'class' then
+    return query select coalesce(c.id::text, 'none'), coalesce('Class ' || c.name, 'No class'), count(distinct r.id)::bigint, sum(r.amount)
+      from public.fee_receipts r join public.students s on s.id = r.student_id left join public.classes c on c.id = s.class_id
+      where r.school_id = sid and not r.cancelled and r.paid_on between d1 and d2 group by 1, 2, c.sort order by c.sort nulls last;
+  else
+    raise exception 'Unknown grouping.';
+  end if;
+end $$;
+
+create or replace function public.fee_aging(sid uuid, sess uuid, on_day date default null) returns table (bucket text, students bigint, amount numeric)
+language sql stable set search_path = public as $$
+  with b as (
+    select d.student_id, greatest(d.amount - d.concession + d.fine - d.paid, 0) as bal,
+           case when d.due_date >= coalesce(on_day, public.today_ist()) then '0 · Not yet due'
+                when coalesce(on_day, public.today_ist()) - d.due_date <= 30 then '1 · 1–30 days'
+                when coalesce(on_day, public.today_ist()) - d.due_date <= 60 then '2 · 31–60 days'
+                when coalesce(on_day, public.today_ist()) - d.due_date <= 90 then '3 · 61–90 days'
+                else '4 · Over 90 days' end as bucket
+      from public.fee_dues d join public.students s on s.id = d.student_id
+     where d.school_id = sid and d.session_id = sess and d.status <> 'paid' and s.status = 'active')
+  select bucket, count(distinct student_id)::bigint, sum(bal) from b where bal > 0 group by bucket order by bucket;
+$$;
+
+-- Money columns of a due change only through the functions above (they run as the owner, not as the signed-in role).
+create or replace function public.guard_fee_due() returns trigger
+language plpgsql set search_path = public as $$
+begin
+  if current_user in ('authenticated', 'anon') and (
+       new.amount is distinct from old.amount or new.concession is distinct from old.concession or new.fine is distinct from old.fine
+    or new.paid is distinct from old.paid or new.fine_auto is distinct from old.fine_auto or new.fine_waived is distinct from old.fine_waived
+    or new.due_date is distinct from old.due_date or new.kind is distinct from old.kind) then
+    raise exception 'Fee amounts change only through the fee screens (adjust, waive, extend, concession).';
+  end if;
+  return new;
+end $$;
+drop trigger if exists fee_dues_guard on public.fee_dues;
+create trigger fee_dues_guard before update on public.fee_dues for each row execute function public.guard_fee_due();
+
+-- ───────────── Row Level Security ─────────────
+alter table public.fee_settings enable row level security;
+alter table public.fee_receipt_payments enable row level security;
+alter table public.fee_wallet_entries enable row level security;
+alter table public.fee_cheques enable row level security;
+alter table public.fee_adjustments enable row level security;
+alter table public.fee_refunds enable row level security;
+alter table public.fee_day_close enable row level security;
+alter table public.fee_online_orders enable row level security;
+
+drop policy if exists "read" on public.fee_settings;
+create policy "read" on public.fee_settings for select to authenticated using (public.has_module_perm(school_id, 'fees'));
+drop policy if exists "write" on public.fee_settings;
+create policy "write" on public.fee_settings for all to authenticated
+  using (public.has_perm_school(school_id, 'fees.structure.edit')) with check (public.has_perm_school(school_id, 'fees.structure.edit'));
+
+drop policy if exists "read" on public.fee_receipt_payments;
+create policy "read" on public.fee_receipt_payments for select to authenticated using (public.has_perm_school(school_id, 'fees.collection.view') or public.has_perm_school(school_id, 'fees.receipts.view'));
+drop policy if exists "read" on public.fee_wallet_entries;
+create policy "read" on public.fee_wallet_entries for select to authenticated using (public.can_student(school_id, 'fees.collection.view', student_id));
+drop policy if exists "read" on public.fee_cheques;
+create policy "read" on public.fee_cheques for select to authenticated using (public.has_perm_school(school_id, 'fees.collection.view'));
+drop policy if exists "read" on public.fee_adjustments;
+create policy "read" on public.fee_adjustments for select to authenticated using (public.can_student(school_id, 'fees.collection.view', student_id));
+drop policy if exists "read" on public.fee_refunds;
+create policy "read" on public.fee_refunds for select to authenticated using (public.has_perm_school(school_id, 'fees.refunds.view'));
+drop policy if exists "read" on public.fee_day_close;
+create policy "read" on public.fee_day_close for select to authenticated using (public.has_perm_school(school_id, 'fees.collection.view'));
+drop policy if exists "read" on public.fee_online_orders;
+create policy "read" on public.fee_online_orders for select to authenticated using (public.has_perm_school(school_id, 'fees.online.view'));
+-- all of these are written only through the functions above
+
+-- ───────────── Audit ─────────────
+do $$
+declare t text;
+begin
+  foreach t in array array['fee_settings','fee_refunds','fee_cheques','fee_adjustments','fee_day_close','fee_online_orders','fee_wallet_entries'] loop
+    execute format('drop trigger if exists audit_%1$s on public.%1$I', t);
+    execute format('create trigger audit_%1$s after insert or update or delete on public.%1$I for each row execute function public.audit_row()', t);
+  end loop;
+end $$;
+
+-- new permission keys for schools that already exist: nothing new (fees.online / fees.refunds were in the catalogue); mark them built

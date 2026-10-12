@@ -63,7 +63,7 @@ export default async function Admissions({ searchParams }: { searchParams: Promi
                 <td className={td}><Badge value={e.status} /></td>
                 <td className={`${td} whitespace-nowrap`}>
                   {wa && <a href={wa} target="_blank" rel="noopener" className="mr-3">WhatsApp</a>}
-                  {e.student_id ? <Link href={`/app/students/${e.student_id}`}>Student</Link> : e.status !== "lost" && can("students.profile.create") && <Link href={`/app/students/new?enquiry=${e.id}`}>Admit →</Link>}
+                  {e.student_id ? <Link href={`/app/students/${e.student_id}`}>Student</Link> : e.status !== "lost" && can("students.profile.create") && <Link href={`/app/admissions/applications/new?enquiry=${e.id}`}>Admit →</Link>}
                 </td>
               </tr>
             );

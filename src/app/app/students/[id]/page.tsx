@@ -7,6 +7,9 @@ import { CopyButton } from "@/components/CopyButton";
 import { fmtDate, fullName, money, todayIST, waLink } from "@/lib/format";
 import { balance, getClasses, pct, type Due } from "@/lib/erp";
 import { appUrl } from "@/lib/brand";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+import { DOC_BUCKET } from "@/lib/student-docs";
+import { ContactsCard, DocumentsCard, EnrolmentHistoryCard, IdentityCard, PriorExamsCard, type Contact, type Doc, type Enrolment, type Prior, type Sensitive } from "@/components/StudentRecords";
 import { fmtTime } from "@/lib/transport";
 import { addConcession, applyConcessions, newPortalLink, removeConcession, setStudentStatus } from "../../_actions/students";
 
@@ -36,6 +39,25 @@ export default async function StudentPage({ params, searchParams }: { params: Pr
       : Promise.resolve({ data: null }),
     can("library.circulation.view") ? supabase.from("library_issues").select("id,due_on,library_books(title)").eq("student_id", id).is("returned_on", null).order("due_on") : Promise.resolve({ data: [] }),
   ]);
+  const [{ data: sensRow }, { data: docRows }, { data: contactRows }, { data: enrolRows }] = await Promise.all([
+    can("students.sensitive.view") ? supabase.from("student_sensitive").select("*").eq("student_id", id).maybeSingle() : Promise.resolve({ data: null }),
+    can("students.documents.view") ? supabase.from("student_documents").select("id,doc_type,title,status,file_name,due_by,uploaded_by_name,uploaded_at,verified_by_name,verified_at,reject_reason,remark,size_bytes,file_path").eq("student_id", id).order("created_at") : Promise.resolve({ data: [] }),
+    supabase.from("student_guardians").select("guardian_id,is_primary,guardians(name,relation,phone,occupation,is_emergency,can_pickup)").eq("student_id", id),
+    supabase.from("student_enrolments").select("id,class_name,section_name,roll_no,started_on,ended_on,outcome,sessions(name)").eq("student_id", id).order("started_on", { ascending: false }).order("created_at", { ascending: false }),
+  ]);
+  const { data: certRows } = can("students.certificates.view")
+    ? await supabase.from("student_certificates").select("id,kind,cert_no,issued_on,status,is_duplicate").eq("student_id", id).order("created_at", { ascending: false })
+    : { data: [] };
+  const { data: priorRows } = await supabase.from("student_prior_exams").select("id,level,board_name,exam_year,roll_no,registration_no,school_name,district_code,school_code,result,percentage").eq("student_id", id).order("exam_year");
+  const { data: issuedRows } = can("documents.issue.view")
+    ? await supabase.from("issued_documents").select("id,doc_no,template_name,issued_on,status,is_duplicate").eq("student_id", id).order("created_at", { ascending: false }).limit(20)
+    : { data: [] };
+  const { data: tplRows } = can("documents.issue.create")
+    ? await supabase.from("document_templates").select("id,name").eq("school_id", school.id).eq("audience", "student").eq("active", true).order("name")
+    : { data: [] };
+  const photoPath = ((docRows ?? []) as { doc_type: string; file_path: string | null; status: string }[]).find((d) => d.doc_type === "photo" && d.file_path && d.status !== "rejected")?.file_path;
+  const photoUrl = photoPath ? (await supabaseAdmin()?.storage.from(DOC_BUCKET).createSignedUrl(photoPath, 300))?.data?.signedUrl ?? null : null;
+  const canLink = can("students.parent_link.view");
   const transport = ride as unknown as { trip: string; monthly_fee: number | null; end_date: string | null; transport_stops: { name: string; pickup_time: string | null; monthly_fee: number } | null; transport_routes: { id: string; name: string } | null } | null;
   const libBooks = (books ?? []) as unknown as { id: string; due_on: string; library_books: { title: string } | null }[];
   const dues = (duesQ.data ?? []) as Due[];
@@ -43,10 +65,11 @@ export default async function StudentPage({ params, searchParams }: { params: Pr
   const overdue = dues.filter((d) => d.due_date <= today).reduce((t, d) => t + balance(d), 0);
   const att = (attQ.data ?? []) as { status: string }[];
   const present = att.filter((a) => ["P", "L", "H"].includes(a.status)).length;
-  const link = appUrl(`/p/${s.portal_token}`);
+  const link = canLink ? appUrl(`/p/${s.portal_token}`) : "";
   const name = fullName(s);
   const cls = s.classes ? `${s.classes.name}-${s.sections?.name ?? ""}` : "—";
-  const wa = waLink(s.guardian_phone, `Dear Parent, here is ${name}'s page for fees, attendance and results at ${school.name}:\n${link}`);
+  const wa = canLink ? waLink(s.guardian_phone, `Dear Parent, here is ${name}'s page for fees, attendance and results at ${school.name}:
+${link}`) : null;
 
   return (
     <div className="flex flex-col gap-5">
@@ -65,7 +88,7 @@ export default async function StudentPage({ params, searchParams }: { params: Pr
         <Stat label="Admitted" value={fmtDate(s.admission_date)} />
       </div>
 
-      <Card title="Parent page">
+      {canLink && <Card title="Parent page">
         <p className="mt-0 text-[14px]">One private link for parents — fees due with UPI pay, receipts, attendance, results and notices. No app or password needed.</p>
         <div className="flex flex-wrap items-center gap-2">
           <code className="max-w-full truncate rounded bg-surface-alt px-2 py-1 text-[12px]">{link}</code>
@@ -75,7 +98,7 @@ export default async function StudentPage({ params, searchParams }: { params: Pr
             <form action={newPortalLink}><input type="hidden" name="id" value={id} /><button className="cursor-pointer border-0 bg-transparent text-[13px] text-blue underline">Reset link</button></form>
           )}
         </div>
-      </Card>
+      </Card>}
 
       {(can("transport.allocation.view") || can("library.circulation.view")) && (
         <div className="grid gap-5 md:grid-cols-2">
@@ -101,6 +124,60 @@ export default async function StudentPage({ params, searchParams }: { params: Pr
           )}
         </div>
       )}
+
+      {photoUrl && (
+        <div className="flex items-center gap-3 print:hidden">
+          {/* eslint-disable-next-line @next/next/no-img-element -- short-lived signed URL */}
+          <img src={photoUrl} alt={`Photograph of ${name}`} className="h-24 w-20 rounded-lg border border-line object-cover" />
+          <p className="m-0 text-[13px] text-muted">Photograph on file</p>
+        </div>
+      )}
+
+      {can("students.sensitive.view") && <IdentityCard studentId={id} s={sensRow as Sensitive | null} canEdit={can("students.sensitive.edit")} />}
+      {can("students.documents.view") && <DocumentsCard studentId={id} docs={(docRows ?? []) as unknown as Doc[]} can={can} />}
+      <PriorExamsCard studentId={id} rows={(priorRows ?? []) as unknown as Prior[]} canEdit={canEdit} />
+      <ContactsCard studentId={id} contacts={(contactRows ?? []) as unknown as Contact[]} canEdit={canEdit} />
+      {can("documents.issue.view") && (
+        <Card title="Documents issued (templates)" icon="academics">
+          {(tplRows ?? []).length > 0 && (
+            <p className="mt-0 mb-3 flex flex-wrap gap-x-4 gap-y-1 text-[13px]">
+              {(tplRows ?? []).map((t) => <Link key={t.id} href={`/app/documents/issue?template=${t.id}&student=${id}`}>Issue {t.name.replace(/ \(.*\)/, "")}</Link>)}
+            </p>
+          )}
+          {(issuedRows ?? []).length ? (
+            <ul className="m-0 list-none p-0 text-[14px]">
+              {(issuedRows ?? []).map((c) => (
+                <li key={c.id} className="flex flex-wrap justify-between gap-2 border-t border-line py-2 first:border-0">
+                  <Link href={`/app/documents/${c.id}`} className="font-mono text-[13px]">{c.doc_no}</Link>
+                  <span className="text-muted">{c.template_name}{c.is_duplicate ? " (duplicate)" : ""} · {fmtDate(c.issued_on)}</span>
+                  <Badge value={c.status === "issued" ? "paid" : "cancelled"} text={c.status} />
+                </li>
+              ))}
+            </ul>
+          ) : <p className="m-0 text-[14px] text-muted">Nothing issued yet.</p>}
+        </Card>
+      )}
+      {can("students.certificates.view") && (
+        <Card title="Certificates" icon="academics" actions={can("students.certificates.create") ? (
+          <span className="flex flex-wrap gap-3 text-[13px]">
+            <Link href={`/app/certificates/new?student=${id}&kind=transfer`}>Issue TC</Link>
+            <Link href={`/app/certificates/new?student=${id}&kind=bonafide`}>Bonafide</Link>
+            <Link href={`/app/certificates/new?student=${id}&kind=character`}>Character</Link>
+          </span>) : undefined}>
+          {(certRows ?? []).length ? (
+            <ul className="m-0 list-none p-0 text-[14px]">
+              {(certRows ?? []).map((c) => (
+                <li key={c.id} className="flex flex-wrap justify-between gap-2 border-t border-line py-2 first:border-0">
+                  <Link href={`/app/certificates/${c.id}`} className="font-mono text-[13px]">{c.cert_no}</Link>
+                  <span className="text-muted capitalize">{c.kind}{c.is_duplicate ? " (duplicate)" : ""} · {fmtDate(c.issued_on)}</span>
+                  <Badge value={c.status === "issued" ? "paid" : "cancelled"} text={c.status} />
+                </li>
+              ))}
+            </ul>
+          ) : <p className="m-0 text-[14px] text-muted">No certificates issued.</p>}
+        </Card>
+      )}
+      <EnrolmentHistoryCard rows={(enrolRows ?? []) as unknown as Enrolment[]} />
 
       {fees && (
         <Card title="Fee ledger" actions={<span className="text-[13px] text-muted">Instalments come from the fee structure → “Generate dues”.</span>}>
@@ -172,11 +249,14 @@ export default async function StudentPage({ params, searchParams }: { params: Pr
             <summary className="cursor-pointer text-[14px] font-semibold text-blue">Edit student details</summary>
             <div className="mt-4"><StudentForm s={s as unknown as Student} classes={classes} /></div>
           </details>
-          <form action={setStudentStatus} className="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-4 text-[14px]">
+          <form action={setStudentStatus} className="mt-4 grid gap-3 border-t border-line pt-4 text-[14px] sm:grid-cols-4">
             <input type="hidden" name="id" value={id} />
-            <span>Status:</span>
-            <select name="status" defaultValue={s.status} className="rounded-md border border-line px-2 py-1"><option value="active">Active</option><option value="left">Left school (TC)</option><option value="passed_out">Passed out</option></select>
-            <Submit variant="secondary">Update</Submit>
+            <Select label="Status" name="status" defaultValue={s.status} options={[["active", "Active"], ["left", "Left school"], ["transferred", "Transferred (TC issued)"], ["withdrawn", "Withdrawn"], ["passed_out", "Passed out"]]} />
+            <Input label="Date" name="left_on" type="date" defaultValue={s.left_on ?? todayIST()} />
+            <Input label="Reason" name="left_reason" defaultValue={s.left_reason} className="sm:col-span-2" hint="Needed for left / transferred / withdrawn" />
+            <Input label="TC number" name="tc_no" defaultValue={s.tc_no} />
+            <Input label="TC issued on" name="tc_issued_on" type="date" defaultValue={s.tc_issued_on} />
+            <div className="flex items-end"><Submit variant="secondary">Update status</Submit></div>
           </form>
         </Card>
       )}

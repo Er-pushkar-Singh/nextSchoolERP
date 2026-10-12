@@ -48,5 +48,26 @@ export const waNumber = (p: string) => {
 };
 export const waLink = (phone: string | null | undefined, text: string) =>
   phone ? `https://wa.me/${waNumber(phone)}?text=${encodeURIComponent(text)}` : null;
-export const fullName = (s: { first_name: string; last_name?: string | null }) => [s.first_name, s.last_name].filter(Boolean).join(" ");
+export const fullName = (s: { first_name: string; middle_name?: string | null; last_name?: string | null }) => [s.first_name, s.middle_name, s.last_name].filter(Boolean).join(" ");
 export const cleanSearch = (q: string) => q.replace(/[%,()*]/g, "").slice(0, 60);
+
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const DAY_WORDS = ["", "First", "Second", "Third", "Fourth", "Fifth", "Sixth", "Seventh", "Eighth", "Ninth", "Tenth", "Eleventh", "Twelfth", "Thirteenth", "Fourteenth", "Fifteenth", "Sixteenth", "Seventeenth", "Eighteenth", "Nineteenth", "Twentieth", "Twenty-first", "Twenty-second", "Twenty-third", "Twenty-fourth", "Twenty-fifth", "Twenty-sixth", "Twenty-seventh", "Twenty-eighth", "Twenty-ninth", "Thirtieth", "Thirty-first"];
+const numWords = (n: number): string => {
+  const o = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
+  const t = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+  if (n < 20) return o[n];
+  if (n < 100) return t[Math.floor(n / 10)] + (n % 10 ? `-${o[n % 10]}` : "");
+  if (n < 1000) return `${o[Math.floor(n / 100)]} Hundred${n % 100 ? ` ${numWords(n % 100)}` : ""}`;
+  return `${numWords(Math.floor(n / 1000))} Thousand${n % 1000 ? ` ${numWords(n % 1000)}` : ""}`;
+};
+/** "2013-06-15" → "15/06/2013 (Fifteenth June, Two Thousand Thirteen)" — as written on school certificates. */
+export function dateInWords(d: string | null | undefined) {
+  const m = d?.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return "—";
+  const [y, mo, da] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  return `${String(da).padStart(2, "0")}/${String(mo).padStart(2, "0")}/${y} (${DAY_WORDS[da]} ${MONTHS[mo - 1]}, ${numWords(y)})`;
+}
+
+/** Current time in ms (kept out of components so pages stay pure for the linter). */
+export const nowMs = () => Date.now();

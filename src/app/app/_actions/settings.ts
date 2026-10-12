@@ -14,7 +14,11 @@ export async function updateSchool(f: FormData) {
   if (!name) go(S, { error: "School name is required." });
   const upi = str(f, "upi_id", 80);
   if (upi && !/^[\w.\-]{2,}@[a-zA-Z]{2,}$/.test(upi)) go(S, { error: "UPI ID looks wrong (example: schoolname@okhdfcbank)." });
+  const uid = str(f, "upmsp_user_id", 6), cno = str(f, "upmsp_center_no", 4);
+  if (uid && !/^\d{6}$/.test(uid)) go(S, { error: "The UPMSP user ID is 6 digits." });
+  if (cno && !/^\d{4}$/.test(cno)) go(S, { error: "The UPMSP centre number is 4 digits." });
   const { error } = await supabase.from("schools").update({
+    upmsp_user_id: uid, upmsp_center_no: cno,
     name, board: oneOf(f, "board", ["CBSE", "ICSE", "UP Board", "State Board", "Other"] as const, "CBSE"),
     address: str(f, "address", 300), city: str(f, "city", 60), state: str(f, "state", 60), pincode: str(f, "pincode", 10),
     phone: str(f, "phone", 20), email: str(f, "email", 120), principal_name: str(f, "principal_name", 100),
@@ -100,9 +104,27 @@ export async function makeCurrentSession(f: FormData) {
 export async function promoteAll(f: FormData) {
   const { supabase, school } = await requirePerm("students.promotion.create");
   if (str(f, "confirm", 20)?.toUpperCase() !== "PROMOTE") go(A, { error: "Type PROMOTE to confirm." });
-  const { data, error } = await supabase.rpc("promote_students", { sid: school.id });
-  const r = data as { promoted: number; passed_out: number } | null;
-  go(A, error ? { error: errMsg(error) } : { ok: `Promoted ${r?.promoted} students; ${r?.passed_out} marked passed out. Roll numbers were cleared — set new ones per class.` });
+  // Students to hold back in their class (detained), given as admission numbers
+  const nos = (str(f, "detain", 2000) ?? "").split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
+  let detain: string[] = [];
+  if (nos.length) {
+    const { data } = await supabase.from("students").select("id,admission_no").eq("school_id", school.id).in("admission_no", nos);
+    const found = new Set((data ?? []).map((d) => d.admission_no));
+    const missing = nos.filter((n) => !found.has(n));
+    if (missing.length) go(A, { error: `No student with admission no.: ${missing.slice(0, 8).join(", ")}. Nobody was promoted.` });
+    detain = (data ?? []).map((d) => d.id);
+  }
+  const { data, error } = await supabase.rpc("promote_students", { sid: school.id, detain });
+  const r = data as { promoted: number; passed_out: number; detained: number } | null;
+  go(A, error ? { error: errMsg(error) } : { ok: `Promoted ${r?.promoted} students; ${r?.passed_out} marked passed out${r?.detained ? `; ${r.detained} kept in the same class` : ""}. Last year's class records are kept on each student's page. Roll numbers were cleared — set new ones per class.` });
+}
+
+export async function setSubjectCode(f: FormData) {
+  const { supabase, school } = await requirePerm("academics.setup.edit");
+  const code = str(f, "code", 12);
+  if (code && !/^[A-Za-z0-9\-]{1,12}$/.test(code)) go(A, { error: "Subject code can have letters, digits and “-” only." });
+  const { error } = await supabase.from("subjects").update({ code: code?.toUpperCase() ?? null }).eq("id", uuid(f, "id")!).eq("school_id", school.id);
+  go(A, error ? { error: errMsg(error) } : { ok: "Subject code saved." });
 }
 
 /* ───────── Own account ───────── */
@@ -177,4 +199,14 @@ export async function uploadLogo(f: FormData) {
   const { error } = await supabase.from("schools").update({ logo_url: url }).eq("id", school.id);
   revalidatePath("/app", "layout");
   go(S, error ? { error: errMsg(error) } : { ok: "Logo uploaded." });
+}
+
+export async function saveClassLimits(f: FormData) {
+  const { supabase, school } = await requirePerm("academics.setup.edit");
+  const seats = num(f, "seats"), min = num(f, "min_age_years"), max = num(f, "max_age_years");
+  if (min !== null && max !== null && min > max) go(A, { error: "The minimum age is more than the maximum age." });
+  const { error } = await supabase.from("classes").update({
+    seats: seats !== null && seats >= 0 ? Math.round(seats) : null, min_age_years: min !== null && min >= 0 ? min : null, max_age_years: max !== null && max >= 0 ? max : null,
+  }).eq("id", uuid(f, "id")!).eq("school_id", school.id);
+  go(A, error ? { error: errMsg(error) } : { ok: "Seats and age limits saved." });
 }

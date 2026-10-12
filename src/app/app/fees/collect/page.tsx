@@ -3,14 +3,15 @@ import { requirePerm } from "@/lib/school";
 import { Badge, Card, Empty, Flash, Input, PageHeader, Select, Submit, Table, td } from "@/components/ui/ui";
 import { cleanSearch, fmtDate, fullName, money, todayIST } from "@/lib/format";
 import { balance, type Due } from "@/lib/erp";
-import { collectFee } from "../../_actions/fees";
+import { PAY_MODES } from "@/lib/fees";
+import { adjustDue, collectFeeV2 } from "../../_actions/fees2";
 
-const MODES: [string, string][] = [["cash", "Cash"], ["upi", "UPI"], ["cheque", "Cheque"], ["bank_transfer", "Bank transfer"], ["card", "Card"], ["online", "Online"]];
 type Stu = { id: string; admission_no: string; first_name: string; last_name: string | null; father_name: string | null; guardian_phone: string | null; classes: { name: string } | null; sections: { name: string } | null };
+type DueRow = Due & { kind: string; fine_auto: number; original_due_date: string | null };
 const sel = "id,admission_no,first_name,last_name,father_name,guardian_phone,classes(name),sections(name)";
 
-export default async function Collect({ searchParams }: { searchParams: Promise<{ q?: string; student?: string; error?: string }> }) {
-  const { supabase, school } = await requirePerm("fees.collection.create");
+export default async function Collect({ searchParams }: { searchParams: Promise<{ q?: string; student?: string; error?: string; ok?: string }> }) {
+  const { supabase, school, can } = await requirePerm("fees.collection.create");
   const sp = await searchParams;
   const today = todayIST();
   const q = cleanSearch(sp.q ?? "").trim();
@@ -21,25 +22,37 @@ export default async function Collect({ searchParams }: { searchParams: Promise<
     results = (data ?? []) as unknown as Stu[];
     if (results.length === 1) sp.student = results[0].id;
   }
-  let stu: Stu | null = null, dues: Due[] = [];
+  let stu: Stu | null = null, dues: DueRow[] = [], wallet = 0, recent: { id: string; receipt_no: string; paid_on: string; amount: number; mode: string; cancelled: boolean }[] = [];
+  let history: { id: string; kind: string; amount: number; reason: string; created_at: string; created_by_name: string | null }[] = [];
+  const { data: st } = await supabase.from("fee_settings").select("fine_enabled,fine_mode,fine_amount,advance_allowed").eq("school_id", school.id).maybeSingle();
   if (sp.student && /^[0-9a-f-]{36}$/.test(sp.student)) {
-    const [{ data: s }, { data: d }] = await Promise.all([
+    const [{ data: s }, { data: d }, { data: w }, { data: r }, { data: h }] = await Promise.all([
       supabase.from("students").select(sel).eq("id", sp.student).eq("school_id", school.id).maybeSingle(),
-      supabase.from("fee_dues").select("id,label,due_date,amount,concession,fine,paid,status").eq("student_id", sp.student).neq("status", "paid").order("due_date").order("label"),
+      supabase.from("fee_dues").select("id,label,due_date,amount,concession,fine,paid,status,kind,fine_auto,original_due_date").eq("student_id", sp.student).neq("status", "paid").order("due_date").order("label"),
+      supabase.from("fee_wallet_entries").select("amount").eq("student_id", sp.student),
+      supabase.from("fee_receipts").select("id,receipt_no,paid_on,amount,mode,cancelled").eq("student_id", sp.student).order("created_at", { ascending: false }).limit(5),
+      supabase.from("fee_adjustments").select("id,kind,amount,reason,created_at,created_by_name").eq("student_id", sp.student).order("created_at", { ascending: false }).limit(8),
     ]);
     stu = s as unknown as Stu | null;
-    dues = (d ?? []) as Due[];
+    dues = (d ?? []) as DueRow[];
+    wallet = ((w ?? []) as { amount: number }[]).reduce((t, x) => t + Number(x.amount), 0);
+    recent = (r ?? []) as typeof recent;
+    history = (h ?? []) as typeof history;
   }
   const total = dues.reduce((t, d) => t + balance(d), 0);
-  const overdue = dues.filter((d) => d.due_date <= today).reduce((t, d) => t + balance(d), 0);
+  const overdue = dues.filter((d) => d.due_date < today).reduce((t, d) => t + balance(d), 0);
+  const autoFine = !!st?.fine_enabled;
   const oldest = dues.find((d) => d.due_date < today);
   const lateDays = oldest ? Math.round((Date.parse(today) - Date.parse(oldest.due_date)) / 86400000) : 0;
-  const fine = Math.round(lateDays * Number(school.late_fine_per_day));
+  const legacyFine = autoFine ? 0 : Math.round(lateDays * Number(school.late_fine_per_day));
+  const canAdjust = can("fees.dues.create");
+  const canWaive = can("fees.concessions.approve");
+  const canReverse = can("fees.refunds.approve");
 
   return (
     <div className="flex flex-col gap-5">
       <PageHeader icon="card" title="Collect fee" back={{ href: "/app/fees", label: "Fees" }} />
-      <Flash error={sp.error} />
+      <Flash ok={sp.ok} error={sp.error} />
       <form className="flex flex-wrap gap-2">
         <input name="q" defaultValue={sp.q} autoFocus={!stu} placeholder="Student name, admission no., father or phone" className="input !min-h-11 max-w-md !py-2" aria-label="Find student" />
         <button className="btn btn-sm btn-secondary cursor-pointer">Find</button>
@@ -67,36 +80,105 @@ export default async function Collect({ searchParams }: { searchParams: Promise<
                 <Link href={`/app/students/${stu.id}`} className="text-[20px] font-extrabold">{fullName(stu)}</Link>
                 <p className="m-0 text-[14px] text-muted">Adm. {stu.admission_no} · Class {stu.classes ? `${stu.classes.name}-${stu.sections?.name ?? ""}` : "—"} · {stu.father_name ?? ""} · {stu.guardian_phone ?? ""}</p>
               </div>
-              <p className="m-0 text-[14px]">Overdue <b className="text-error">{money(overdue)}</b> · Session balance <b className="text-ink">{money(total)}</b></p>
+              <p className="m-0 text-[14px]">Overdue <b className="text-error">{money(overdue)}</b> · Total balance <b className="text-ink">{money(total)}</b>{wallet > 0 && <> · Advance <b className="text-[#0b4f2c]">{money(wallet)}</b></>}</p>
             </div>
+            <p className="mt-2 mb-0 flex flex-wrap gap-3 text-[13px]">
+              <Link href={`/app/fees/ledger/${stu.id}`}>Fee statement</Link>
+              <Link href={`/app/students/${stu.id}`}>Student page</Link>
+            </p>
           </Card>
+
           {dues.length ? (
-            <>
-              <Table head={["Instalment", "Due", "Balance", ""]} minWidth={480}>
+            <form action={collectFeeV2} className="flex flex-col gap-5">
+              <input type="hidden" name="student_id" value={stu.id} />
+              <Table head={["Pay", "Instalment", "Due", "Fine", "Balance", ""]} minWidth={560}>
                 {dues.map((d) => (
                   <tr key={d.id}>
-                    <td className={td}>{d.label}</td>
-                    <td className={td}>{fmtDate(d.due_date)}</td>
+                    <td className={td}><input type="checkbox" name="due_id" value={d.id} aria-label={`Pay ${d.label}`} /></td>
+                    <td className={td}>{d.label}{d.kind !== "plan" && <span className="ml-1 text-[12px] text-muted">{d.kind}</span>}</td>
+                    <td className={td}>{fmtDate(d.due_date)}{d.original_due_date && <div className="text-[12px] text-muted">was {fmtDate(d.original_due_date)}</div>}</td>
+                    <td className={td}>{Number(d.fine) > 0 ? money(d.fine) : "—"}</td>
                     <td className={`${td} font-semibold text-ink`}>{money(balance(d))}</td>
-                    <td className={td}><Badge value={d.due_date <= today ? "overdue" : d.status} /></td>
+                    <td className={td}><Badge value={d.due_date < today ? "overdue" : d.status} /></td>
                   </tr>
                 ))}
               </Table>
+              <p className="m-0 -mt-3 text-[13px] text-muted">Tick instalments to pay only those; leave all unticked to pay oldest first.</p>
+
               <Card title="Receive payment">
-                <form action={collectFee} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <input type="hidden" name="student_id" value={stu.id} />
-                  <Input label="Amount received (₹)" name="amount" type="number" step="0.01" min={1} defaultValue={overdue || total} required hint={`Overdue ${money(overdue)} · full session ${money(total)}`} />
-                  <Select label="Mode" name="mode" options={MODES} />
-                  <Input label="UTR / cheque no." name="reference" />
-                  <Input label="Date" name="paid_on" type="date" defaultValue={today} />
-                  <Input label="Late fine (₹)" name="fine" type="number" step="1" min={0} defaultValue={fine || ""} hint={fine ? `${lateDays} days late × ${money(school.late_fine_per_day)}/day — edit or clear` : "Added on top; include it in the amount"} />
-                  <Input label="Note" name="note" className="lg:col-span-2" />
-                  <div className="flex items-end"><Submit>Save &amp; print receipt</Submit></div>
-                </form>
-                <p className="mt-3 mb-0 text-[13px] text-muted">The amount is applied to the oldest instalments first. Partial payments are fine.</p>
+                <div className="grid gap-3">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                      <Input label={i === 1 ? "Amount received (₹)" : `Second payment ${i - 1} (₹)`} name={`amount_${i}`} type="number" step="0.01" min={0}
+                        defaultValue={i === 1 ? (overdue || total) : undefined} hint={i === 1 ? `Overdue ${money(overdue)} · all dues ${money(total)}` : undefined} />
+                      <Select label="Mode" name={`mode_${i}`} options={PAY_MODES} defaultValue={i === 1 ? "cash" : i === 2 ? "upi" : "cheque"} />
+                      <Input label="UTR / cheque no." name={`reference_${i}`} />
+                      <Input label="Bank (cheque)" name={`bank_${i}`} />
+                      <Input label="Cheque date" name={`cheque_date_${i}`} type="date" />
+                    </div>
+                  ))}
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <Input label="Receipt date" name="paid_on" type="date" defaultValue={today} />
+                    {wallet > 0 && <Input label={`Use advance (max ${money(wallet)})`} name="wallet_use" type="number" step="0.01" min={0} max={wallet} />}
+                    <Input label="Extra fine (₹)" name="fine" type="number" step="1" min={0} defaultValue={legacyFine || ""}
+                      hint={autoFine ? "Late fine is added automatically by the school's rule." : legacyFine ? `${lateDays} days late × ${money(school.late_fine_per_day)}/day` : undefined} />
+                    <Input label="Note" name="note" />
+                  </div>
+                  <div><Submit>Save &amp; print receipt</Submit></div>
+                </div>
+                <p className="mt-3 mb-0 text-[13px] text-muted">
+                  Use the second line for split payments (cash + UPI). {st?.advance_allowed === false ? "Paying more than is due is not allowed." : "Anything above what is due is kept as the student's advance."}
+                </p>
               </Card>
-            </>
-          ) : <Empty>No unpaid instalments for this student. 🎉</Empty>}
+            </form>
+          ) : <Empty>No unpaid instalments for this student. 🎉{wallet > 0 && ` Advance balance ${money(wallet)}.`}</Empty>}
+
+          {canAdjust && dues.length > 0 && (
+            <Card title="Adjust an instalment" description="Every change needs a reason and is kept in the student's fee history.">
+              <form action={adjustDue} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                <input type="hidden" name="back" value={`/app/fees/collect?student=${stu.id}`} />
+                <Select label="Instalment" name="due_id" options={dues.map((d) => [d.id, `${d.label} · ${money(balance(d))}`] as [string, string])} />
+                <Select label="Action" name="action" options={[
+                  ["amount", "Change the amount (custom fee)"], ["extend", "Extend due date"],
+                  ...(canWaive ? [["waive", "Waive (concession)"], ["waive_fine", "Waive fine"]] as [string, string][] : []),
+                  ...(canReverse ? [["reverse", "Move a payment back to advance"]] as [string, string][] : []),
+                ]} />
+                <Input label="Amount (₹)" name="value" type="number" step="0.01" min={0} hint="New amount / amount to waive / amount to move" />
+                <Input label="New due date" name="new_date" type="date" />
+                <Input label="Reason" name="reason" required />
+                <div className="flex items-end"><Submit>Apply</Submit></div>
+              </form>
+            </Card>
+          )}
+
+          {(recent.length > 0 || history.length > 0) && (
+            <div className="grid gap-4 lg:grid-cols-2">
+              {recent.length > 0 && (
+                <Card title="Recent receipts">
+                  <ul className="m-0 list-none p-0 text-[14px]">
+                    {recent.map((r) => (
+                      <li key={r.id} className="flex justify-between gap-2 border-t border-line py-1.5 first:border-0">
+                        <Link href={`/app/fees/receipts/${r.id}`} className="font-mono text-[13px]">{r.receipt_no}</Link>
+                        <span className="text-muted">{fmtDate(r.paid_on)} · {r.mode}</span>
+                        <b className={r.cancelled ? "text-muted line-through" : ""}>{money(r.amount)}</b>
+                      </li>
+                    ))}
+                  </ul>
+                </Card>
+              )}
+              {history.length > 0 && (
+                <Card title="Recent changes">
+                  <ul className="m-0 list-none p-0 text-[14px]">
+                    {history.map((h) => (
+                      <li key={h.id} className="border-t border-line py-1.5 first:border-0">
+                        <b className="text-ink">{h.kind.replace("_", " ")}</b> {Number(h.amount) ? money(Math.abs(Number(h.amount))) : ""} <span className="text-muted">· {h.reason} · {fmtDate(h.created_at.slice(0, 10))}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </Card>
+              )}
+            </div>
+          )}
         </>
       )}
     </div>

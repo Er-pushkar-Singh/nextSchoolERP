@@ -55,19 +55,24 @@
         },
         {
           "code": "admissions",
-          "name": "Admission approval",
+          "name": "Admission applications, decisions & admit",
           "actions": [
             "view",
-            "approve"
-          ]
+            "create",
+            "edit",
+            "approve",
+            "export"
+          ],
+          "built": true
         },
         {
           "code": "online_form",
-          "name": "Online registration form",
+          "name": "Online admission form (public link)",
           "actions": [
             "view",
             "edit"
-          ]
+          ],
+          "built": true
         },
         {
           "code": "visitors",
@@ -102,11 +107,12 @@
         },
         {
           "code": "sensitive",
-          "name": "Aadhaar, medical, PEN / APAAR",
+          "name": "Identity (PEN, APAAR), health & internal notes",
           "actions": [
             "view",
             "edit"
-          ]
+          ],
+          "built": true
         },
         {
           "code": "import",
@@ -133,7 +139,8 @@
             "create",
             "print",
             "approve"
-          ]
+          ],
+          "built": true
         },
         {
           "code": "parent_link",
@@ -141,6 +148,62 @@
           "actions": [
             "view",
             "edit"
+          ],
+          "built": true
+        },
+        {
+          "code": "documents",
+          "name": "Student documents",
+          "actions": [
+            "view",
+            "create",
+            "edit",
+            "delete",
+            "approve"
+          ],
+          "built": true
+        },
+        {
+          "code": "board_reg",
+          "name": "UP Board registration (Class 9-12)",
+          "actions": [
+            "view",
+            "create",
+            "edit",
+            "approve",
+            "export"
+          ],
+          "built": true
+        }
+      ]
+    },
+    {
+      "code": "documents",
+      "name": "Documents & templates",
+      "group": "Academic",
+      "tier": "MVP",
+      "core": false,
+      "submodules": [
+        {
+          "code": "templates",
+          "name": "Templates (TC, ID card, letters)",
+          "actions": [
+            "view",
+            "create",
+            "edit",
+            "delete"
+          ],
+          "built": true
+        },
+        {
+          "code": "issue",
+          "name": "Issue, print & cancel documents",
+          "actions": [
+            "view",
+            "create",
+            "print",
+            "approve",
+            "export"
           ],
           "built": true
         }
@@ -391,7 +454,8 @@
           "actions": [
             "view",
             "create"
-          ]
+          ],
+          "built": true
         },
         {
           "code": "refunds",
@@ -400,7 +464,8 @@
             "view",
             "create",
             "approve"
-          ]
+          ],
+          "built": true
         }
       ]
     },
@@ -857,7 +922,10 @@
         "frontdesk.admissions": [
           "school",
           "view",
-          "approve"
+          "create",
+          "edit",
+          "approve",
+          "export"
         ],
         "students.profile": [
           "school",
@@ -868,7 +936,8 @@
         ],
         "students.sensitive": [
           "school",
-          "view"
+          "view",
+          "edit"
         ],
         "students.promotion": [
           "school",
@@ -967,6 +1036,38 @@
           "own",
           "view",
           "create"
+        ],
+        "students.documents": [
+          "school",
+          "view",
+          "create",
+          "edit",
+          "approve"
+        ],
+        "students.board_reg": [
+          "school",
+          "view",
+          "create",
+          "edit",
+          "export"
+        ],
+        "documents.templates": [
+          "school",
+          "view",
+          "create",
+          "edit"
+        ],
+        "documents.issue": [
+          "school",
+          "view",
+          "create",
+          "print",
+          "export"
+        ],
+        "frontdesk.online_form": [
+          "school",
+          "view",
+          "edit"
         ]
       }
     },
@@ -1094,7 +1195,10 @@
         ],
         "frontdesk.admissions": [
           "school",
-          "view"
+          "view",
+          "create",
+          "edit",
+          "export"
         ],
         "frontdesk.online_form": [
           "school",
@@ -1174,6 +1278,33 @@
           "own",
           "view",
           "create"
+        ],
+        "students.sensitive": [
+          "school",
+          "view",
+          "edit"
+        ],
+        "students.documents": [
+          "school",
+          "view",
+          "create",
+          "edit"
+        ],
+        "students.board_reg": [
+          "school",
+          "view",
+          "create",
+          "edit"
+        ],
+        "documents.templates": [
+          "school",
+          "view"
+        ],
+        "documents.issue": [
+          "school",
+          "view",
+          "create",
+          "print"
         ]
       }
     },
@@ -1229,6 +1360,16 @@
           "own",
           "view",
           "create"
+        ],
+        "documents.templates": [
+          "school",
+          "view"
+        ],
+        "documents.issue": [
+          "school",
+          "view",
+          "create",
+          "print"
         ]
       }
     },
@@ -1332,6 +1473,10 @@
           "own",
           "view",
           "create"
+        ],
+        "students.sensitive": [
+          "assigned",
+          "view"
         ]
       }
     },

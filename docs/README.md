@@ -21,11 +21,11 @@ The top-level [`README.md`](../README.md) is the product / setup guide; these do
 | 3 | Staff access, roles & permissions | [modules/access.md](modules/access.md) | `settings.users`, `settings.roles` | Built |
 | 4 | Settings centre & integrations | [modules/settings.md](modules/settings.md) | `settings.*`, `academics.setup` | Built |
 | 5 | Dashboard | [modules/dashboard.md](modules/dashboard.md) | `dashboard.overview` | Built |
-| 6 | Students | [modules/students.md](modules/students.md) | `students.*` | Built (certificates, sensitive: not yet) |
-| 7 | Admissions & enquiries | [modules/admissions.md](modules/admissions.md) | `frontdesk.enquiries` | Built (visitors, online form: not yet) |
+| 6 | Students | [modules/students.md](modules/students.md) | `students.*` | Built (identity, documents, contacts, history added in step 6; certificates in step 7) |
+| 7 | Admissions (enquiry → application → admit) | [modules/admissions.md](modules/admissions.md) | `frontdesk.enquiries`, `frontdesk.admissions` | Built (step 8; online form step 9; visitors: not yet) |
 | 8 | Attendance | [modules/attendance.md](modules/attendance.md) | `attendance.students` | Built (student leave, staff attendance: not yet) |
 | 9 | Exams & results | [modules/exams.md](modules/exams.md) | `exams.*` | Built (admit cards: not yet) |
-| 10 | Fees | [modules/fees.md](modules/fees.md) | `fees.*` | Built (online payment, refunds: not yet) |
+| 10 | Fees | [modules/fees.md](modules/fees.md) | `fees.*` | Built (Fees 2.0: split / advance / cheques / refunds / online, step 10) |
 | 11 | Notices | [modules/notices.md](modules/notices.md) | `comms.notices` | Built (templates, calendar, messages: not yet) |
 | 12 | Parent page | [modules/parent-portal.md](modules/parent-portal.md) | none — secret link | Built |
 | 13 | Homework & study material | [modules/homework.md](modules/homework.md) | `homework.*` | Built (step 5) |
@@ -33,6 +33,9 @@ The top-level [`README.md`](../README.md) is the product / setup guide; these do
 | 15 | Staff & payroll (HR) | [modules/hr-payroll.md](modules/hr-payroll.md) | `hr.*` | Built (step 5) |
 | 16 | Library | [modules/library.md](modules/library.md) | `library.*` | Built (step 5) |
 | 17 | Help & support desk | [modules/support.md](modules/support.md) | `support.tickets` | Built |
+| 18 | UP Board registration (Class 9-12) | [modules/board-registration.md](modules/board-registration.md) | `students.board_reg` | Built (step 6; no direct portal submission) |
+| 19 | Certificates (old fixed layouts) | [modules/certificates.md](modules/certificates.md) | `students.certificates` | Built (step 7) — superseded by 20 |
+| 20 | Documents & templates (TC, ID cards, letters) | [modules/documents.md](modules/documents.md) | `documents.templates`, `documents.issue` | Built (step 9) |
 
 Not built yet (permissions exist, no screens): Accounts, Hostel, Inventory & sales, Health & discipline, Timetable, Syllabus, and the sub-modules marked "not yet" above — see [roadmap.md](roadmap.md).
 
@@ -55,4 +58,4 @@ Not built yet (permissions exist, no screens): Accounts, Hostel, Inventory & sal
 - Record surprises in [gotchas.md](gotchas.md) so nobody hits them twice.
 - Dates: write absolute dates (e.g. 12 Oct 2026), never "last week".
 
-_Last full review: 12 Oct 2026 (after step 5 — Standard-plan modules)._
+_Last full review: 12 Oct 2026 (after step 10 — Fees 2.0 (online payment, refunds, cheques, fines, reports))._

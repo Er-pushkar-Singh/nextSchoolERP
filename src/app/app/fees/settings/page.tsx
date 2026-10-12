@@ -16,6 +16,7 @@ export default async function FeeSettings({ searchParams }: { searchParams: Prom
   const { supabase, school, can } = await requirePerm("fees.structure.view");
   const sp = await searchParams;
   const { data: s } = await supabase.from("fee_settings").select("*").eq("school_id", school.id).maybeSingle();
+  const { data: heads } = await supabase.from("fee_heads").select("id,name").eq("school_id", school.id).order("sort");
   const rz = await resolveIntegration(school.id, "razorpay");
   const ownRazorpay = rz?.source === "school";
   const editable = can("fees.structure.edit");
@@ -41,6 +42,13 @@ export default async function FeeSettings({ searchParams }: { searchParams: Prom
             <Check name="advance_allowed" label="Accept more than the amount due (kept as advance)" hint="Off: a payment larger than the dues is refused." on={s?.advance_allowed ?? true} />
             <div className="max-w-xs"><Input label="Bank charge for a bounced cheque (₹)" name="bounce_charge" type="number" step="0.01" min={0} defaultValue={s?.bounce_charge ?? 0} /></div>
             <Input label="Receipt footer" name="receipt_footer" defaultValue={s?.receipt_footer} hint="Printed at the bottom of every receipt, e.g. “Fees once paid are not refundable.”" />
+          </div>
+        </Card>
+
+        <Card title="Sibling discount" description="Applied automatically to the second and later children of a family (same parent phone, or same father and mother) when they are admitted, or with one click on the collect screen.">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Input label="Discount (%)" name="sibling_percent" type="number" step="0.5" min={0} max={100} defaultValue={s?.sibling_percent ?? 0} hint="0 = no sibling discount" />
+            <Select label="On which fee" name="sibling_head_id" blank="All fees" defaultValue={s?.sibling_head_id ?? ""} options={(heads ?? []).map((h) => [h.id, h.name] as [string, string])} />
           </div>
         </Card>
 

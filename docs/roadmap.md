@@ -35,6 +35,12 @@ Online admission form (public, with tracking), Documents & templates (editable t
 ## Done in step 10
 Fees 2.0 — online payment (school's own Razorpay + webhook receipts), refunds, cheques, late fine rule, concession approvals, advance wallet, split payments, day close, reports, arrears carry-forward.
 
+## Done in step 11
+Admissions pipeline dashboard, follow-ups, offer validity + lapse, waitlist promotion, bulk marks / merit list, offer letter, CSV; fees sibling discount, promise-to-pay, copy structure, split instalment, outstanding report, daily fine job; demo seed data.
+
+## Next module — planned
+**Communications 2.0** (automatic SMS / WhatsApp / email via an outbox and daily jobs): see [plans/communications.md](plans/communications.md).
+
 ## Suggested order (updated)
 1. **Automatic SMS / WhatsApp** on events (fee reminders, receipts, absence)  2. Staff attendance → payroll  3. Timetable + calendar  4. Accounts  5. Hostel / inventory / health  6. Parent & student logins (PWA), admit cards (a template + exam data), UDISE+ export
 

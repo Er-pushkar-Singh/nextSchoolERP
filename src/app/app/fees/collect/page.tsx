@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { requirePerm } from "@/lib/school";
 import { Badge, Card, Empty, Flash, Input, PageHeader, Select, Submit, Table, td } from "@/components/ui/ui";
-import { cleanSearch, fmtDate, fullName, money, todayIST } from "@/lib/format";
+import { addDays, cleanSearch, fmtDate, fullName, money, todayIST } from "@/lib/format";
 import { balance, type Due } from "@/lib/erp";
 import { PAY_MODES } from "@/lib/fees";
-import { adjustDue, collectFeeV2 } from "../../_actions/fees2";
+import { addPromise, adjustDue, collectFeeV2, siblingDiscount } from "../../_actions/fees2";
 
 type Stu = { id: string; admission_no: string; first_name: string; last_name: string | null; father_name: string | null; guardian_phone: string | null; classes: { name: string } | null; sections: { name: string } | null };
 type DueRow = Due & { kind: string; fine_auto: number; original_due_date: string | null };
@@ -22,17 +22,23 @@ export default async function Collect({ searchParams }: { searchParams: Promise<
     results = (data ?? []) as unknown as Stu[];
     if (results.length === 1) sp.student = results[0].id;
   }
+  let siblings: { student_id: string; name: string; admission_no: string; class_name: string | null; balance: number }[] = [];
+  let promises: { id: string; promised_on: string; amount: number | null; note: string | null; status: string }[] = [];
   let stu: Stu | null = null, dues: DueRow[] = [], wallet = 0, recent: { id: string; receipt_no: string; paid_on: string; amount: number; mode: string; cancelled: boolean }[] = [];
   let history: { id: string; kind: string; amount: number; reason: string; created_at: string; created_by_name: string | null }[] = [];
   const { data: st } = await supabase.from("fee_settings").select("fine_enabled,fine_mode,fine_amount,advance_allowed").eq("school_id", school.id).maybeSingle();
   if (sp.student && /^[0-9a-f-]{36}$/.test(sp.student)) {
-    const [{ data: s }, { data: d }, { data: w }, { data: r }, { data: h }] = await Promise.all([
+    const [{ data: s }, { data: d }, { data: w }, { data: r }, { data: h }, sib, { data: pr }] = await Promise.all([
       supabase.from("students").select(sel).eq("id", sp.student).eq("school_id", school.id).maybeSingle(),
       supabase.from("fee_dues").select("id,label,due_date,amount,concession,fine,paid,status,kind,fine_auto,original_due_date").eq("student_id", sp.student).neq("status", "paid").order("due_date").order("label"),
       supabase.from("fee_wallet_entries").select("amount").eq("student_id", sp.student),
       supabase.from("fee_receipts").select("id,receipt_no,paid_on,amount,mode,cancelled").eq("student_id", sp.student).order("created_at", { ascending: false }).limit(5),
       supabase.from("fee_adjustments").select("id,kind,amount,reason,created_at,created_by_name").eq("student_id", sp.student).order("created_at", { ascending: false }).limit(8),
+      supabase.rpc("student_siblings", { sid: school.id, stu: sp.student }),
+      supabase.from("fee_followups").select("id,promised_on,amount,note,status").eq("student_id", sp.student).order("promised_on", { ascending: false }).limit(5),
     ]);
+    siblings = (sib.data ?? []) as typeof siblings;
+    promises = (pr ?? []) as typeof promises;
     stu = s as unknown as Stu | null;
     dues = (d ?? []) as DueRow[];
     wallet = ((w ?? []) as { amount: number }[]).reduce((t, x) => t + Number(x.amount), 0);
@@ -88,6 +94,13 @@ export default async function Collect({ searchParams }: { searchParams: Promise<
             </p>
           </Card>
 
+          {siblings.length > 0 && (
+            <p role="note" className="m-0 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-[12px] border border-[#cfd9f7] bg-blue-tint px-4 py-3 text-[14px] text-blue-strong">
+              <b>Siblings:</b>
+              {siblings.map((x) => <Link key={x.student_id} href={`/app/fees/collect?student=${x.student_id}`} className="font-semibold">{x.name} ({x.class_name ?? "—"}) — {Number(x.balance) > 0 ? `owes ${money(x.balance)}` : "no dues"}</Link>)}
+              {canAdjust && <form action={siblingDiscount} className="inline"><input type="hidden" name="student_id" value={stu.id} /><button className="cursor-pointer border-0 bg-transparent p-0 text-[13px] font-semibold text-blue underline">Apply sibling discount</button></form>}
+            </p>
+          )}
           {dues.length ? (
             <form action={collectFeeV2} className="flex flex-col gap-5">
               <input type="hidden" name="student_id" value={stu.id} />
@@ -135,18 +148,41 @@ export default async function Collect({ searchParams }: { searchParams: Promise<
 
           {canAdjust && dues.length > 0 && (
             <Card title="Adjust an instalment" description="Every change needs a reason and is kept in the student's fee history.">
-              <form action={adjustDue} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              <form action={adjustDue} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
                 <input type="hidden" name="back" value={`/app/fees/collect?student=${stu.id}`} />
                 <Select label="Instalment" name="due_id" options={dues.map((d) => [d.id, `${d.label} · ${money(balance(d))}`] as [string, string])} />
                 <Select label="Action" name="action" options={[
-                  ["amount", "Change the amount (custom fee)"], ["extend", "Extend due date"],
+                  ["amount", "Change the amount (custom fee)"], ["extend", "Extend due date"], ["split", "Split into parts (value = number of parts)"],
                   ...(canWaive ? [["waive", "Waive (concession)"], ["waive_fine", "Waive fine"]] as [string, string][] : []),
                   ...(canReverse ? [["reverse", "Move a payment back to advance"]] as [string, string][] : []),
                 ]} />
                 <Input label="Amount (₹)" name="value" type="number" step="0.01" min={0} hint="New amount / amount to waive / amount to move" />
-                <Input label="New due date" name="new_date" type="date" />
+                <Input label="New / first due date" name="new_date" type="date" />
+                <Input label="Gap between parts (days)" name="gap_days" type="number" min={1} defaultValue={30} hint="Only for “Split”" />
                 <Input label="Reason" name="reason" required />
                 <div className="flex items-end"><Submit>Apply</Submit></div>
+              </form>
+            </Card>
+          )}
+
+          {(total > 0 || promises.length > 0) && (
+            <Card title="Promise to pay" description="Note what the parent promised, so the next call is informed.">
+              {promises.length > 0 && (
+                <ul className="m-0 mb-3 list-none p-0 text-[14px]">
+                  {promises.map((p) => (
+                    <li key={p.id} className="border-t border-line py-1.5 first:border-0">
+                      <b className={p.status === "open" && p.promised_on < today ? "text-error" : "text-ink"}>{fmtDate(p.promised_on)}</b>
+                      {p.amount ? ` · ${money(p.amount)}` : ""} · <Badge value={p.status === "kept" ? "paid" : p.status === "broken" ? "overdue" : "pending"} text={p.status} />{p.note ? <span className="text-muted"> — {p.note}</span> : null}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <form action={addPromise} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                <input type="hidden" name="student_id" value={stu.id} />
+                <Input label="Will pay on" name="promised_on" type="date" defaultValue={addDays(today, 3)} required />
+                <Input label="Amount (₹)" name="amount" type="number" step="1" min={0} defaultValue={overdue || ""} />
+                <Input label="Note" name="note" className="lg:col-span-2" placeholder="e.g. after salary, father will visit" />
+                <div className="flex items-end"><Submit variant="secondary">Save promise</Submit></div>
               </form>
             </Card>
           )}

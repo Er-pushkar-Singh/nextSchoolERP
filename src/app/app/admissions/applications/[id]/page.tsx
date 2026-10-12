@@ -4,12 +4,13 @@ import { requirePerm } from "@/lib/school";
 import { Badge, Card, Empty, Flash, Input, PageHeader, Select, Stat, Submit, Table, Textarea, td } from "@/components/ui/ui";
 import { ApplicationForm } from "@/components/ApplicationForm";
 import { ClassSection } from "@/components/ClassSection";
-import { fmtDate, money, todayIST } from "@/lib/format";
+import { addDays, fmtDate, money, todayIST } from "@/lib/format";
 import { getClasses } from "@/lib/erp";
 import { ageWarning } from "@/lib/student-form";
 import { DOC_TYPES } from "@/lib/student-docs";
 import { ADMISSION_DOCS, APP_STATUS, APP_TONE, FEE_MODES, type AppForm } from "@/lib/applications";
 import { maskAadhaar } from "@/lib/aadhaar";
+import { addFollowup, completeFollowup } from "../../../_actions/admissions2";
 import {
   admitApplication, deleteApplicationDocument, markApplicationDocPending, recordApplicationFee, reviewApplicationDocument, saveTest, setApplicationStatus,
   updateApplication, uploadApplicationDocument,
@@ -26,12 +27,18 @@ export default async function ApplicationPage({ params, searchParams }: { params
   const sp = await searchParams;
   const { data: a } = await supabase.from("admission_applications").select("*").eq("id", id).eq("school_id", school.id).maybeSingle();
   if (!a) notFound();
-  const [classes, { data: docs }, { data: events }, seatsQ] = await Promise.all([
+  const [classes, { data: docs }, { data: events }, seatsQ, sibQ, quoteQ, { data: fups }] = await Promise.all([
     getClasses(supabase, school.id),
     supabase.from("application_documents").select("id,doc_type,title,status,file_name,due_by,uploaded_by_name,uploaded_at,verified_by_name,verified_at,reject_reason").eq("application_id", id).order("created_at"),
     supabase.from("admission_application_events").select("id,at,actor_name,event,details").eq("application_id", id).order("id", { ascending: false }).limit(40),
     session ? supabase.rpc("admission_seats", { sid: school.id, sess: a.session_id ?? session.id }) : Promise.resolve({ data: [] }),
+    supabase.rpc("application_siblings", { app: id }),
+    a.class_id && !["admitted", "cancelled", "rejected"].includes(a.status) ? supabase.rpc("admission_fee_quote", { app: id }) : Promise.resolve({ data: [] }),
+    supabase.from("application_followups").select("id,due_on,channel,note,done,outcome").eq("application_id", id).order("due_on", { ascending: false }).limit(10),
   ]);
+  const siblings = (sibQ.data ?? []) as { student_id: string; name: string; admission_no: string; class_name: string | null }[];
+  const quote = (quoteQ.data ?? []) as { head: string; label: string; due_date: string; amount: number }[];
+  const followups = (fups ?? []) as { id: string; due_on: string; channel: string; note: string | null; done: boolean; outcome: string | null }[];
   const f = (a.form ?? {}) as AppForm;
   const cls = classes.find((c) => c.id === a.class_id);
   const D = (docs ?? []) as Doc[];
@@ -70,6 +77,7 @@ export default async function ApplicationPage({ params, searchParams }: { params
         subtitle={<><span className="font-mono">{a.application_no}</span> · Class {cls?.name ?? "—"} · applied {fmtDate(a.applied_on)} <Badge value={APP_TONE[a.status]} text={APP_STATUS[a.status] + (a.waitlist_no ? ` #${a.waitlist_no}` : "")} />{a.rte_applicant && <> <Badge value="contacted" text={`RTE${a.rte_reference ? ` · ${a.rte_reference}` : ""}`} /></>}</>}
         actions={<>
           <Link href={`/app/admissions/applications/${id}/print`} className="btn btn-sm btn-secondary">Print application</Link>
+          {["approved", "admitted"].includes(a.status) && <Link href={`/app/admissions/applications/${id}/offer`} className="btn btn-sm btn-secondary">Offer letter</Link>}
           {edit && <Link href={`/app/admissions/applications/${id}?edit=1`} className="btn btn-sm btn-secondary">Edit</Link>}
           {a.student_id && <Link href={`/app/students/${a.student_id}`} className="btn btn-sm btn-primary">Open student</Link>}
         </>} />
@@ -81,6 +89,17 @@ export default async function ApplicationPage({ params, searchParams }: { params
         <Stat label="Application fee" value={a.fee_amount !== null ? money(a.fee_amount) : "—"} hint={a.fee_paid_on ? fmtDate(a.fee_paid_on) : undefined} icon="fees" tone="green" />
         <Stat label="Seats left" value={free === null ? "—" : free} hint={cls ? `Class ${cls.name}` : undefined} icon="school" tone={free !== null && free <= 0 ? "rose" : "cyan"} />
       </div>
+      {a.status === "approved" && a.offer_valid_till && (
+        <p role="note" className={`m-0 rounded-[12px] border px-4 py-3 text-[14px] ${a.offer_valid_till < todayIST() ? "border-[#f3b8b1] bg-[#fdecea] text-[#7a1a12]" : "border-[#bfe3cb] bg-wa-tint text-[#0b4f2c]"}`}>
+          Offer valid till <b>{fmtDate(a.offer_valid_till)}</b>{a.offer_valid_till < todayIST() ? " — expired. The seat can be released from the pipeline page." : " — the family should complete the admission by then."}
+        </p>
+      )}
+      {siblings.length > 0 && open && (
+        <p role="note" className="m-0 rounded-[12px] border border-[#cfd9f7] bg-blue-tint px-4 py-3 text-[14px] text-blue-strong">
+          Sibling in school: {siblings.map((x) => <Link key={x.student_id} href={`/app/students/${x.student_id}`} className="mr-2 font-semibold">{x.name} ({x.admission_no}{x.class_name ? `, Class ${x.class_name}` : ""})</Link>)}
+          — the sibling discount from Fee settings is applied automatically when this student is admitted.
+        </p>
+      )}
       {warn && <p role="note" className="m-0 rounded-[12px] border border-[#f1d39a] bg-[#fff4e0] px-4 py-3 text-[14px] text-[#7a4b00]">{warn} The principal can still approve.</p>}
       {free !== null && free <= 0 && a.status !== "admitted" && <p role="note" className="m-0 rounded-[12px] border border-[#f3b8b1] bg-[#fdecea] px-4 py-3 text-[14px] text-[#7a1a12]">No free seats in Class {cls?.name}. Waitlist this application or raise the seats in settings.</p>}
 
@@ -205,6 +224,46 @@ export default async function ApplicationPage({ params, searchParams }: { params
           </form>
         </Card>
       )}
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <Card title="Follow-ups" icon="notifications">
+          {followups.length > 0 && (
+            <ul className="m-0 mb-3 list-none p-0 text-[14px]">
+              {followups.map((x) => (
+                <li key={x.id} className="border-t border-line py-1.5 first:border-0">
+                  <b className={!x.done && x.due_on < todayIST() ? "text-error" : "text-ink"}>{fmtDate(x.due_on)}</b> · {x.channel}{x.note ? ` — ${x.note}` : ""}
+                  {x.done ? <span className="text-[#0b4f2c]"> · done{x.outcome ? `: ${x.outcome}` : ""}</span> : edit && (
+                    <form action={completeFollowup} className="mt-1 flex flex-wrap items-center gap-1">
+                      <input type="hidden" name="id" value={x.id} /><input type="hidden" name="back" value={`/app/admissions/applications/${id}`} />
+                      <input name="outcome" placeholder="What happened?" aria-label="Outcome" className="input !min-h-8 !py-1 text-[13px]" />
+                      <input name="next_due" type="date" aria-label="Next follow-up" className="input !min-h-8 !py-1 text-[13px]" />
+                      <button className="btn btn-sm btn-secondary cursor-pointer">Done</button>
+                    </form>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          {edit && (
+            <form action={addFollowup} className="grid gap-2 sm:grid-cols-2">
+              <input type="hidden" name="application_id" value={id} /><input type="hidden" name="back" value={`/app/admissions/applications/${id}`} />
+              <Input label="On" name="due_on" type="date" defaultValue={addDays(todayIST(), 2)} required />
+              <Select label="How" name="channel" options={[["call", "Call"], ["whatsapp", "WhatsApp"], ["visit", "Visit"], ["sms", "SMS"], ["email", "Email"]]} />
+              <Input label="Note" name="note" className="sm:col-span-2" />
+              <div><Submit variant="secondary">Add follow-up</Submit></div>
+            </form>
+          )}
+          {!followups.length && !edit && <p className="m-0 text-[14px] text-muted">None.</p>}
+        </Card>
+        {quote.length > 0 && (
+          <Card title="Fees the family will be asked to pay" icon="fees" description="From the class fee structure; concessions and the sibling discount are applied when admitted.">
+            <Table head={["Particulars", "Due", "Amount"]} minWidth={360}>
+              {quote.map((r, i) => <tr key={i}><td className={td}>{r.head} · {r.label}</td><td className={td}>{fmtDate(r.due_date)}</td><td className={td}>{money(r.amount)}</td></tr>)}
+            </Table>
+            <p className="mt-2 mb-0 text-[14px]">Total <b className="text-ink">{money(quote.reduce((t, r) => t + Number(r.amount), 0))}</b></p>
+          </Card>
+        )}
+      </div>
 
       <Card title="History" icon="notifications">
         {(events ?? []).length ? (

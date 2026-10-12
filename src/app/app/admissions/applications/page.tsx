@@ -38,6 +38,10 @@ export default async function Applications({ searchParams }: { searchParams: Pro
     <div className="flex flex-col gap-5">
       <PageHeader icon="admissions" title="Admission applications" subtitle={`Session ${session?.name ?? "—"} · from enquiry to admitted student`}
         actions={<>
+          <Link href="/app/admissions/pipeline" className="btn btn-sm btn-secondary">Pipeline</Link>
+          <Link href="/app/admissions/followups" className="btn btn-sm btn-secondary">Follow-ups</Link>
+          <Link href="/app/admissions/applications/test-sheet" className="btn btn-sm btn-secondary">Marks &amp; merit</Link>
+          <a href={`/app/admissions/applications/export${status ? `?status=${status}` : ""}`} className="btn btn-sm btn-secondary">CSV</a>
           <Link href="/app/admissions" className="btn btn-sm btn-secondary">Enquiries</Link>
           {can("frontdesk.online_form.view") && <Link href="/app/admissions/online" className="btn btn-sm btn-secondary">Online form</Link>}
           {can("frontdesk.admissions.create") && <Link href="/app/admissions/applications/new" className="btn btn-sm btn-primary">New application</Link>}

@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 const TABLES = [
   "schools", "school_subscriptions", "subscription_invoices", "school_modules", "sessions", "classes", "sections", "subjects",
   "roles", "school_members", "member_roles", "member_overrides", "staff_assignments", "students", "guardians", "student_guardians",
-  "enquiries", "fee_heads", "fee_plans", "student_concessions", "fee_dues", "fee_receipts", "fee_receipt_lines", "fee_settings", "fee_receipt_payments", "fee_wallet_entries", "fee_cheques", "fee_adjustments", "fee_refunds", "fee_day_close", "fee_online_orders",
+  "enquiries", "fee_heads", "fee_plans", "student_concessions", "fee_dues", "fee_receipts", "fee_receipt_lines", "fee_settings", "fee_receipt_payments", "fee_wallet_entries", "fee_cheques", "fee_adjustments", "fee_refunds", "fee_day_close", "fee_online_orders", "fee_followups", "admission_settings", "application_followups",
   "attendance", "exams", "exam_subjects", "marks", "notices", "tickets",
   "homework", "transport_vehicles", "transport_routes", "transport_stops", "transport_allocations",
   "staff", "staff_leaves", "payroll_runs", "payslips", "library_books", "library_issues",

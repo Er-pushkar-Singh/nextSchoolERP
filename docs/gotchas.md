@@ -48,3 +48,9 @@ Things that have already bitten this project. Check here before debugging someth
 - Mode reports must read `fee_receipt_payments`, not `fee_receipts.mode` (a mixed receipt has mode `mixed`).
 - A pending / rejected concession is ignored by `concession_for()`; after approving always call `reapply_concessions`.
 - Fees online uses the **school's own** Razorpay only (`resolveIntegration(...).source === 'school'`); the webhook is `/api/razorpay/fees`, separate from the subscription webhook `/api/razorpay/webhook`.
+
+## Step 11 traps
+- Seed / maintenance scripts run as `postgres` have no `auth.uid()`: permission functions return false. `supabase/seed/demo_data.sql` sets `request.jwt.claims` to the school's Principal first; do the same in any new script. Never name a table alias like a plpgsql record variable (`r`).
+- `bill_student_dues()` now also applies the sibling rule. It is only called from `admit_application()`.
+- `admit_application()` does not check seats; the UI warns. Seat control is `admission_seats()` + `promote_waitlist()`.
+- `fee_dues.kind = 'charge'` rows made by `split_due` have no `fee_plan_id` (the unique `(student_id, fee_plan_id)` index would otherwise clash).

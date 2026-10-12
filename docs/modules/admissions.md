@@ -58,3 +58,16 @@ Parents fill the application themselves at `/apply/<school code>` — no login �
 - **Parent side**: `/apply/<code>` (form with Hindi names, address, previous school, one extra contact, optional uploads of photo / birth certificate / marksheet / TC / address proof), `/apply/<code>/done` (application number), `/apply/<code>/track` (status by application number + the mobile number given: status message, test / interview date, waitlist number, documents received / pending).
 - **Safeguards**: honeypot field, minimum fill time, 5 forms per hour per network, 4 per day per mobile, same name + DOB + father refused, school must be open / writable, class must be open; all through `public_create_application()` which only the server's secret key can call. **Aadhaar and the restricted tier are not asked online.**
 - **Not included**: online payment of the application fee (record it at the desk), SMS / e-mail to the parent on each status change.
+
+## Admissions add-ons (step 11, 12 Oct 2026) — migration `0013_admissions_fees_addons.sql`
+| Route | What's there |
+|---|---|
+| `/app/admissions/pipeline` | Funnel by stage, source-wise conversion, average days to decision, seats per class with **Promote waitlist**, approved offers with validity and **Cancel expired offers**, follow-ups due, admission settings (offer days, automatic sibling discount) |
+| `/app/admissions/followups` | Open / completed follow-ups for applications **and** enquiries: channel, outcome, "Done + next" booking, WhatsApp link, add new |
+| `/app/admissions/applications/test-sheet?class_id=` | Marks for every applicant of a class in one go, **merit ranking**, tick rows and move them to under review / approved / waitlisted / rejected in bulk (failures reported per row) |
+| `/app/admissions/applications/export` | CSV of the filtered list |
+| `/app/admissions/applications/[id]/offer` | Printable **offer letter** (class, validity, fees payable, documents to bring) |
+| application page | sibling-in-school notice, offer validity banner, follow-ups card, "fees the family will be asked to pay" (from the class fee structure) |
+
+Rules: approval stamps `offer_valid_till` = today + `admission_settings.offer_days`; an expired offer is cancelled by `lapse_expired_offers()` (principal) and the seat is released; `promote_waitlist()` approves waitlisted applicants in waitlist order while seats are free; siblings are matched by parent phone or father + mother name (`student_siblings`, `application_siblings`); at **Admit**, `bill_student_dues()` first applies the school's sibling discount (Fees → Fee settings) so the new dues already carry it.
+Tables: `admission_settings`, `application_followups`; `admission_applications.offer_valid_till`. Tests: `supabase/tests/addons.test.sql`.

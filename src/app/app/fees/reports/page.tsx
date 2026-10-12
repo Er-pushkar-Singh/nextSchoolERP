@@ -14,11 +14,14 @@ export default async function Reports({ searchParams }: { searchParams: Promise<
   const from = valid(sp.from) ?? `${today.slice(0, 8)}01`;
   const to = valid(sp.to) ?? today;
   const by = GROUPS.some(([k]) => k === sp.by) ? sp.by! : "head";
-  const [{ data: rep }, aging, { data: cons }] = await Promise.all([
+  const [{ data: rep }, aging, { data: cons }, outQ] = await Promise.all([
     supabase.rpc("fee_report", { sid: school.id, d1: from, d2: to, by }),
     session ? supabase.rpc("fee_aging", { sid: school.id, sess: session.id }) : Promise.resolve({ data: [] }),
     supabase.from("student_concessions").select("category,kind,value,status").eq("school_id", school.id).eq("status", "approved"),
+    session ? supabase.rpc("fee_outstanding", { sid: school.id, sess: session.id }) : Promise.resolve({ data: [] }),
   ]);
+  const outRows = (outQ.data ?? []) as { class_id: string | null; class_name: string | null; head_name: string; students: number; billed: number; concession: number; collected: number; outstanding: number }[];
+  const outTotal = outRows.reduce((t, r) => t + Number(r.outstanding), 0);
   const rows = (rep ?? []) as { key: string; label: string; receipts: number; amount: number }[];
   const total = rows.reduce((t, r) => t + Number(r.amount), 0);
   const age = (aging.data ?? []) as { bucket: string; students: number; amount: number }[];
@@ -64,6 +67,21 @@ export default async function Reports({ searchParams }: { searchParams: Promise<
           </Table>
         ) : <Empty>Nothing is outstanding.</Empty>}
         <p className="mt-3 mb-0 text-[13px]"><Link href="/app/fees/defaulters">Defaulter list with reminders →</Link></p>
+      </Card>
+
+      <Card title="Outstanding by class and fee head" description={`Session ${session?.name ?? ""} · total outstanding ${money(outTotal)}`}
+        actions={<a href="/app/fees/reports/outstanding" className="text-[14px] font-semibold">CSV</a>}>
+        {outRows.length ? (
+          <Table head={["Class", "Fee head", "Students", "Billed", "Concession", "Collected", "Outstanding"]} minWidth={760}>
+            {outRows.map((r, i) => (
+              <tr key={i}>
+                <td className={`${td} font-semibold text-ink`}>{r.class_name ?? "—"}</td><td className={td}>{r.head_name}</td><td className={td}>{r.students}</td>
+                <td className={td}>{money(r.billed)}</td><td className={td}>{money(r.concession)}</td><td className={td}>{money(r.collected)}</td>
+                <td className={`${td} font-semibold ${Number(r.outstanding) > 0 ? "text-error" : "text-ink"}`}>{money(r.outstanding)}</td>
+              </tr>
+            ))}
+          </Table>
+        ) : <Empty>No dues yet.</Empty>}
       </Card>
 
       {byCat.length > 0 && (

@@ -62,5 +62,16 @@ Students (ledger, concessions), Admissions (`bill_student_dues`), Transport (`ge
 ## Setup for online payment
 Settings → Integrations → Razorpay (school's own key id, key secret, webhook secret) → Razorpay dashboard: webhook URL `<app url>/api/razorpay/fees`, event `payment_link.paid`, same secret → Fee settings: switch **Allow online payment** on.
 
+## Fees add-ons (step 11) — migration `0013_admissions_fees_addons.sql`
+- **Sibling discount**: `fee_settings.sibling_percent` (+ `sibling_head_id`); applied automatically at admission and with one click on the collect screen (`apply_sibling_discount`); once per student. The collect screen lists siblings with their balances.
+- **Promise to pay**: `fee_followups` (date, amount, note); `/app/fees/followups`; the daily job `mark_broken_promises()` settles passed promises as kept / broken; overdue count on the Fees overview.
+- **Structure tools** (`/app/fees/charges`): copy one class's instalments to other classes (`copy_fee_plans`), copy the whole structure to a new session with date shift and % increase (`copy_session_plans`).
+- **Split an instalment** (collect screen → Adjust → Split): equal parts with a gap in days; concession divided; recorded as `fee_adjustments.kind = 'split'`; part-paid instalments cannot be split.
+- **Outstanding by class × fee head** (`fee_outstanding`, `/app/fees/reports`, CSV).
+- **Daily late-fine job**: `/api/cron/late-fines` (vercel cron 04:00, `Authorization: Bearer CRON_SECRET`) calls `apply_late_fines_all()` and `mark_broken_promises()`.
+
+## Demo data
+`supabase/seed/demo_data.sql` (set `v_code`, run in the SQL editor after `setup.sql`) creates one school's worth of realistic data through the real functions — fee structure for Nursery–10, 39 students incl. siblings and RTE, 16 applications in every state, 6 enquiries, concessions in all states, receipts in all modes (split, cheque cleared / deposited / received / bounced, advance), refunds in all states, waivers, extension, split, promises, day close. Run once; `supabase/seed/demo_remove.sql` removes it. Both verified on a fresh database.
+
 ## Gaps & ideas
 Automatic SMS / WhatsApp reminders and receipt messages, sibling-discount rules, Tally export, a daily job calling `apply_late_fines_all` (currently fines update at payment time or by button), refunds paid back through Razorpay, instalment plans for individual students, receipt print in Hindi.

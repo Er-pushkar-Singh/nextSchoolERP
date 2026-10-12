@@ -25,6 +25,8 @@ export async function saveFeeSettings(f: FormData) {
     online_min_amount: Math.max(0, money2(num(f, "online_min_amount")) ?? 1),
     online_allow_partial: f.get("online_allow_partial") === "on",
     receipt_footer: str(f, "receipt_footer", 300),
+    sibling_percent: Math.min(100, Math.max(0, money2(num(f, "sibling_percent")) ?? 0)),
+    sibling_head_id: uuid(f, "sibling_head_id"),
   };
   if (row.fine_enabled && row.fine_amount <= 0) go(back, { error: "Enter the fine amount, or switch the late fine off." });
   const { error } = await supabase.from("fee_settings").upsert(row, { onConflict: "school_id" });
@@ -93,12 +95,13 @@ export async function adjustDue(f: FormData) {
   const back = String(f.get("back") ?? "/app/fees/collect").startsWith("/app/") ? String(f.get("back")) : "/app/fees/collect";
   const reason = str(f, "reason", 200);
   if (!id || !reason) go(back, { error: "Write the reason." });
-  const action = oneOf(f, "action", ["amount", "extend", "waive", "waive_fine", "reverse"] as const, "waive");
+  const action = oneOf(f, "action", ["amount", "extend", "waive", "waive_fine", "reverse", "split"] as const, "waive");
   let error: { message?: string } | null = null;
   if (action === "amount") ({ error } = await supabase.rpc("adjust_due_amount", { did: id, p_new: num(f, "value"), p_reason: reason }));
   else if (action === "waive") ({ error } = await supabase.rpc("waive_due", { did: id, p_amount: num(f, "value"), p_reason: reason }));
   else if (action === "waive_fine") ({ error } = await supabase.rpc("waive_fine", { did: id, p_amount: num(f, "value"), p_reason: reason }));
   else if (action === "reverse") ({ error } = await supabase.rpc("reverse_payment", { did: id, p_amount: num(f, "value"), p_reason: reason }));
+  else if (action === "split") ({ error } = await supabase.rpc("split_due", { did: id, p_parts: Math.round(num(f, "value") ?? 0), p_first: date(f, "new_date"), p_gap_days: Math.round(num(f, "gap_days") ?? 30), p_reason: reason }));
   else {
     const { data: d } = await supabase.from("fee_dues").select("school_id").eq("id", id).maybeSingle();
     if (!d || !date(f, "new_date")) go(back, { error: "Choose the new due date." });
@@ -175,4 +178,46 @@ export async function closeDay(f: FormData) {
   if (!day || counted === null || counted < 0) go(back, { error: "Enter the cash counted." });
   const { error } = await supabase.rpc("close_day", { sid: school.id, p_day: day, p_collector: String(f.get("collector") ?? ""), p_counted: counted, p_note: str(f, "note", 200) });
   go(back, error ? { error: errMsg(error) } : { ok: "Day closed." });
+}
+
+/* ───────────── Promise to pay ───────────── */
+export async function addPromise(f: FormData) {
+  const { supabase, school } = await requirePerm("fees.defaulters.create", "fees.collection.create");
+  const student = uuid(f, "student_id");
+  const back = String(f.get("back") ?? "").startsWith("/app/fees") ? String(f.get("back")) : `/app/fees/collect?student=${student}`;
+  const { error } = await supabase.rpc("add_fee_followup", { sid: school.id, stu: student, p_on: date(f, "promised_on"), p_amount: money2(num(f, "amount")), p_note: str(f, "note", 200) });
+  go(back, error ? { error: errMsg(error) } : { ok: "Promise recorded." });
+}
+
+export async function closePromise(f: FormData) {
+  const { supabase } = await requirePerm("fees.defaulters.create", "fees.collection.create");
+  const status = oneOf(f, "status", ["kept", "broken", "closed"] as const, "closed");
+  const { error } = await supabase.rpc("close_fee_followup", { fid: uuid(f, "id"), p_status: status });
+  go("/app/fees/followups", error ? { error: errMsg(error) } : { ok: "Updated." });
+}
+
+/* ───────────── Structure tools ───────────── */
+export async function copyClassPlans(f: FormData) {
+  const { supabase, school, session } = await requirePerm("fees.structure.create");
+  const back = "/app/fees/charges";
+  const from = uuid(f, "from_class"), to = ids(f, "to_class");
+  if (!session || !from || !to.length) go(back, { error: "Choose the class to copy from and at least one class to copy to." });
+  const { data, error } = await supabase.rpc("copy_fee_plans", { sid: school.id, sess: session!.id, from_class: from, to_classes: to });
+  go(back, error ? { error: errMsg(error) } : { ok: `${data} instalment(s) copied. Click “Generate dues” in Fee structure to bill students.` });
+}
+
+export async function copySessionPlans(f: FormData) {
+  const { supabase, school } = await requirePerm("fees.structure.create");
+  const back = "/app/fees/charges";
+  const from = uuid(f, "from_session"), to = uuid(f, "to_session");
+  if (!from || !to) go(back, { error: "Choose both sessions." });
+  const { data, error } = await supabase.rpc("copy_session_plans", { sid: school.id, from_sess: from, to_sess: to, p_years: Math.round(num(f, "years") ?? 1), p_increase_percent: num(f, "increase") ?? 0 });
+  go(back, error ? { error: errMsg(error) } : { ok: `${data} instalment(s) copied to the new session.` });
+}
+
+export async function siblingDiscount(f: FormData) {
+  const { supabase, school } = await requirePerm("fees.concessions.create");
+  const student = uuid(f, "student_id");
+  const { data, error } = await supabase.rpc("apply_sibling_discount", { sid: school.id, stu: student });
+  go(`/app/fees/collect?student=${student}`, error ? { error: errMsg(error) } : data ? { ok: "Sibling discount applied to the unpaid instalments." } : { error: "No sibling found, or the discount is already applied." });
 }

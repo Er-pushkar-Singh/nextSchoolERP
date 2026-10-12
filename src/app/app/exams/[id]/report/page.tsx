@@ -20,14 +20,41 @@ export default async function ReportCards({ params, searchParams }: { params: Pr
   const { data: allExams } = await supabase.from("exams").select("id,name,sort").eq("session_id", exam.session_id).lte("sort", exam.sort).order("sort");
   const classes = await getClasses(supabase, school.id);
   const klass = classes.find((c) => c.id === cls);
-  let q = supabase.from("students").select("id,admission_no,first_name,last_name,roll_no,father_name,mother_name,dob,sections(name)").eq("school_id", school.id).eq("class_id", cls).eq("status", "active");
-  if (uid(sp.section_id)) q = q.eq("section_id", sp.section_id!);
-  if (uid(sp.student)) q = q.eq("id", sp.student!);
-  const { data: students } = await q.order("roll_no", { nullsFirst: false }).order("first_name");
-  const list = (students ?? []) as unknown as { id: string; admission_no: string; first_name: string; last_name: string | null; roll_no: number | null; father_name: string | null; mother_name: string | null; dob: string | null; sections: { name: string } | null }[];
+  // Who was in this class during the exam's session comes from the enrolment history, so promoted,
+  // transferred and passed-out students still get their card — and classmates for the rank are the same set.
+  type Row = { id: string; admission_no: string; first_name: string; last_name: string | null; middle_name: string | null; roll_no: number | null; father_name: string | null; mother_name: string | null; dob: string | null; sections: { name: string } | null };
+  const { data: enr } = await supabase.from("student_enrolments").select("student_id,section_id,section_name,roll_no")
+    .eq("school_id", school.id).eq("session_id", exam.session_id).eq("class_id", cls).limit(5000);
+  let ids = [...new Set((enr ?? []).map((e) => e.student_id))];
+  let legacy = false;
+  if (!ids.length) {
+    // schools whose history predates this feature: fall back to today's class list
+    const { data: now } = await supabase.from("students").select("id").eq("school_id", school.id).eq("class_id", cls).eq("status", "active");
+    ids = (now ?? []).map((x) => x.id);
+    legacy = true;
+  }
+  const secOf = new Map((enr ?? []).map((e) => [e.student_id, e]));
+  let list: Row[] = [];
+  for (let i = 0; i < ids.length; i += 150) {
+    const { data } = await supabase.from("students").select("id,admission_no,first_name,middle_name,last_name,roll_no,father_name,mother_name,dob,sections(name)").in("id", ids.slice(i, i + 150));
+    list.push(...((data ?? []) as unknown as Row[]));
+  }
+  list = list.map((s) => {
+    const e = secOf.get(s.id);
+    return legacy || !e ? s : { ...s, roll_no: e.roll_no ?? s.roll_no, sections: e.section_name ? { name: e.section_name } : s.sections };
+  });
+  if (uid(sp.section_id) && !legacy) {
+    const keep = new Set((enr ?? []).filter((e) => e.section_id === sp.section_id).map((e) => e.student_id));
+    list = list.filter((s) => keep.has(s.id));
+  } else if (uid(sp.section_id)) {
+    const { data: sec } = await supabase.from("students").select("id").in("id", ids.slice(0, 1000)).eq("section_id", sp.section_id!);
+    const keep = new Set((sec ?? []).map((x) => x.id));
+    list = list.filter((s) => keep.has(s.id));
+  }
+  if (uid(sp.student)) list = list.filter((s) => s.id === sp.student);
+  list.sort((a, b) => (a.roll_no ?? 1e9) - (b.roll_no ?? 1e9) || a.first_name.localeCompare(b.first_name));
   // Rank must be computed against the whole class, not only the filtered students
-  const { data: classStudents } = await supabase.from("students").select("id").eq("school_id", school.id).eq("class_id", cls).eq("status", "active");
-  const results = await classResults(supabase, cls, (allExams ?? []) as { id: string; name: string }[], (classStudents ?? []).map((s) => s.id), school.grade_scale);
+  const results = await classResults(supabase, cls, (allExams ?? []) as { id: string; name: string }[], ids, school.grade_scale);
   const att = session && list.length ? (await supabase.from("attendance").select("student_id,status").in("student_id", list.map((s) => s.id)).gte("date", session.start_date).lte("date", session.end_date).limit(50000)).data ?? [] : [];
 
   return (

@@ -2,9 +2,9 @@ import { requirePerm } from "@/lib/school";
 import { Card, Flash, PageHeader, Submit } from "@/components/ui/ui";
 import { importStudents } from "../../_actions/students";
 
-const SAMPLE = `admission_no,first_name,last_name,class,section,roll_no,gender,dob,father_name,mother_name,guardian_phone,address
-1001,Aarav,Sharma,5,A,1,M,14/08/2015,Rakesh Sharma,Sunita Sharma,9876543210,"Gomti Nagar, Lucknow"
-,Diya,Verma,LKG,A,,F,2021-02-03,Amit Verma,,9123456780,`;
+const SAMPLE = `admission_no,first_name,middle_name,last_name,class,section,roll_no,gender,dob,father_name,mother_name,guardian_phone,alt_phone,email,address,permanent_address,city,district,block_tehsil,pincode,state,category,mother_tongue,previous_school,previous_class
+1001,Aarav,,Sharma,5,A,1,M,14/08/2015,Rakesh Sharma,Sunita Sharma,9876543210,,,"Gomti Nagar, Lucknow",,Lucknow,Lucknow,Sarojini Nagar,226001,Uttar Pradesh,General,Hindi,,
+,Diya,,Verma,LKG,A,,F,2021-02-03,Amit Verma,,9123456780,,,,,,,,,,,,,`;
 
 export default async function Import({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string }> }) {
   await requirePerm("students.import.create");
@@ -14,7 +14,7 @@ export default async function Import({ searchParams }: { searchParams: Promise<{
       <PageHeader icon="students" title="Import students" subtitle="From Excel or Google Sheets: File → Save as / Download → CSV" back={{ href: "/app/students", label: "Students" }} />
       <Flash ok={sp.ok} error={sp.error} />
       <Card title="1 · Columns">
-        <p className="mt-0 text-[14px]">The first row must be these headings (any order; only <b>first_name</b> is required). Class must match a class name in Settings (e.g. <code>5</code>, <code>LKG</code>). Dates as <code>DD/MM/YYYY</code> or <code>YYYY-MM-DD</code>. Blank admission no. = auto-number.</p>
+        <p className="mt-0 text-[14px]">The first row must be these headings (any order; only <b>first_name</b> is required; leave a column out or blank if you don't have it). Class must match a class name in Settings (e.g. <code>5</code>, <code>LKG</code>). Dates as <code>DD/MM/YYYY</code> or <code>YYYY-MM-DD</code>. Blank admission no. = auto-number.</p>
         <pre className="overflow-x-auto rounded-lg bg-surface-alt p-3 text-[12px]">{SAMPLE}</pre>
         <a download="students-template.csv" href={`data:text/csv;charset=utf-8,${encodeURIComponent(SAMPLE)}`}>Download this template</a>
       </Card>

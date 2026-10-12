@@ -1,11 +1,11 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type ClassRow = { id: string; name: string; sort: number; sections: { id: string; name: string }[] };
+export type ClassRow = { id: string; name: string; sort: number; seats?: number | null; min_age_years?: number | null; max_age_years?: number | null; sections: { id: string; name: string }[] };
 
 /** Classes with their sections, in school order. */
 export async function getClasses(supabase: SupabaseClient, schoolId: string) {
-  const { data } = await supabase.from("classes").select("id,name,sort,sections(id,name)").eq("school_id", schoolId).order("sort");
+  const { data } = await supabase.from("classes").select("id,name,sort,seats,min_age_years,max_age_years,sections(id,name)").eq("school_id", schoolId).order("sort");
   return ((data ?? []) as ClassRow[]).map((c) => ({ ...c, sections: [...c.sections].sort((a, b) => a.name.localeCompare(b.name)) }));
 }
 

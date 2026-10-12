@@ -18,6 +18,11 @@ export default async function Receipt({ params, searchParams }: { params: Promis
   if (!r) notFound();
   const s = r.students as { id: string; admission_no: string; first_name: string; last_name: string | null; father_name: string | null; guardian_phone: string | null; portal_token: string; classes: { name: string } | null; sections: { name: string } | null };
   const lines = (r.fee_receipt_lines as { amount: number; fee_dues: { label: string; due_date: string } | null }[]).sort((a, b) => (a.fee_dues?.due_date ?? "").localeCompare(b.fee_dues?.due_date ?? ""));
+  const [{ data: pays }, { data: fs }] = await Promise.all([
+    supabase.from("fee_receipt_payments").select("mode,amount,reference").eq("receipt_id", id).order("amount", { ascending: false }),
+    supabase.from("fee_settings").select("receipt_footer").eq("school_id", school.id).maybeSingle(),
+  ]);
+  const payRows = (pays ?? []) as { mode: string; amount: number; reference: string | null }[];
   const { data: rest } = await supabase.from("fee_dues").select("amount,concession,fine,paid").eq("student_id", s.id).neq("status", "paid");
   const remaining = (rest ?? []).reduce((t, d) => t + balance(d), 0);
   const name = fullName(s);
@@ -56,7 +61,14 @@ export default async function Receipt({ params, searchParams }: { params: Promis
           <tfoot><tr className="border-b-2 border-ink font-bold"><td className="py-2">Total received</td><td className="py-2 text-right">{money(r.amount)}</td></tr></tfoot>
         </table>
         <p className="my-3"><span className="text-muted">In words:</span> <b>{amountInWords(Number(r.amount))}</b></p>
-        <p className="my-1">Mode: <b>{r.mode.replace("_", " ").toUpperCase()}</b>{r.reference ? ` · Ref. ${r.reference}` : ""}{r.note ? ` · ${r.note}` : ""}</p>
+        {payRows.length > 1 ? (
+          <p className="my-1">Paid by: {payRows.map((p, i) => <span key={i}>{i > 0 && " + "}<b>{p.mode.replace("_", " ").toUpperCase()}</b> {money(p.amount)}{p.reference ? ` (${p.reference})` : ""}</span>)}{r.note ? ` · ${r.note}` : ""}</p>
+        ) : (
+          <p className="my-1">Mode: <b>{r.mode.replace("_", " ").toUpperCase()}</b>{r.reference ? ` · Ref. ${r.reference}` : ""}{r.note ? ` · ${r.note}` : ""}</p>
+        )}
+        {Number(r.wallet_used) > 0 && <p className="my-1">Adjusted from advance: <b>{money(r.wallet_used)}</b></p>}
+        {Number(r.advance_amount) > 0 && <p className="my-1">Received in advance (kept for future fees): <b>{money(r.advance_amount)}</b></p>}
+        {fs?.receipt_footer && <p className="my-1 text-[12px] text-muted">{fs.receipt_footer}</p>}
         {!r.cancelled && <p className="my-1">Balance for the session after this receipt: <b>{money(remaining)}</b></p>}
         {r.cancelled && <p className="my-1 text-error">Cancelled: {r.cancelled_reason}</p>}
         <footer className="mt-10 flex justify-between text-[13px]">

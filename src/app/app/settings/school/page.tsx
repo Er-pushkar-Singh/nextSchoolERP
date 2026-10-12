@@ -72,6 +72,8 @@ export default async function SchoolProfile({ searchParams }: { searchParams: Pr
             <Input label="Email" name="email" type="email" defaultValue={school.email} />
             <Input label="UDISE code" name="udise_code" defaultValue={school.udise_code} />
             <Input label="Affiliation no." name="affiliation_no" defaultValue={school.affiliation_no} />
+            <Input label="UPMSP user ID" name="upmsp_user_id" defaultValue={(school as unknown as { upmsp_user_id?: string | null }).upmsp_user_id} hint="6 digits — field 1 of the board forms" />
+            <Input label="UPMSP centre no." name="upmsp_center_no" defaultValue={(school as unknown as { upmsp_center_no?: string | null }).upmsp_center_no} hint="4 digits given by the DIOS — field 2" />
             <Input label="UPI ID (for parent payments)" name="upi_id" defaultValue={school.upi_id} placeholder="school@okhdfcbank" className="sm:col-span-2" hint="Parents get a UPI pay button. Payments go straight to your bank; you still record them here." />
             <Input label="Late fine per day (₹)" name="late_fine_per_day" type="number" step="1" min={0} defaultValue={school.late_fine_per_day} />
             <Input label="Receipt prefix" name="receipt_prefix" defaultValue={school.receipt_prefix} />

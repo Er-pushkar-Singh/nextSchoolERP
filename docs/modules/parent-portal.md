@@ -7,7 +7,7 @@ One private link per student that parents open on their phone — no app, no pas
 
 ## How it works
 - Token = `students.portal_token` (32 hex chars). `portalStudent(token)` looks the student up with the **admin client** (secret key, bypasses RLS), so every query on this page must filter by that student / school explicitly.
-- Shared from the student profile (copy / WhatsApp) and in reminder messages. Reset the link from the profile to revoke it.
+- Shared from the student profile (copy / WhatsApp; shown only to people with `students.parent_link.view`) and in reminder messages. Reset the link from the profile (`reset_portal_token()`, needs `students.parent_link.edit`) to revoke it. The token cannot be changed any other way.
 - `robots: noindex`, `referrer: no-referrer`.
 
 ## Sections (in order)

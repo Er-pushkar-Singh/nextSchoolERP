@@ -13,6 +13,18 @@ Things that have already bitten this project. Check here before debugging someth
 - Writes are refused while a subscription is expired / pending / suspended (`school_writable()` inside `perm_scope()`), and for modules the plan doesn't license. A "permission denied" during testing is often one of these, not a role problem.
 - Platform admins are read-only inside schools unless a **support session** is active.
 
+- **`text[] || 'literal'` is parsed as an array literal.** `missing := missing || 'gender'` fails with "malformed array literal"; write `|| 'gender'::text`. Found by the step-6 test.
+- **Student edit rights.** The `students` UPDATE policy must stay `can_student(..., 'students.profile.edit', id)`; an OR with other permissions let those holders change every column. Do special updates through `security definer` functions (`reset_portal_token`, `promote_students`).
+- **Enrolment history is trigger-maintained.** Change class / status through `students` and the trigger records it; never insert into `student_enrolments` by hand. Promotion refuses to run in the same session as the open enrolments.
+- **Audit masking**: `audit_row()` logs contact / address / health columns as "changed" (list in the function); add new sensitive columns to that list.
+- **Private files**: documents are in the private `student-docs` bucket; only the secret-key client touches storage, after a permission check. Never put a storage URL in a page for people who may not view the document.
+
+- **Security-definer functions are public API.** Anything in `public` that PostgREST can see is callable with the anon / authenticated key. A helper that takes an id and returns data (`build_board_snapshot`, `lwp_days`) or writes (`open_enrolment`, `bill_student_dues`) must be `revoke execute … from public, anon, authenticated` (other security-definer functions call it fine) or must check permission itself. Policies may call functions only if `authenticated` can execute them.
+- **Aadhaar is never stored in the clear and never in the database's own encryption**: the app encrypts it (`encryptJson`) and the table check `aadhaar_enc is null or aadhaar_consent` enforces consent. Losing `SETTINGS_ENCRYPTION_KEY` makes stored Aadhaar numbers unreadable (last 4 stay).
+- **Board rules change every year.** `board_subject_codes` and `src/lib/board-rules.ts` are written from the 2027 notices; re-read the new notice before each season.
+
+- **Postgres regex: `` is a backspace, not a word boundary** — use `\y`. (Caught by the template sanitizer test.)
+
 ## App
 
 - **Next 16**: `params` / `searchParams` are Promises; middleware lives in `src/proxy.ts`; read `node_modules/next/dist/docs/` for anything unfamiliar. `next dev` rewrites `AGENTS.md` — keep that block.
@@ -29,3 +41,10 @@ Things that have already bitten this project. Check here before debugging someth
 - No `psql` / Docker on the PC — see the PGlite harness note in [conventions.md](conventions.md#tests).
 - The project is **not a git repository** yet; snapshots were kept as `.tgz` files in `../_to_delete/` (v1–v6). Set up git before the next big change.
 - `.env.local` points at the real Supabase project — don't run tests or experiments against it.
+
+## Fees 2.0 traps (step 10)
+- `fee_dues` money columns are guarded by `guard_fee_due`: a PostgREST `update` from the app now fails. Change dues only through the RPCs (`adjust_due_amount`, `waive_due`, `reapply_concessions` …). The guard keys on `current_user` (`authenticated` / `anon`), so security-definer functions pass.
+- `fee_dues.fine` is the TOTAL fine; `fine_auto` is the rule's share. Recompute with `apply_late_fines_core`, never add to `fine` by hand.
+- Mode reports must read `fee_receipt_payments`, not `fee_receipts.mode` (a mixed receipt has mode `mixed`).
+- A pending / rejected concession is ignored by `concession_for()`; after approving always call `reapply_concessions`.
+- Fees online uses the **school's own** Razorpay only (`resolveIntegration(...).source === 'school'`); the webhook is `/api/razorpay/fees`, separate from the subscription webhook `/api/razorpay/webhook`.

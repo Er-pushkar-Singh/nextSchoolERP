@@ -6,12 +6,15 @@ import { balance, pct, type Due } from "@/lib/erp";
 import { addDays, fmtDate, fullName, money, todayIST } from "@/lib/format";
 import { fmtTime } from "@/lib/transport";
 import { CopyButton } from "@/components/CopyButton";
+import { resolveIntegration } from "@/lib/integrations";
+import { startOnlinePayment } from "./actions";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Student", robots: { index: false, follow: false }, referrer: "no-referrer" };
 
-export default async function Parent({ params }: { params: Promise<{ token: string }> }) {
+export default async function Parent({ params, searchParams }: { params: Promise<{ token: string }>; searchParams: Promise<{ paid?: string; pay_error?: string }> }) {
   const { token } = await params;
+  const sp = await searchParams;
   const { db, s } = await portalStudent(token);
   const school = s.schools;
   const today = todayIST();
@@ -53,6 +56,11 @@ export default async function Parent({ params }: { params: Promise<{ token: stri
   const overdue = unpaid.filter((d) => d.due_date <= today).reduce((t, d) => t + balance(d), 0);
   const total = unpaid.reduce((t, d) => t + balance(d), 0);
   const payNow = overdue || total;
+  const [{ data: feeSet }, rz] = await Promise.all([
+    db.from("fee_settings").select("online_enabled,online_min_amount,online_allow_partial").eq("school_id", s.school_id).maybeSingle(),
+    resolveIntegration(s.school_id, "razorpay"),
+  ]);
+  const online = !!feeSet?.online_enabled && rz?.source === "school" && s.status === "active" && total > 0;
   const A = (att ?? []) as { date: string; status: string }[];
   const present = A.filter((a) => ["P", "L", "H"].includes(a.status)).length;
   const absences = A.filter((a) => a.status === "A").slice(0, 10);
@@ -80,9 +88,22 @@ export default async function Parent({ params }: { params: Promise<{ token: stri
 
       <section className="rounded-[12px] border border-line bg-white p-4">
         <h2 className="m-0 mb-2 text-[17px] font-bold text-ink">Fees {session ? `· ${session.name}` : ""}</h2>
+        {sp.paid && <p className="m-0 mb-2 rounded-[8px] bg-wa-tint p-2 text-[14px] text-[#0b4f2c]">Thank you! Your payment is being confirmed — the receipt will show below in a minute.</p>}
+        {sp.pay_error && <p className="m-0 mb-2 rounded-[8px] bg-[#fdecea] p-2 text-[14px] text-[#7a1a12]">{sp.pay_error.slice(0, 200)}</p>}
         {total > 0 ? (
           <>
             <p className="m-0 text-[15px]">{overdue > 0 ? <>Due now: <b className="text-[20px] text-error">{money(overdue)}</b></> : <>Nothing overdue. </>} <span className="text-muted">· Rest of the session: {money(total)}</span></p>
+            {online && (
+              <form action={startOnlinePayment} className="mt-3 flex flex-col gap-2 rounded-[10px] bg-wa-tint p-3">
+                <input type="hidden" name="token" value={token} />
+                <label className="text-[13px] font-semibold text-ink">Amount to pay (₹)
+                  <input name="amount" type="number" step="0.01" min={Number(feeSet?.online_min_amount ?? 1)} max={total} defaultValue={payNow} readOnly={feeSet?.online_allow_partial === false}
+                    className="input mt-1 !min-h-11 w-full !py-2 text-[16px]" />
+                </label>
+                <button className="btn btn-wa cursor-pointer">Pay online (UPI / card / net banking)</button>
+                <p className="m-0 text-center text-[12px] text-muted">Secure payment by Razorpay straight to the school. The receipt appears here automatically.</p>
+              </form>
+            )}
             {upi && (
               <div className="mt-3 flex flex-col gap-2">
                 <a href={upi} className="btn btn-wa">Pay {money(payNow)} by UPI</a>

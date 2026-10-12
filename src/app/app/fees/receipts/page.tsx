@@ -31,7 +31,7 @@ export default async function Receipts({ searchParams }: { searchParams: Promise
         <label className="text-[13px] font-semibold">From<input type="date" name="from" defaultValue={from} className="input !min-h-10 !py-2" /></label>
         <label className="text-[13px] font-semibold">To<input type="date" name="to" defaultValue={to} className="input !min-h-10 !py-2" /></label>
         <label className="text-[13px] font-semibold">Mode
-          <select name="mode" defaultValue={sp.mode ?? ""} className="input !min-h-10 !py-2"><option value="">All</option>{["cash", "upi", "cheque", "bank_transfer", "card", "online"].map((m) => <option key={m} value={m}>{m.replace("_", " ")}</option>)}</select>
+          <select name="mode" defaultValue={sp.mode ?? ""} className="input !min-h-10 !py-2"><option value="">All</option>{["cash", "upi", "cheque", "bank_transfer", "card", "online", "mixed", "wallet"].map((m) => <option key={m} value={m}>{m.replace("_", " ")}</option>)}</select>
         </label>
         <button className="btn btn-sm btn-secondary cursor-pointer">Show</button>
         <Link href={`/app/fees/receipts?from=${today}&to=${today}`} className="text-[14px]">Today</Link>

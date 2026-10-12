@@ -2,7 +2,7 @@ import { requirePerm } from "@/lib/school";
 import { Badge, Card, Flash, Input, PageHeader, Select, Submit } from "@/components/ui/ui";
 import { fmtDate } from "@/lib/format";
 import { getClasses } from "@/lib/erp";
-import { addClass, addSection, addSession, addSubject, deleteClass, deleteSection, deleteSubject, makeCurrentSession, promoteAll } from "../../_actions/settings";
+import { addClass, addSection, addSession, addSubject, deleteClass, deleteSection, deleteSubject, makeCurrentSession, promoteAll, saveClassLimits, setSubjectCode } from "../../_actions/settings";
 
 const x = "cursor-pointer border-0 bg-transparent px-1 text-muted";
 
@@ -11,7 +11,7 @@ export default async function AcademicSettings({ searchParams }: { searchParams:
   const sp = await searchParams;
   const [classes, { data: subjects }, { data: sessions }] = await Promise.all([
     getClasses(supabase, school.id),
-    supabase.from("subjects").select("id,name").eq("school_id", school.id).order("sort").order("name"),
+    supabase.from("subjects").select("id,name,code").eq("school_id", school.id).order("sort").order("name"),
     supabase.from("sessions").select("id,name,start_date,end_date,is_current").eq("school_id", school.id).order("start_date", { ascending: false }),
   ]);
   return (
@@ -46,10 +46,34 @@ export default async function AcademicSettings({ searchParams }: { searchParams:
         </div>
       </Card>
 
+      <Card title="Seats & age limits for admission" description="Used on the admissions screen to show seats left and to warn when an applicant is outside the age range (age counted on 1 April of the session).">
+        <ul className="m-0 grid list-none gap-2 p-0 sm:grid-cols-2">
+          {classes.map((c) => (
+            <li key={c.id} className="rounded-lg border border-line px-3 py-2">
+              <form action={saveClassLimits} className="flex flex-wrap items-end gap-2">
+                <input type="hidden" name="id" value={c.id} />
+                <b className="w-16 pb-2 text-ink">Class {c.name}</b>
+                <label className="flex flex-col text-[12px] text-muted">Seats<input name="seats" type="number" min={0} defaultValue={(c as unknown as { seats?: number | null }).seats ?? ""} className="input !min-h-9 w-20 !py-1 text-[14px]" /></label>
+                <label className="flex flex-col text-[12px] text-muted">Min age<input name="min_age_years" type="number" step="0.5" min={0} defaultValue={(c as unknown as { min_age_years?: number | null }).min_age_years ?? ""} className="input !min-h-9 w-20 !py-1 text-[14px]" /></label>
+                <label className="flex flex-col text-[12px] text-muted">Max age<input name="max_age_years" type="number" step="0.5" min={0} defaultValue={(c as unknown as { max_age_years?: number | null }).max_age_years ?? ""} className="input !min-h-9 w-20 !py-1 text-[14px]" /></label>
+                <button className="cursor-pointer border-0 bg-transparent pb-2 text-[13px] text-blue underline">Save</button>
+              </form>
+            </li>
+          ))}
+        </ul>
+      </Card>
+
       <Card title="Subjects">
-        <ul className="m-0 mb-3 flex list-none flex-wrap gap-2 p-0">
+        <p className="mt-0 text-[13px] text-muted">The <b>board code</b> is the subject code printed on the UP Board registration / exam form. Enter it exactly as the board lists it — it is used in the Class 9–12 registration records.</p>
+        <ul className="m-0 mb-3 grid list-none gap-2 p-0 sm:grid-cols-2 lg:grid-cols-3">
           {(subjects ?? []).map((s) => (
-            <li key={s.id} className="flex items-center rounded-full border border-line px-3 py-1 text-[14px]">{s.name}
+            <li key={s.id} className="flex items-center gap-2 rounded-lg border border-line px-3 py-1.5 text-[14px]">
+              <span className="min-w-0 flex-1 truncate font-semibold text-ink">{s.name}</span>
+              <form action={setSubjectCode} className="flex items-center gap-1">
+                <input type="hidden" name="id" value={s.id} />
+                <input name="code" defaultValue={s.code ?? ""} placeholder="code" aria-label={`Board code for ${s.name}`} className="input !min-h-8 w-16 !py-1 text-[13px]" />
+                <button className="cursor-pointer border-0 bg-transparent p-0 text-[12px] text-blue underline">Save</button>
+              </form>
               <form action={deleteSubject}><input type="hidden" name="id" value={s.id} /><button aria-label={`Remove ${s.name}`} className={x}>×</button></form>
             </li>
           ))}
@@ -75,8 +99,11 @@ export default async function AcademicSettings({ searchParams }: { searchParams:
         </form>
         <details className="mt-5 border-t border-line pt-4">
           <summary className="cursor-pointer text-[14px] font-semibold text-ink">Year-end: promote all students to the next class</summary>
-          <p className="text-[14px]">Moves every active student up one class (Nursery → LKG … 11 → 12) keeping their section; students in the last class become “passed out”. Fee records, attendance and marks of the old session stay. Do this once, after results, then switch to the new session and set its fee structure.</p>
-          <form action={promoteAll} className="flex flex-wrap items-end gap-2"><Input label="Type PROMOTE to confirm" name="confirm" /><Submit variant="danger">Promote students</Submit></form>
+          <p className="text-[14px]">Moves every active student up one class (Nursery → LKG … 11 → 12) keeping their section; students in the last class become “passed out”. <b>Last year's class, section and roll number are kept</b> on each student's page, and fee records, attendance and marks of the old session stay. <b>First</b> add the new session and make it current (below), <b>then</b> promote — the system refuses to promote inside the old session, and refuses to run twice.</p>
+          <form action={promoteAll} className="flex flex-col gap-3">
+            <Input label="Hold back (detained) — admission numbers, comma separated" name="detain" placeholder="1042, 1077" hint="These students stay in their class for the new session." />
+            <div className="flex flex-wrap items-end gap-2"><Input label="Type PROMOTE to confirm" name="confirm" /><Submit variant="danger">Promote students</Submit></div>
+          </form>
         </details>
       </Card>    </div>
   );

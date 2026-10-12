@@ -5,44 +5,20 @@ import { requirePerm } from "@/lib/school";
 import { date, errMsg, go, num, oneOf, str, uuid } from "@/lib/action-util";
 import { parseCsv } from "@/lib/csv";
 import { getClasses } from "@/lib/erp";
+import { parseStudentFields, phone10 } from "@/lib/student-form";
+import { todayIST } from "@/lib/format";
 
-const GENDERS = ["M", "F", "O"] as const;
 const CATEGORIES = ["General", "OBC", "SC", "ST", "EWS", "Other"] as const;
-const phone = (v: string | null) => (v ? v.replace(/[^\d+]/g, "").replace(/^\+?91(?=\d{10}$)/, "").slice(0, 15) || null : null);
-
-function studentFields(f: FormData) {
-  const g = str(f, "gender", 1);
-  const cat = str(f, "category", 20);
-  return {
-    first_name: str(f, "first_name", 80),
-    last_name: str(f, "last_name", 80),
-    gender: g && (GENDERS as readonly string[]).includes(g) ? g : null,
-    dob: date(f, "dob"),
-    class_id: uuid(f, "class_id"),
-    section_id: uuid(f, "section_id"),
-    roll_no: num(f, "roll_no"),
-    father_name: str(f, "father_name", 100),
-    mother_name: str(f, "mother_name", 100),
-    guardian_phone: phone(str(f, "guardian_phone", 20)),
-    alt_phone: phone(str(f, "alt_phone", 20)),
-    email: str(f, "email", 120),
-    address: str(f, "address", 400),
-    city: str(f, "city", 60),
-    admission_date: date(f, "admission_date"),
-    category: cat && (CATEGORIES as readonly string[]).includes(cat) ? cat : null,
-    blood_group: str(f, "blood_group", 5),
-    transport_route: str(f, "transport_route", 60),
-    notes: str(f, "notes", 1000),
-  };
-}
+const STATUSES = ["active", "left", "passed_out", "transferred", "withdrawn"] as const;
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const phone = phone10;
 
 export async function saveStudent(f: FormData) {
   const { supabase, school } = await requirePerm("students.profile.create", "students.profile.edit");
   const id = uuid(f, "id");
-  const row = studentFields(f);
+  const { row, error: bad } = parseStudentFields(f);
   const back = id ? `/app/students/${id}` : "/app/students/new";
-  if (!row.first_name) go(back, { error: "Student name is required." });
-  if (row.guardian_phone && !/^\d{10}$/.test(row.guardian_phone)) go(back, { error: "Guardian phone should be a 10-digit mobile number." });
+  if (bad) go(back, { error: bad });
   // Section must belong to the chosen class
   if (row.section_id && row.class_id) {
     const { data: sec } = await supabase.from("sections").select("class_id").eq("id", row.section_id).single();
@@ -76,16 +52,22 @@ export async function saveStudent(f: FormData) {
 export async function setStudentStatus(f: FormData) {
   const { supabase, school } = await requirePerm("students.profile.edit");
   const id = uuid(f, "id");
-  const status = oneOf(f, "status", ["active", "left", "passed_out"] as const, "active");
-  const { error } = await supabase.from("students").update({ status }).eq("id", id!).eq("school_id", school.id);
+  const status = oneOf(f, "status", STATUSES, "active");
+  const left = status !== "active";
+  const reason = str(f, "left_reason", 200);
+  const left_on = date(f, "left_on") ?? todayIST();
+  if (left && ["left", "transferred", "withdrawn"].includes(status) && !reason) go(`/app/students/${id}`, { error: "Write the reason for leaving." });
+  const { error } = await supabase.from("students").update(left
+    ? { status, left_on, left_reason: reason, tc_no: str(f, "tc_no", 30), tc_issued_on: date(f, "tc_issued_on") }
+    : { status, left_on: null, left_reason: null }).eq("id", id!).eq("school_id", school.id);
+  revalidatePath(`/app/students/${id}`);
   go(`/app/students/${id}`, error ? { error: errMsg(error) } : { ok: `Marked ${status.replace("_", " ")}.` });
 }
 
 export async function newPortalLink(f: FormData) {
   const { supabase, school } = await requirePerm("students.parent_link.edit");
   const id = uuid(f, "id");
-  const token = Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
-  const { error } = await supabase.from("students").update({ portal_token: token }).eq("id", id!).eq("school_id", school.id);
+  const { error } = await supabase.rpc("reset_portal_token", { sid: school.id, stu: id });
   go(`/app/students/${id}`, error ? { error: errMsg(error) } : { ok: "New parent link created. The old link no longer works." });
 }
 
@@ -105,21 +87,8 @@ export async function applyConcessions(f: FormData) {
   const { supabase, school } = await requirePerm("fees.concessions.create");
   const student_id = uuid(f, "student_id")!;
   const back = `/app/students/${student_id}`;
-  const [{ data: cons }, { data: dues }] = await Promise.all([
-    supabase.from("student_concessions").select("fee_head_id,kind,value").eq("student_id", student_id).eq("school_id", school.id),
-    supabase.from("fee_dues").select("id,fee_head_id,amount,paid,status").eq("student_id", student_id).eq("school_id", school.id).neq("status", "paid"),
-  ]);
-  let n = 0;
-  for (const d of dues ?? []) {
-    const amount = Number(d.amount);
-    const c = (cons ?? []).filter((x) => !x.fee_head_id || x.fee_head_id === d.fee_head_id)
-      .reduce((s, x) => s + (x.kind === "percent" ? (amount * Number(x.value)) / 100 : Number(x.value)), 0);
-    const concession = Math.min(amount, Math.round(c * 100) / 100);
-    const { error } = await supabase.from("fee_dues").update({ concession }).eq("id", d.id);
-    if (error) go(back, { error: errMsg(error) });
-    n++;
-  }
-  go(back, { ok: `Updated ${n} unpaid instalment(s).` });
+  const { data, error } = await supabase.rpc("reapply_concessions", { sid: school.id, stu: student_id });
+  go(back, error ? { error: errMsg(error) } : { ok: `Updated ${data} unpaid instalment(s).` });
 }
 
 export async function removeConcession(f: FormData) {
@@ -130,7 +99,7 @@ export async function removeConcession(f: FormData) {
   go(`/app/students/${student_id}`, error ? { error: errMsg(error) } : { ok: "Concession removed." });
 }
 
-const HEADERS = ["admission_no", "first_name", "last_name", "class", "section", "roll_no", "gender", "dob", "father_name", "mother_name", "guardian_phone", "address"] as const;
+const HEADERS = ["admission_no", "first_name", "middle_name", "last_name", "class", "section", "roll_no", "gender", "dob", "father_name", "mother_name", "guardian_phone", "alt_phone", "email", "address", "permanent_address", "city", "district", "block_tehsil", "pincode", "state", "category", "mother_tongue", "previous_school", "previous_class"] as const;
 
 /** Bulk import from CSV (Excel → Save as CSV). */
 export async function importStudents(f: FormData) {
@@ -169,7 +138,13 @@ export async function importStudents(f: FormData) {
       school_id: school.id, admission_no: get("admission_no"), first_name, last_name: get("last_name"),
       class_id: cls?.id ?? null, section_id: sec?.id ?? null, roll_no: Number(get("roll_no")) || null,
       gender: g === "M" || g === "F" ? g : g === "O" ? "O" : null, dob, father_name: get("father_name"), mother_name: get("mother_name"),
-      guardian_phone: ph && /^\d{10}$/.test(ph) ? ph : null, address: get("address"),
+      guardian_phone: ph && /^[6-9]\d{9}$/.test(ph) ? ph : null, address: get("address"),
+      middle_name: get("middle_name"), alt_phone: (() => { const a = phone(get("alt_phone")); return a && /^[6-9]\d{9}$/.test(a) ? a : null; })(),
+      email: (() => { const e = get("email"); return e && EMAIL.test(e) ? e : null; })(),
+      permanent_address: get("permanent_address"), city: get("city"), district: get("district"), block_tehsil: get("block_tehsil"),
+      pincode: (() => { const p = get("pincode"); return p && /^[1-9]\d{5}$/.test(p) ? p : null; })(), state: get("state"),
+      category: (() => { const c = get("category"); return c && (CATEGORIES as readonly string[]).includes(c) ? c : null; })(),
+      mother_tongue: get("mother_tongue"), previous_school: get("previous_school"), previous_class: get("previous_class"),
     });
   }
   if (insert.length > 3000) go("/app/students/import", { error: "Import at most 3,000 students at a time." });

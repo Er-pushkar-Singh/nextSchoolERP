@@ -1,43 +1,66 @@
 # Fees
 
-> Status: Built · Catalogue: `fees.structure, dues, collection, receipts, concessions, defaulters` (built); `fees.online`, `fees.refunds` (not yet) · Migrations: `0001_erp.sql`, `0003` (RLS + RPCs), `0007` (`source_key`)
+> Status: Built (Fees 2.0, step 10 — 12 Oct 2026) · Catalogue: `fees.structure, dues, collection, receipts, concessions, defaulters, online, refunds` (all built) · Migrations: `0001_erp.sql`, `0003` (RLS + RPCs), `0007` (`source_key`), `0012_fees_v2.sql`
 
 ## Purpose
-The money module and the main reason schools buy: fee structure → dues per student → collection desk with printable receipts → defaulters with WhatsApp reminders → reports.
+The money module and the main reason schools buy: fee structure → dues per student → collection desk (split payments, advance, cheques, online) → receipts → defaulters → reports, with every change to a student's account recorded and every exception approved by the principal.
 
 ## Who uses it
-Accountant (everything except cancelling receipts), Front office (collect, print, defaulters), Principal (approve = cancel receipts, concessions approve), Parents (child: view dues/receipts on the parent page).
+| Role | Can do |
+|---|---|
+| Accountant | structure, dues, collect, charges, cheques (deposit / clear), request refunds, concession requests, day close, reports. **Cannot** waive, approve concessions or refunds, cancel receipts or mark a cheque bounced |
+| Principal | everything incl. waive fine / due, approve concessions & refunds, cancel receipts, bounce cheques, move a payment back to advance |
+| Front office | collect, print, defaulters |
+| Parents | the parent page: dues, receipts, UPI and **Pay online** |
 
 ## Screens
 | Route | What's there |
 |---|---|
-| `/app/fees` | Overview: billed / collected / overdue, daily collection by mode |
-| `/app/fees/structure` | Fee heads (Tuition, Admission, Annual, Exam, Transport…); **add schedule** = head × classes × frequency (monthly / quarterly / half-yearly / annual / once) with due day → `fee_plans`; delete; **Generate dues** (idempotent) |
-| `/app/fees/collect` | Find student → unpaid dues, suggested late fine → amount, mode (cash/UPI/cheque/bank/card/online), reference, date → receipt |
-| `/app/fees/receipts`, `/receipts/[id]`, `/receipts/export` | Receipt list by day / mode, printable receipt (amount in words), **cancel** with reason (approve perm), CSV |
-| `/app/fees/defaulters`, `/defaulters/export` | Overdue on a date, class filter, minimum amount, one-tap WhatsApp reminder + "Send to next" queue, CSV |
+| `/app/fees` | Overview + "needs attention" strip (pending concessions, open refunds, cheques in hand, advance held) |
+| `/app/fees/structure` | Fee heads, schedules (head × classes × frequency), **Generate dues** |
+| `/app/fees/collect` | Find student → tick instalments (or oldest first) → up to 3 payment lines (cash + UPI + cheque…), advance use, receipt date, extra fine → receipt. Below: **Adjust an instalment** (change amount, extend due date, waive, waive fine, move a payment back to advance) and the student's recent receipts / changes |
+| `/app/fees/receipts`, `/[id]`, `/export` | List by day / mode (incl. mixed, wallet), printable receipt with split lines, advance, footer; cancel with reason; CSV |
+| `/app/fees/ledger/[id]` | Printable **fee statement** for a student: instalments, receipts, changes, advance |
+| `/app/fees/concessions` | Pending / approved / rejected; approve or reject (reason to reject); new concession with category, head, validity |
+| `/app/fees/charges` | One-time charge to a class / section; update late fines; **carry arrears** to the next session |
+| `/app/fees/cheques` | Cheque register: received → deposited → cleared / bounced |
+| `/app/fees/refunds` | Request → approve → pay (from advance only) |
+| `/app/fees/daybook` | A day's receipts by mode and collector; **close the day** (counted cash vs expected) |
+| `/app/fees/reports` | Collection by day / month / head / class / mode / collector; ageing of outstanding; concession counts |
+| `/app/fees/settings` | Late fine rule, concession approval, advance allowed, bounce charge, receipt footer, online payment on/off |
+| `/app/fees/defaulters` | Overdue on a date + WhatsApp reminders (unchanged) |
+| `/p/[token]` | **Pay online** box (when enabled and the school's own Razorpay is connected) |
+| `/api/razorpay/fees` | Webhook of the **school's** Razorpay account (`payment_link.paid`) → automatic receipt |
 
 ## Server actions
-`src/app/app/_actions/fees.ts`: `addFeeHead, deleteFeeHead, addSchedule, deletePlan, generateDues, collectFee, cancelReceipt`. Reminder text: `src/lib/reminders.ts`. Maths: `balance()`, `allocate()` in `src/lib/erp.ts`.
+`_actions/fees.ts` (structure, `generateDues`, legacy `collectFee`, `cancelReceipt`); `_actions/fees2.ts`: `saveFeeSettings, collectFeeV2, addConcessionV2, decideConcession, adjustDue, addCharge, runLateFines, carryForward, chequeStatus, requestRefund, decideRefund, payRefund, closeDay`; `app/p/[token]/actions.ts`: `startOnlinePayment`. Constants in `src/lib/fees.ts`.
 
-## Database
-- `fee_heads`, `fee_plans(session, class, head, label, due_date, amount)`, `student_concessions(student, head|null, kind percent|amount, value)`
-- `fee_dues(student, fee_plan_id, fee_head_id, label, due_date, amount, concession, fine, paid, status generated: due|partial|paid, source_key)` — unique `(student_id, fee_plan_id)`; partial unique `(student_id, source_key)` for non-plan dues (transport)
-- `fee_receipts(receipt_no, student, paid_on, mode, reference, amount, cancelled, cancelled_reason)`, `fee_receipt_lines(receipt, due, amount)`
-- Functions: `generate_dues(sid, sess, cls?)` (applies concessions), `collect_fee(...)` (allocates oldest due first, adds fine to the oldest unpaid due, rejects over-payment, numbers receipts via `next_school_number`), `recalc_due`, triggers `on_receipt_line`, `on_receipt_cancel`; reports `fee_summary`, `defaulters`, `class_fee_summary`.
+## Database (0012)
+- `fee_settings` (one row per school): `fine_enabled, fine_mode per_day|per_month|flat, fine_amount, fine_grace_days, fine_cap, concession_approval, advance_allowed, bounce_charge, online_enabled, online_min_amount, online_allow_partial, receipt_footer`.
+- `fee_dues` + `fine_auto, fine_waived, kind plan|charge|arrears|bounce, note, original_due_date`. `fine` stays the total shown everywhere; `fine_auto` is the part the rule produced.
+- `student_concessions` + `category, status pending|approved|rejected, decided_by/at, decision_note, valid_from/to`. Only **approved** concessions within their validity are billed (`concession_for()`).
+- `fee_receipt_payments` (one row per mode used — the source of truth for "by mode" reports), `fee_wallet_entries` (advance ledger: advance / applied / reversal / refund), `fee_cheques`, `fee_adjustments` (reversal, waiver, carried, extension, amount_change, fine_waiver — each with reason and who), `fee_refunds`, `fee_day_close`, `fee_online_orders`.
+- Functions (all `security definer`, permission-checked): `collect_fee_v2`, `collect_fee` (old signature kept), `reapply_concessions`, `waive_due`, `waive_fine`, `adjust_due_amount`, `extend_dues`, `add_charge`, `carry_forward_dues`, `apply_late_fines`, `set_cheque_status`, `reverse_payment`, `request_refund`, `decide_refund`, `pay_refund`, `close_day`, `cash_expected`, `wallet_balance`, reports `fee_report`, `fee_aging`. Service role only: `create_online_order`, `complete_online_order`, `apply_late_fines_all`. Internal (no API access): `collect_fee_core`, `apply_late_fines_core`, `next_school_number_core`, `concession_for`, `recalc_due`, `bill_student_dues`.
+- Trigger `guard_fee_due`: a signed-in user cannot change `amount / concession / fine / paid / due_date / kind` of a due directly; only the functions above can.
 
 ## Business rules
-1. Payments allocate to the **oldest due first**; partial payments OK; can't pay more than total due.
-2. Cancelling a receipt (approve perm only) restores the dues (`paid` recalculated).
-3. Generating dues twice creates nothing new.
-4. Deleting an instalment is refused if anyone has paid against it.
-5. Receipts are inserted only through `collect_fee()`; dues only through `generate_dues()` / `generate_transport_dues()`.
+1. A payment goes to the chosen instalments, else the oldest first. Anything above the total due becomes **advance** (if the school allows it) and is used later or refunded.
+2. Late fine = rule × days late after grace (capped); recomputed on every payment and on demand; a waived part never comes back. A manual extra fine is still possible on the desk.
+3. A receipt can be cancelled (principal): dues return. A **bounced cheque** does the same automatically and bills the bounce charge.
+4. Concessions entered by staff without approve permission become **pending** when the school requires approval; billing ignores pending / rejected / expired ones.
+5. Waivers, fine waivers, amount changes, extensions, reversals and carry-forward always need a reason and are listed in the student's statement.
+6. Refunds are paid only from the advance balance (move a paid fee back first, principal). A request holds its amount; paid refunds appear in the day book.
+7. Carry-forward closes the old balance (as a "carried" adjustment) and creates one Arrears instalment in the new session; running it twice changes nothing.
+8. Online: the amount is checked against what is due on the server; the receipt is created only by the webhook after the **school's** signature check; a repeated webhook or a wrong amount never makes a second / wrong receipt. The platform's Razorpay account is never used for fees.
 
 ## Connects to
-Students (ledger, concessions), Transport (`generate_transport_dues` → "Transport Fee" dues), Dashboard, parent page (UPI pay link `upi://pay?...` to the school's UPI ID — the school still records the payment).
+Students (ledger, concessions), Admissions (`bill_student_dues`), Transport (`generate_transport_dues`, now concession-aware), Certificates / Documents (no-dues check), Dashboard, parent page, Platform (tenant export includes the new tables).
 
 ## Tests
-`permissions.test.sql` (accountant can't cancel, teacher blocked), `standard_modules.test.sql` (teacher can't call `collect_fee` directly; transport billing).
+`supabase/tests/fees_v2.test.sql` (71 checks: approval workflow, direct-edit guard, fine rule / cap / waiver / idempotence, split payment, advance and wallet, cheque bounce, adjust / extend / waive, reversal and refund approval chain, day close, reports, carry-forward, online order + duplicate webhook + wrong amount, isolation). Plus `permissions.test.sql`, `standard_modules.test.sql`.
+
+## Setup for online payment
+Settings → Integrations → Razorpay (school's own key id, key secret, webhook secret) → Razorpay dashboard: webhook URL `<app url>/api/razorpay/fees`, event `payment_link.paid`, same secret → Fee settings: switch **Allow online payment** on.
 
 ## Gaps & ideas
-**Online payment** with the school's Razorpay + webhook auto-receipts (`fees.online`; integration settings exist), refunds (`fees.refunds`), automatic reminders by SMS/WhatsApp API, cheque bounce, fee-head-wise reports, previous-year arrears carry-forward, sibling discount rules.
+Automatic SMS / WhatsApp reminders and receipt messages, sibling-discount rules, Tally export, a daily job calling `apply_late_fines_all` (currently fines update at payment time or by button), refunds paid back through Razorpay, instalment plans for individual students, receipt print in Hindi.

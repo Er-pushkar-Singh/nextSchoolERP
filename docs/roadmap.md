@@ -21,9 +21,7 @@ Parent page: fees + UPI, receipts, attendance, results, homework, material, tran
 | `attendance.staff` | Staff attendance | all | Feeds payroll LOP |
 | `attendance.leave` | Student leave requests | all | From parent page / parent login |
 | `exams.admit_cards` | Admit cards | all | Printable, roll numbers |
-| `students.certificates`, `students.sensitive` | TC / bonafide / character certificates; Aadhaar & medical fields | all | TC is a very common request |
-| `fees.online`, `fees.refunds` | Online fee payment, refunds | all | School's own Razorpay keys already storable; needs webhook → `collect_fee` |
-| `frontdesk.admissions`, `frontdesk.online_form`, `frontdesk.visitors` | Admission approval, public admission form, visitor log | all | |
+| `frontdesk.visitors` | Visitor log | all | |
 | `comms.templates`, `comms.calendar`, `comms.messages` | Message templates, school calendar, parent–teacher messages | all | |
 | `transport.tracking` | Live bus tracking | Standard+ | Needs a driver app or GPS vendor |
 | `reports.udise` | UDISE+ export | all | |
@@ -31,16 +29,35 @@ Parent page: fees + UPI, receipts, attendance, results, homework, material, tran
 
 Also not built: parent / student **logins** (data model ready: `guardians`, `student_guardians`, `students.user_id`), automatic SMS / WhatsApp / email sending on events (integrations + preferences exist, senders only used for tests).
 
-## Suggested order (highest value for Indian schools first)
+## Done in step 9
+Online admission form (public, with tracking), Documents & templates (editable templates, versioned, issue / bulk / cancel, ID cards).
+
+## Done in step 10
+Fees 2.0 — online payment (school's own Razorpay + webhook receipts), refunds, cheques, late fine rule, concession approvals, advance wallet, split payments, day close, reports, arrears carry-forward.
+
+## Suggested order (updated)
+1. **Automatic SMS / WhatsApp** on events (fee reminders, receipts, absence)  2. Staff attendance → payroll  3. Timetable + calendar  4. Accounts  5. Hostel / inventory / health  6. Parent & student logins (PWA), admit cards (a template + exam data), UDISE+ export
+
+## Earlier order (kept for reference) (highest value for Indian schools first)
 
 1. **Online fee payment** (`fees.online`) — parents pay on the parent page, receipt is created automatically. Biggest money impact; most pieces exist.
 2. **Automatic messages** — absent alert, fee receipt, fee reminder, result published by SMS / WhatsApp using the saved integrations and notification preferences.
-3. **Certificates** — Transfer certificate, bonafide, character certificate (printable, numbered).
+3. ~~Certificates~~ — done in step 7.
 4. **Staff attendance** → feeds payroll unpaid days.
 5. **Timetable** (+ substitution) and **School calendar / holidays**.
 6. **Accounts** (vouchers, day book, fee & salary auto-posting) — completes Premium.
 7. **Hostel**, **Inventory & sales**, **Health & discipline** — rest of Premium.
 8. **Parent / student login + mobile PWA**, admit cards, online admission form, UDISE export.
+
+## Compliance status (12 Oct 2026 audit, then step 6)
+
+Done (step 8 added end-to-end admissions, UPMSP 2027 subject codes + rules, Aadhaar (encrypted), board data sheet): enrolment history, protected identity / health tier (PEN, APAAR + consent), private documents with verification and a "pending" state, guardians / emergency / pickup, structured address and previous school, UP Board Class 9-12 registration records, audit coverage + masking, student-edit policy fix, DOB / PIN / phone / email validation.
+
+Still open:
+- **UDISE+ export and validation**: needs the official 2026-27 student DCF (not retrieved; confirm on udiseplus.gov.in) before mapping fields.
+- **Class 10 / 12 exam-application field list**: read the 10.09.2026 UPMSP notice in full and compare with `board_registrations`.
+- Parent-link expiry / OTP; encrypt staff PAN / bank (only masked in the audit log so far); period-wise attendance; subject-combination rules per board; consent / correction screens beyond the audit trail; retention and deletion policy; 
+- The live database still needs `setup.sql` applied (see the ops list below).
 
 ## Ops to do before selling widely
 

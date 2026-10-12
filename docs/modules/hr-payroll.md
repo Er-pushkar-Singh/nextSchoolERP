@@ -1,0 +1,53 @@
+# Staff & payroll (HR)
+
+> Status: Built 12 Oct 2026 (step 5) · Catalogue: `hr.staff`, `hr.leave`, `hr.payroll` · Plans: Standard, Premium · Migration: `0007_standard_modules.sql` · Lib: `src/lib/hr.ts`
+
+## Purpose
+Staff directory for everyone on the payroll (teachers, office, drivers, guards — with or without an ERP login), leave requests and balances, and monthly salary with payslips and a bank sheet.
+
+## Who uses it
+| Role | Permissions (scope) |
+|---|---|
+| Office / HR admin | `hr.staff.*`, `hr.leave.view/create`, `hr.payroll.view/create/edit/export/print` (school) |
+| Accountant | `hr.payroll.view/create` |
+| Principal | everything — the only default role with `hr.leave.approve` and `hr.payroll.approve` |
+| Teachers, librarian, transport manager, warden | `hr.leave.view/create` (**own**) — apply for own leave, see own payslips |
+
+## Screens
+| Route | What's there |
+|---|---|
+| `/app/hr` | Stats (active staff, on leave today, monthly gross, logins), search / type / status filter, list, add staff, **Add everyone with a login** (creates staff rows for `school_members` without one, skipping family roles) |
+| `/app/hr/staff/[id]` | Profile, ERP-login link, **salary structure** (earnings + deductions rows, per month), bank / IFSC / PAN / UAN, leave quota (CL, SL, EL per session) with used, recent leave, payslips, mark left / rejoin, delete (only without payslips) |
+| `/app/hr/leave` | Own balances, **apply** (approvers / HR can apply for anyone), **waiting for approval** (approve / reject with note; own requests can't be decided by yourself), my leave (cancel pending), **my payslips**, all leave with status filter |
+| `/app/hr/payroll` | Warning for staff without salary structure, **Run payroll** (month, working days — blank = calendar days), months list (staff, net, paid count, status) |
+| `/app/hr/payroll/[id]` | Totals, payslip table (days paid, gross, deductions, adjustment, net, paid), per-slip change (unpaid days, ± adjustment + note) while draft, **Approve & lock / Reopen**, mark ticked rows paid (date, mode, UTR), delete draft |
+| `/app/hr/payroll/[id]/export` | Bank sheet CSV (name, account, IFSC, PAN, UAN, days, gross, deductions, net, paid ref) — `hr.payroll.export` |
+| `/app/hr/payroll/slip/[id]` | Printable payslip (logo, earnings vs deductions, net in words, masked account). Visible to payroll viewers, or to the employee once approved (RLS) |
+
+## Server actions
+`src/app/app/_actions/hr.ts`: `saveStaff, setStaffStatus, deleteStaff, importLogins, applyLeave, decideLeave, cancelLeave, generatePayroll, updatePayslip, setRunStatus, deleteRun, markPaid`.
+
+## Database
+- `staff(user_id unique per school, emp_code unique, name, designation, department, kind teaching|non_teaching|support, contact, joining_date, leaving_date, status active|left, pan, uan, bank_*, earnings jsonb [{name, amount}], deductions jsonb, leave_quota jsonb {"CL":12,"SL":7,"EL":0})`
+- `staff_leaves(staff_id, kind CL|SL|EL|LWP|OD|other, from_date, to_date, half_day, days generated, reason, status pending|approved|rejected|cancelled, decided_by, decided_by_name, decided_at, decision_note)`
+- `payroll_runs(month = 1st of month, unique per school, status draft|approved, approved_by/at)`
+- `payslips(run_id, staff_id unique per run, working_days, lop_days, base_earnings, earnings (prorated), deductions, gross, total_deductions, adjustment, adjustment_note, net generated, paid_on, pay_mode, pay_ref)`
+- Functions: `my_staff_id(sid)`, `lwp_days(staff, d1, d2)`, `leave_summary(sid, d1, d2)` (approved days per staff & kind; invoker rights), `generate_payroll(sid, month, days?)`, helpers `payroll_run_approved`, `has_my_payslip` (break RLS recursion).
+- Triggers: `guard_staff_leave` (approve perm, **no self-approval**, closed requests stay closed, **no overlapping** pending/approved requests, stamps decider), `payslip_compute` (prorates earnings = base × (days − LOP) / days, totals; **locks** approved months; no "paid" before approval), `guard_payroll_run` (approve needs payslips; can't reopen once anything is paid; can't delete approved).
+
+## Business rules
+1. Payroll includes active staff with a salary structure who joined by month end, plus those who left during the month.
+2. Unpaid days (LOP) = approved **LWP** leave in the month + days before joining + days after leaving.
+3. Deductions are fixed per month (not prorated); adjustment is added to net (+ bonus / − recovery).
+4. Re-running payroll for a draft month recalculates all **unpaid** payslips from current structures.
+5. Draft → Approved (locked) → payments recorded; reopen only while nothing is paid.
+6. Staff see only their own staff record, leave and approved payslips.
+
+## Connects to
+Logins (`school_members` via `staff.user_id`), Library (issue books to staff), future Staff attendance (LOP), future Accounts (salary expense).
+
+## Tests
+`standard_modules.test.sql` — HR adds staff, teacher sees only self, applies own leave, can't apply for others / approve own / overlap, principal approves, payroll maths (36 000 × 28/30 − 1 800 = 31 800), joining proration, adjustment, paid-before-approval refused, lock, reopen refused after payment, approved run can't be deleted, accountant can't reopen, teacher sees only own payslip.
+
+## Gaps & ideas
+Staff attendance / biometric import → LOP, PF / ESI / PT auto-calculation and statutory reports (ECR file), TDS / Form 16, salary revision history, advances & loans with EMI recovery, staff documents upload, experience / relieving letters, leave carry-forward, half-day LWP in payroll from attendance.

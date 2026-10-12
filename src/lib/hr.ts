@@ -6,6 +6,7 @@ export type Staff = {
   joining_date: string | null; leaving_date: string | null; status: string; pan: string | null; uan: string | null;
   bank_name: string | null; bank_account: string | null; ifsc: string | null;
   earnings: Line[]; deductions: Line[]; leave_quota: Record<string, number>;
+  blocked_at?: string | null; blocked_till?: string | null; block_reason?: string | null; blocked_by_name?: string | null;
 };
 
 export const STAFF_KINDS: [string, string][] = [["teaching", "Teaching"], ["non_teaching", "Non-teaching (office)"], ["support", "Support (driver, guard, helper)"]];

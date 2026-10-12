@@ -51,3 +51,9 @@ Logins (`school_members` via `staff.user_id`), Library (issue books to staff), f
 
 ## Gaps & ideas
 Staff attendance / biometric import → LOP, PF / ESI / PT auto-calculation and statutory reports (ECR file), TDS / Form 16, salary revision history, advances & loans with EMI recovery, staff documents upload, experience / relieving letters, leave carry-forward, half-day LWP in payroll from attendance.
+
+## Staff management (step 12, 12 Oct 2026) — migration `0014_people_management.sql`
+- **Directory** (`/app/hr`): `staff_list()` — search (name, code, phone, email, designation, department), filters (type, department, status working / left / all, has ERP login, blocked), sort (name, code, newest joined, designation), 25 / 50 / 100 per page, counts and the gross salary computed in the database; CSV export `/app/hr/export` (salary column only with `hr.payroll.view`).
+- **Block (ban)**: `hr.staff.block` (Principal, Office admin). Sets `staff.blocked_*` and, when the person has an ERP login, `school_members.blocked_at / blocked_till`. `perm_scope()` and `my_permissions()` return nothing for a blocked login and the app sends them to "Your access has been suspended" — it is enforced by the database, not only by the screens. You cannot block your own login. Logins without a staff record can be blocked from Settings → Staff & access (`set_member_blocked`).
+- **Delete**: `delete_staff()` — full name typed to confirm; refused when the person has payslips, leave records or issued documents (mark Left instead).
+- Platform admins are never blocked by this (they have no school login).

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { portalStudent } from "@/lib/portal";
 import { PrintButton } from "@/components/ui/PrintButton";
-import { amountInWords, fmtDate, fullName, money } from "@/lib/format";
+import { amountInWords, fmtDate, fullName, money, todayIST } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Receipt", robots: { index: false, follow: false }, referrer: "no-referrer" };
@@ -12,6 +12,7 @@ export default async function ParentReceipt({ params }: { params: Promise<{ toke
   const { token, id } = await params;
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
   const { db, s } = await portalStudent(token);
+  if (s.blocked_at && (!s.blocked_till || s.blocked_till >= todayIST())) notFound();
   const { data: r } = await db.from("fee_receipts").select("receipt_no,paid_on,amount,mode,reference,cancelled,fee_receipt_lines(amount,fee_dues(label,due_date))").eq("id", id).eq("student_id", s.id).maybeSingle();
   if (!r || r.cancelled) notFound();
   const lines = (r.fee_receipt_lines as unknown as { amount: number; fee_dues: { label: string; due_date: string } | null }[]);

@@ -41,6 +41,9 @@ Admissions pipeline dashboard, follow-ups, offer validity + lapse, waitlist prom
 ## Next module — planned
 **Communications 2.0** (automatic SMS / WhatsApp / email via an outbox and daily jobs): see [plans/communications.md](plans/communications.md).
 
+## Done in step 12
+Student and staff management at scale — database-side search / filters / sort / pagination, CSV export, block (ban) and unblock incl. real login shut-off, safe delete, bulk actions.
+
 ## Suggested order (updated)
 1. **Automatic SMS / WhatsApp** on events (fee reminders, receipts, absence)  2. Staff attendance → payroll  3. Timetable + calendar  4. Accounts  5. Hostel / inventory / health  6. Parent & student logins (PWA), admit cards (a template + exam data), UDISE+ export
 

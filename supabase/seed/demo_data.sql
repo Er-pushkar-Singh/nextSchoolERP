@@ -14,6 +14,7 @@
 --   • 6 enquiries and 16 admission applications in every state (received … admitted, waitlisted, rejected)
 --   • Concessions (approved / pending / rejected), receipts (cash, UPI, split, cheque), advance, bounced cheque,
 --     refunds (paid / approved / requested), waivers, extension, split instalment, promises to pay, day close
+-- Also: 8 staff (one left, one blocked) and one blocked student.
 -- It uses the real functions as the school's Principal, so every rule and audit entry is the same as in the app.
 -- Run it ONCE; it stops if the demo students already exist.
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -299,6 +300,29 @@ begin
   end loop;
   perform public.add_followup(sid, null, (select id from public.enquiries where school_id = sid and student_name = 'Ayaan Khan'), current_date, 'call', 'First call to the parent');
   perform public.add_followup(sid, null, (select id from public.enquiries where school_id = sid and student_name = 'Rudra Pratap'), current_date + 2, 'visit', 'Invite for a campus tour');
+
+  -- ═════════════════ Staff and a blocked student ═════════════════
+  insert into public.staff (school_id, emp_code, name, designation, department, kind, gender, phone, email, joining_date, qualification, earnings, deductions, status, leaving_date)
+  select sid, 'DEMO-E' || lpad(x.n::text, 2, '0'), x.name, x.des, x.dept, x.kind, x.g, '97' || lpad((30000000 + x.n * 4813)::text, 8, '0'),
+         lower(replace(x.name, ' ', '.')) || '@demo-school.example', current_date - (x.n * 170), x.q,
+         jsonb_build_array(jsonb_build_object('name', 'Basic', 'amount', x.basic), jsonb_build_object('name', 'HRA', 'amount', round(x.basic * 0.2))),
+         jsonb_build_array(jsonb_build_object('name', 'PF', 'amount', round(x.basic * 0.12))), x.st, case when x.st = 'left' then current_date - 40 end
+    from (values
+      (1, 'Meena Srivastava', 'PGT Physics',     'Science',  'teaching',     'F', 'M.Sc., B.Ed.', 32000, 'active'),
+      (2, 'Ramesh Pandey',    'TGT Mathematics', 'Maths',    'teaching',     'M', 'M.Sc., B.Ed.', 28000, 'active'),
+      (3, 'Anjali Mishra',    'PRT',             'Primary',  'teaching',     'F', 'B.A., B.El.Ed.', 18000, 'active'),
+      (4, 'Sanjay Verma',     'Accountant',      'Office',   'non_teaching', 'M', 'B.Com.', 22000, 'active'),
+      (5, 'Poonam Yadav',     'Receptionist',    'Office',   'non_teaching', 'F', '12th', 14000, 'active'),
+      (6, 'Mohd. Irfan',      'Bus driver',      'Transport','support',      'M', '10th', 13000, 'active'),
+      (7, 'Sunil Kumar',      'Peon',            'Support',  'support',      'M', '8th', 10000, 'active'),
+      (8, 'Kavita Singh',     'TGT Hindi',       'Hindi',    'teaching',     'F', 'M.A., B.Ed.', 26000, 'left')
+    ) as x(n, name, des, dept, kind, g, q, basic, st)
+  on conflict do nothing;
+  -- one working staff member and one student are blocked, so the "blocked" screens have something to show
+  update public.staff set blocked_at = now() - interval '2 days', block_reason = 'Suspended pending inquiry', blocked_by_name = 'demo-seed@school.local'
+   where school_id = sid and emp_code = 'DEMO-E07';
+  update public.students set blocked_at = now() - interval '1 day', block_reason = 'Fee default — meeting with parents called', blocked_till = current_date + 7, blocked_by_name = 'demo-seed@school.local'
+   where id = student_ids[26];
 
   -- ── Summary ──
   select count(*) into cnt_students from public.students where school_id = sid and (admission_no like 'DEMO-%' or application_id is not null);

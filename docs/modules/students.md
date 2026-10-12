@@ -57,3 +57,11 @@ Fees (dues, receipts, concessions), Attendance, Exams (marks, report cards), Adm
 
 ## Gaps & ideas
 Sibling linking, ID cards, bulk section / roll-number assignment, parent-link expiry or OTP, UDISE+ export (needs the current-year DCF, see `docs/roadmap.md`).
+
+## Student management (step 12, 12 Oct 2026) — migration `0014_people_management.sql`
+- **List** (`/app/students`): one database query (`student_list()`) does search + filters + sort + total + page. Search: name, admission no., father, mother, parent phone, student mobile (`%` / `_` are literal). Filters: status (active / left / transferred / withdrawn / passed out / all, with counts), class, section, gender, category, fee dues (yes / no, with the balance shown), blocked. Sort: name, class & roll, admission no., newest, highest dues. 25 / 50 / 100 per page, numbered pager, everything in the URL. Teachers see only their assigned sections (RLS applies inside the function).
+- **Export**: `/app/students/export` — the same filters, every page, CSV (`students.profile.export`).
+- **Bulk** (tick rows): block / unblock with reason and end date (`students.profile.block`); move to a section of the same class (`students.profile.edit`).
+- **Block (ban)**: `students.blocked_at / blocked_till / block_reason / blocked_by_name`. A block is in force from now until `blocked_till` (or until lifted). Effect: the parent link (`/p/<token>`, its receipts and online payment) shows "not available, contact the school"; the student stays on the register, fees and attendance are untouched. Block columns change only through `block_student / unblock_student / bulk_block_students` (a plain update is refused).
+- **Delete**: `delete_student()` — needs the admission number typed; refused when the student has fee receipts / payments, attendance, marks, certificates, issued documents, board registration or library records ("mark Left / Withdrawn instead"). Uploaded files are removed from storage after the record is gone. Audit log keeps the deletion.
+- **Edit / status**: unchanged (student page → Edit student details, Update status).

@@ -68,7 +68,7 @@ export const requireSchool = cache(async () => {
     me.supabase.from("schools").select("*").eq("id", schoolId).single(),
     me.supabase.from("sessions").select("id,name,start_date,end_date").eq("school_id", schoolId).eq("is_current", true).maybeSingle(),
     me.supabase.rpc("my_permissions", { sid: schoolId }),
-    me.supabase.from("school_members").select("name").eq("school_id", schoolId).eq("user_id", me.user.id).maybeSingle(),
+    me.supabase.from("school_members").select("name,blocked_at,blocked_till").eq("school_id", schoolId).eq("user_id", me.user.id).maybeSingle(),
     me.supabase.rpc("subscription_state", { sid: schoolId }),
     me.supabase.from("school_subscriptions").select("current_period_end,grace_days,status").eq("school_id", schoolId).maybeSingle(),
   ]);
@@ -76,6 +76,8 @@ export const requireSchool = cache(async () => {
     ? await me.supabase.from("support_sessions").select("id,reason,expires_at").eq("school_id", schoolId).eq("user_id", me.user.id).is("ended_at", null).gt("expires_at", new Date().toISOString()).order("started_at", { ascending: false }).limit(1).maybeSingle()
     : { data: null };
   if (!school) redirect("/no-access");
+  // A blocked login is shut out of the school (the database also returns no permissions for it)
+  if (!me.isPlatform && member?.blocked_at && (!member.blocked_till || member.blocked_till >= new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10))) redirect("/no-access?blocked=1");
   const map = new Map<string, Scope>(((perms ?? []) as { perm_key: string; scope: Scope }[]).map((p) => [p.perm_key, p.scope]));
   const can = (key: string) => map.has(key);
   const roleNames = me.memberships.find((x) => x.school_id === schoolId)?.roles ?? (me.isPlatform ? ["Platform admin"] : []);

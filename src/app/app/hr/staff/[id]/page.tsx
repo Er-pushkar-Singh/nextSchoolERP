@@ -4,7 +4,8 @@ import { requirePerm } from "@/lib/school";
 import { Badge, Card, Flash, Input, PageHeader, Select, Stat, Submit, Table, Textarea, td } from "@/components/ui/ui";
 import { fmtDate, money, todayIST } from "@/lib/format";
 import { DEFAULT_DEDUCTIONS, DEFAULT_EARNINGS, LEAVE_KINDS, monthName, QUOTA_KINDS, STAFF_KINDS, sumLines, type Line, type Staff } from "@/lib/hr";
-import { deleteStaff, saveStaff, setStaffStatus } from "../../../_actions/hr";
+import { saveStaff, setStaffStatus } from "../../../_actions/hr";
+import { blockStaff, deleteStaffSafe, unblockStaff } from "../../../_actions/people";
 
 function SalaryRows({ prefix, title, rows, defaults }: { prefix: string; title: string; rows: Line[]; defaults: string[] }) {
   const list = rows.length ? [...rows, { name: "", amount: 0 }, { name: "", amount: 0 }] : defaults.map((name) => ({ name, amount: 0 }));
@@ -43,14 +44,22 @@ export default async function StaffPage({ params, searchParams }: { params: Prom
   const takenLogins = new Set((linked ?? []).map((x) => x.user_id).filter((u) => u !== s.user_id));
   const loginOptions = (members ?? []).filter((m) => !takenLogins.has(m.user_id)).map((m) => [m.user_id, `${m.name ?? m.email}${m.name && m.email ? ` · ${m.email}` : ""}`] as [string, string]);
   const edit = can("hr.staff.edit");
+  const canBlock = can("hr.staff.block");
+  const isBlocked = Boolean(s.blocked_at) && (!s.blocked_till || s.blocked_till >= todayIST());
   const gross = sumLines(s.earnings), ded = sumLines(s.deductions);
   const kind = new Map(LEAVE_KINDS);
 
   return (
     <div className="flex flex-col gap-5">
       <PageHeader icon="hr" title={s.name} back={{ href: "/app/hr", label: "Staff" }}
-        subtitle={<>{[s.designation, s.department, s.emp_code].filter(Boolean).join(" · ") || "—"} {s.status === "left" && <Badge value="cancelled" text={`Left ${fmtDate(s.leaving_date)}`} />}</>} />
+        subtitle={<>{[s.designation, s.department, s.emp_code].filter(Boolean).join(" · ") || "—"} {s.status === "left" && <Badge value="cancelled" text={`Left ${fmtDate(s.leaving_date)}`} />}{isBlocked && <> <Badge value="overdue" text="Blocked" /></>}</>} />
       <Flash ok={sp.ok} error={sp.error} />
+      {isBlocked && (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-[#f3b8b1] bg-[#fdecea] px-4 py-3 text-[14px] text-[#7a1a12]">
+          <span><b>Blocked</b>{s.blocked_till ? ` until ${fmtDate(s.blocked_till)}` : ""} — {s.block_reason}{s.blocked_by_name ? ` (by ${s.blocked_by_name})` : ""}.{s.user_id ? " Their ERP login is switched off." : ""}</span>
+          {canBlock && <form action={unblockStaff}><input type="hidden" name="id" value={s.id} /><button className="btn btn-sm btn-secondary cursor-pointer">Unblock</button></form>}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {can("hr.payroll.view") && <Stat label="Monthly gross" value={money(gross)} icon="payroll" tone="green" />}
@@ -142,9 +151,27 @@ export default async function StaffPage({ params, searchParams }: { params: Prom
             {s.status === "active" && <Input label="Last working day" name="leaving_date" type="date" defaultValue={todayIST()} />}
             <Submit>{s.status === "active" ? "Mark as left" : "Mark as working again"}</Submit>
           </form>
-          {can("hr.staff.delete") && (
-            <form action={deleteStaff} className="mt-3"><input type="hidden" name="id" value={s.id} /><button className="cursor-pointer border-0 bg-transparent p-0 text-[13px] text-error underline">Delete this record (only if entered by mistake)</button></form>
-          )}
+        </Card>
+      )}
+
+      {canBlock && !isBlocked && (
+        <Card title="Block this staff member" description={s.user_id ? "Their ERP login is switched off immediately (they are signed out of every screen). Payroll and records are untouched." : "Marks the record as blocked. They have no ERP login."}>
+          <form action={blockStaff} className="grid gap-3 sm:grid-cols-4">
+            <input type="hidden" name="id" value={s.id} />
+            <Input label="Reason" name="reason" required className="sm:col-span-2" />
+            <Input label="Blocked until (optional)" name="till" type="date" />
+            <div className="flex items-end"><Submit variant="secondary">Block</Submit></div>
+          </form>
+        </Card>
+      )}
+
+      {can("hr.staff.delete") && (
+        <Card title="Delete this record" description="Only for a record entered by mistake. Staff with payslips, leave records or issued documents cannot be deleted — mark them as Left instead.">
+          <form action={deleteStaffSafe} className="flex flex-wrap items-end gap-3">
+            <input type="hidden" name="id" value={s.id} />
+            <Input label={`Type the full name (${s.name}) to confirm`} name="confirm" required />
+            <Submit variant="danger">Delete staff record</Submit>
+          </form>
         </Card>
       )}
     </div>

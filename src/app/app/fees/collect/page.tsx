@@ -95,11 +95,11 @@ export default async function Collect({ searchParams }: { searchParams: Promise<
           </Card>
 
           {siblings.length > 0 && (
-            <p role="note" className="m-0 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-[12px] border border-[#cfd9f7] bg-blue-tint px-4 py-3 text-[14px] text-blue-strong">
+            <div role="note" className="m-0 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-[12px] border border-[#cfd9f7] bg-blue-tint px-4 py-3 text-[14px] text-blue-strong">
               <b>Siblings:</b>
               {siblings.map((x) => <Link key={x.student_id} href={`/app/fees/collect?student=${x.student_id}`} className="font-semibold">{x.name} ({x.class_name ?? "—"}) — {Number(x.balance) > 0 ? `owes ${money(x.balance)}` : "no dues"}</Link>)}
               {canAdjust && <form action={siblingDiscount} className="inline"><input type="hidden" name="student_id" value={stu.id} /><button className="cursor-pointer border-0 bg-transparent p-0 text-[13px] font-semibold text-blue underline">Apply sibling discount</button></form>}
-            </p>
+            </div>
           )}
           {dues.length ? (
             <form action={collectFeeV2} className="flex flex-col gap-5">

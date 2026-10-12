@@ -54,3 +54,10 @@ Things that have already bitten this project. Check here before debugging someth
 - `bill_student_dues()` now also applies the sibling rule. It is only called from `admit_application()`.
 - `admit_application()` does not check seats; the UI warns. Seat control is `admission_seats()` + `promote_waitlist()`.
 - `fee_dues.kind = 'charge'` rows made by `split_due` have no `fee_plan_id` (the unique `(student_id, fee_plan_id)` index would otherwise clash).
+
+## People management traps (step 12)
+- `perm_scope()` / `my_permissions()` were redefined in 0014 (block check first). If you redefine them again, keep `member_blocked()`.
+- `student_list()` / `staff_list()` are `SECURITY INVOKER` on purpose: RLS (assigned sections, own records) must apply. Do not make them definer.
+- `like_escape()` is used for every search; never interpolate user text into `.or(ilike…)` any more — call the list functions.
+- Page files in the App Router may export only the page itself (no extra `export const`); keep shared constants in `src/lib`.
+- A `<form>` or block element inside `<p>` breaks hydration. `node scratchpad/nestcheck.mjs` (JSX nesting) and `schemacheck.mjs` (columns / RPC names vs the real schema) were used to audit the code; both are worth re-creating in `scripts/` if the screens grow.

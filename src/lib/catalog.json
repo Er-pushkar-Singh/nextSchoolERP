@@ -101,7 +101,8 @@
             "edit",
             "delete",
             "export",
-            "print"
+            "print",
+            "block"
           ],
           "built": true
         },
@@ -512,7 +513,8 @@
             "create",
             "edit",
             "delete",
-            "export"
+            "export",
+            "block"
           ],
           "built": true
         },
@@ -932,7 +934,8 @@
           "view",
           "edit",
           "export",
-          "print"
+          "print",
+          "block"
         ],
         "students.sensitive": [
           "school",

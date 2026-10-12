@@ -1,0 +1,153 @@
+import Link from "next/link";
+import { cookies } from "next/headers";
+import { requirePerm } from "@/lib/school";
+import { Badge, Card, Empty, Flash, Input, PageHeader, Submit, Table, td } from "@/components/ui/ui";
+import { CopyButton } from "@/components/CopyButton";
+import { getClasses } from "@/lib/erp";
+import { appUrl } from "@/lib/brand";
+import catalog from "@/lib/catalog.json";
+import { addAssignment, addStaff, removeAssignment, removeStaff, setOverride, setStaffRoles } from "../../_actions/access";
+
+type Role = { id: string; name: string; kind: string; code: string };
+type Member = { user_id: string; name: string | null; email: string | null; phone: string | null };
+
+export default async function Staff({ searchParams }: { searchParams: Promise<{ user?: string; ok?: string; error?: string }> }) {
+  const { supabase, school, user, can } = await requirePerm("settings.users.view");
+  const sp = await searchParams;
+  const raw = (await cookies()).get("erp_newpw")?.value;
+  let newpw: { email: string; pw: string } | null = null;
+  try { newpw = raw ? JSON.parse(raw) : null; } catch { newpw = null; }
+
+  const [{ data: members }, { data: mr }, { data: roles }, classes, { data: subjects }, { data: assigns }] = await Promise.all([
+    supabase.from("school_members").select("user_id,name,email,phone").eq("school_id", school.id).order("name"),
+    supabase.from("member_roles").select("user_id,role_id").eq("school_id", school.id),
+    supabase.from("roles").select("id,name,kind,code").eq("school_id", school.id).order("created_at"),
+    getClasses(supabase, school.id),
+    supabase.from("subjects").select("id,name").eq("school_id", school.id).order("sort"),
+    supabase.from("staff_assignments").select("id,user_id,section_id,subject_id,is_class_teacher").eq("school_id", school.id),
+  ]);
+  const R = (roles ?? []) as Role[];
+  const staffRoles = R.filter((r) => r.kind === "staff");
+  const rolesOf = (uid: string) => (mr ?? []).filter((x) => x.user_id === uid).map((x) => R.find((r) => r.id === x.role_id)).filter(Boolean) as Role[];
+  const secName = new Map(classes.flatMap((c) => c.sections.map((s) => [s.id, `${c.name}-${s.name}`] as [string, string])));
+  const subName = new Map((subjects ?? []).map((s) => [s.id, s.name]));
+  const M = (members ?? []) as Member[];
+  const sel = sp.user ? M.find((m) => m.user_id === sp.user) : undefined;
+  const selRoles = sel ? new Set(rolesOf(sel.user_id).map((r) => r.id)) : new Set<string>();
+  const { data: overrides } = sel ? await supabase.from("member_overrides").select("perm_key,effect,scope").eq("school_id", school.id).eq("user_id", sel.user_id) : { data: [] };
+  const allPerms = catalog.modules.flatMap((m) => m.submodules.flatMap((s) => s.actions.map((a) => ({ key: `${m.code}.${s.code}.${a}`, label: `${m.name} › ${s.name} › ${a}` }))));
+
+  return (
+    <div className="flex flex-col gap-5">
+      <PageHeader icon="students" title="Staff & access" subtitle={`${M.length} people · roles decide what each person can do`} back={{ href: "/app/settings", label: "Settings centre" }} />
+      <Flash ok={sp.ok} error={sp.error} />
+      {newpw && (
+        <div role="status" className="rounded-[12px] border-2 border-wa bg-wa-tint p-4 text-[14px] text-[#0b4f2c]">
+          <b>Share these sign-in details privately (shown only once):</b>
+          <p className="my-2 font-mono">{appUrl("/login")}<br />Email: {newpw.email}<br />Temporary password: {newpw.pw}</p>
+          <CopyButton text={`Sign in to ${school.name}: ${appUrl("/login")}\nEmail: ${newpw.email}\nPassword: ${newpw.pw}\n(Please change it under your name → My account.)`} label="Copy message" />
+        </div>
+      )}
+
+      <Table head={["Name", "Email / phone", "Roles", "Assigned to", ""]} minWidth={760}>
+        {M.map((m) => {
+          const a = (assigns ?? []).filter((x) => x.user_id === m.user_id);
+          return (
+            <tr key={m.user_id} className={sel?.user_id === m.user_id ? "bg-blue-tint" : ""}>
+              <td className={`${td} font-semibold text-ink`}>{m.name ?? "—"}{m.user_id === user.id && <span className="ml-1 text-[12px] font-normal text-muted">(you)</span>}</td>
+              <td className={td}>{m.email}<div className="text-[12px] text-muted">{m.phone ?? ""}</div></td>
+              <td className={td}><span className="flex flex-wrap gap-1">{rolesOf(m.user_id).map((r) => <Badge key={r.id} value="contacted" text={r.name} />)}</span></td>
+              <td className={`${td} text-[13px]`}>{a.length ? a.map((x) => `${secName.get(x.section_id) ?? "?"}${x.is_class_teacher ? " (class teacher)" : x.subject_id ? ` ${subName.get(x.subject_id) ?? ""}` : ""}`).join(", ") : <span className="text-muted">—</span>}</td>
+              <td className={td}><Link href={`/app/settings/staff?user=${m.user_id}`}>Manage</Link></td>
+            </tr>
+          );
+        })}
+      </Table>
+
+      {sel && (
+        <Card title={`Manage: ${sel.name ?? sel.email}`} actions={<Link href="/app/settings/staff" className="text-[14px]">Close</Link>}>
+          <div className="grid gap-6 lg:grid-cols-2">
+            <section>
+              <h3 className="m-0 mb-2 text-[15px] font-bold text-ink">Roles</h3>
+              {sel.user_id === user.id ? <p className="m-0 text-[14px] text-muted">You can't change your own roles. Ask another Principal / School Admin.</p> : (
+                <form action={setStaffRoles} className="flex flex-col gap-2">
+                  <input type="hidden" name="user_id" value={sel.user_id} />
+                  <div className="grid gap-1 sm:grid-cols-2">
+                    {staffRoles.map((r) => <label key={r.id} className="flex items-center gap-2 text-[14px]"><input type="checkbox" name="role_ids" value={r.id} defaultChecked={selRoles.has(r.id)} disabled={!can("settings.users.edit")} /> {r.name}</label>)}
+                  </div>
+                  {can("settings.users.edit") && <div><Submit variant="secondary">Save roles</Submit></div>}
+                </form>
+              )}
+            </section>
+            <section>
+              <h3 className="m-0 mb-2 text-[15px] font-bold text-ink">Classes & subjects (for “assigned” permissions)</h3>
+              <ul className="m-0 mb-3 list-none p-0 text-[14px]">
+                {(assigns ?? []).filter((x) => x.user_id === sel.user_id).map((x) => (
+                  <li key={x.id} className="flex items-center justify-between gap-2 border-t border-line py-1.5 first:border-0">
+                    <span>{secName.get(x.section_id)} · {x.is_class_teacher ? "Class teacher (all subjects)" : x.subject_id ? subName.get(x.subject_id) : "All subjects"}</span>
+                    {can("academics.allocation.edit") && <form action={removeAssignment}><input type="hidden" name="id" value={x.id} /><input type="hidden" name="user_id" value={sel.user_id} /><button className="cursor-pointer border-0 bg-transparent text-[13px] text-error underline">Remove</button></form>}
+                  </li>
+                ))}
+                {!(assigns ?? []).some((x) => x.user_id === sel.user_id) && <li className="text-muted">Not assigned to any section. Teachers see nothing in “assigned” areas until you assign them.</li>}
+              </ul>
+              {can("academics.allocation.edit") && (
+                <form action={addAssignment} className="flex flex-col gap-2">
+                  <input type="hidden" name="user_id" value={sel.user_id} />
+                  <div className="flex max-h-40 flex-wrap gap-x-3 gap-y-1 overflow-y-auto rounded-lg border border-line p-2">
+                    {classes.flatMap((c) => c.sections.map((s) => <label key={s.id} className="flex items-center gap-1 text-[13px]"><input type="checkbox" name="section_ids" value={s.id} /> {c.name}-{s.name}</label>))}
+                  </div>
+                  <div className="flex flex-wrap items-end gap-3 text-[14px]">
+                    <label className="flex items-center gap-1.5"><input type="checkbox" name="is_class_teacher" /> Class teacher</label>
+                    <label className="flex flex-col gap-1 text-[13px] font-semibold">or subject
+                      <select name="subject_id" className="rounded-md border border-line px-2 py-1.5 font-normal"><option value="">All subjects</option>{(subjects ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
+                    </label>
+                    <Submit variant="secondary">Assign</Submit>
+                  </div>
+                </form>
+              )}
+            </section>
+            {can("settings.roles.edit") && sel.user_id !== user.id && (
+              <section className="lg:col-span-2">
+                <h3 className="m-0 mb-2 text-[15px] font-bold text-ink">Exceptions for this person only</h3>
+                <ul className="m-0 mb-2 list-none p-0 text-[14px]">
+                  {(overrides ?? []).map((o) => (
+                    <li key={o.perm_key} className="flex items-center gap-2"><Badge value={o.effect === "deny" ? "overdue" : "paid"} text={o.effect === "deny" ? "Denied" : `Granted (${o.scope})`} /> <code className="text-[13px]">{o.perm_key}</code>
+                      <form action={setOverride}><input type="hidden" name="user_id" value={sel.user_id} /><input type="hidden" name="perm_key" value={o.perm_key} /><input type="hidden" name="effect" value="remove" /><button className="cursor-pointer border-0 bg-transparent text-[13px] text-blue underline">remove</button></form>
+                    </li>
+                  ))}
+                  {!overrides?.length && <li className="text-muted">None — this person gets exactly what their roles give.</li>}
+                </ul>
+                <form action={setOverride} className="flex flex-wrap items-end gap-2">
+                  <input type="hidden" name="user_id" value={sel.user_id} />
+                  <select name="perm_key" className="input !min-h-10 !w-auto max-w-md !py-2 text-[14px]" aria-label="Permission">{allPerms.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}</select>
+                  <select name="effect" className="input !min-h-10 !w-auto !py-2 text-[14px]" aria-label="Effect"><option value="deny">Deny</option><option value="grant">Grant</option></select>
+                  <select name="scope" className="input !min-h-10 !w-auto !py-2 text-[14px]" aria-label="Scope">{Object.entries(catalog.scopes).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
+                  <Submit variant="secondary">Add exception</Submit>
+                </form>
+              </section>
+            )}
+            {can("settings.users.delete") && sel.user_id !== user.id && (
+              <form action={removeStaff} className="lg:col-span-2"><input type="hidden" name="user_id" value={sel.user_id} /><Submit variant="danger">Remove {sel.name ?? "this person"} from the school</Submit></form>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {can("settings.users.create") ? (
+        <Card title="Add staff">
+          <form action={addStaff} className="flex flex-col gap-3">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Input label="Name" name="name" required />
+              <Input label="Email (login)" name="email" type="email" required />
+              <Input label="Phone" name="phone" type="tel" />
+            </div>
+            <fieldset className="border-0 p-0"><legend className="mb-1 text-[13px] font-semibold text-ink">Roles</legend>
+              <div className="grid gap-1 sm:grid-cols-3">{staffRoles.map((r) => <label key={r.id} className="flex items-center gap-2 text-[14px]"><input type="checkbox" name="role_ids" value={r.id} /> {r.name}</label>)}</div>
+            </fieldset>
+            <div><Submit>Add staff</Submit></div>
+          </form>
+        </Card>
+      ) : !M.length && <Empty>No staff yet.</Empty>}
+    </div>
+  );
+}

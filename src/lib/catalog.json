@@ -1,0 +1,1664 @@
+{
+  "version": 1,
+  "actions": {
+    "view": "View",
+    "create": "Create",
+    "edit": "Edit",
+    "delete": "Delete",
+    "approve": "Approve",
+    "export": "Export",
+    "print": "Print",
+    "publish": "Publish"
+  },
+  "scopes": {
+    "school": "Whole school",
+    "assigned": "Assigned classes / subjects",
+    "own": "Own records",
+    "child": "Own children",
+    "self": "Self only"
+  },
+  "modules": [
+    {
+      "code": "dashboard",
+      "name": "Dashboard",
+      "group": "Core",
+      "tier": "MVP",
+      "core": true,
+      "submodules": [
+        {
+          "code": "overview",
+          "name": "Dashboard",
+          "actions": [
+            "view"
+          ],
+          "built": true
+        }
+      ]
+    },
+    {
+      "code": "frontdesk",
+      "name": "Front office & admissions",
+      "group": "Core",
+      "tier": "MVP",
+      "submodules": [
+        {
+          "code": "enquiries",
+          "name": "Admission enquiries",
+          "actions": [
+            "view",
+            "create",
+            "edit",
+            "delete",
+            "export"
+          ],
+          "built": true
+        },
+        {
+          "code": "admissions",
+          "name": "Admission approval",
+          "actions": [
+            "view",
+            "approve"
+          ]
+        },
+        {
+          "code": "online_form",
+          "name": "Online registration form",
+          "actions": [
+            "view",
+            "edit"
+          ]
+        },
+        {
+          "code": "visitors",
+          "name": "Visitor & call log, gate pass",
+          "actions": [
+            "view",
+            "create",
+            "edit",
+            "delete"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "students",
+      "name": "Student information",
+      "group": "Core",
+      "tier": "MVP",
+      "submodules": [
+        {
+          "code": "profile",
+          "name": "Student profile & guardians",
+          "actions": [
+            "view",
+            "create",
+            "edit",
+            "delete",
+            "export",
+            "print"
+          ],
+          "built": true
+        },
+        {
+          "code": "sensitive",
+          "name": "Aadhaar, medical, PEN / APAAR",
+          "actions": [
+            "view",
+            "edit"
+          ]
+        },
+        {
+          "code": "import",
+          "name": "Bulk import",
+          "actions": [
+            "create"
+          ],
+          "built": true
+        },
+        {
+          "code": "promotion",
+          "name": "Promotion & section change",
+          "actions": [
+            "view",
+            "create"
+          ],
+          "built": true
+        },
+        {
+          "code": "certificates",
+          "name": "TC, bonafide & ID cards",
+          "actions": [
+            "view",
+            "create",
+            "print",
+            "approve"
+          ]
+        },
+        {
+          "code": "parent_link",
+          "name": "Parent page link",
+          "actions": [
+            "view",
+            "edit"
+          ],
+          "built": true
+        }
+      ]
+    },
+    {
+      "code": "academics",
+      "name": "Academic setup",
+      "group": "Academic",
+      "tier": "MVP",
+      "submodules": [
+        {
+          "code": "setup",
+          "name": "Sessions, classes, sections, subjects",
+          "actions": [
+            "view",
+            "create",
+            "edit",
+            "delete"
+          ],
+          "built": true
+        },
+        {
+          "code": "allocation",
+          "name": "Class teacher & subject allocation",
+          "actions": [
+            "view",
+            "create",
+            "edit",
+            "delete"
+          ],
+          "built": true
+        },
+        {
+          "code": "timetable",
+          "name": "Timetable",
+          "actions": [
+            "view",
+            "create",
+            "edit",
+            "delete",
+            "print"
+          ]
+        },
+        {
+          "code": "syllabus",
+          "name": "Syllabus & lesson plans",
+          "actions": [
+            "view",
+            "create",
+            "edit",
+            "delete",
+            "approve"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "homework",
+      "name": "Homework & study material",
+      "group": "Academic",
+      "tier": "Phase 2",
+      "submodules": [
+        {
+          "code": "homework",
+          "name": "Homework & classwork",
+          "actions": [
+            "view",
+            "create",
+            "edit",
+            "delete"
+          ],
+          "built": true
+        },
+        {
+          "code": "material",
+          "name": "Study material",
+          "actions": [
+            "view",
+            "create",
+            "edit",
+            "delete"
+          ],
+          "built": true
+        }
+      ]
+    },
+    {
+      "code": "attendance",
+      "name": "Attendance",
+      "group": "Academic",
+      "tier": "MVP",
+      "submodules": [
+        {
+          "code": "students",
+          "name": "Student attendance",
+          "actions": [
+            "view",
+            "create",
+            "edit",
+            "export",
+            "print"
+          ],
+          "built": true
+        },
+        {
+          "code": "leave",
+          "name": "Student leave requests",
+          "actions": [
+            "view",
+            "create",
+            "approve"
+          ]
+        },
+        {
+          "code": "staff",
+          "name": "Staff attendance",
+          "actions": [
+            "view",
+            "create",
+            "edit",
+            "export"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "exams",
+      "name": "Examinations",
+      "group": "Academic",
+      "tier": "MVP",
+      "submodules": [
+        {
+          "code": "setup",
+          "name": "Exams, subjects & grading",
+          "actions": [
+            "view",
+            "create",
+            "edit",
+            "delete"
+          ],
+          "built": true
+        },
+        {
+          "code": "marks",
+          "name": "Marks entry",
+          "actions": [
+            "view",
+            "create",
+            "edit",
+            "approve"
+          ],
+          "built": true
+        },
+        {
+          "code": "results",
+          "name": "Report cards & publishing",
+          "actions": [
+            "view",
+            "print",
+            "publish"
+          ],
+          "built": true
+        },
+        {
+          "code": "admit_cards",
+          "name": "Date sheet & admit cards",
+          "actions": [
+            "view",
+            "create",
+            "print"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "fees",
+      "name": "Fees",
+      "group": "Finance",
+      "tier": "MVP",
+      "submodules": [
+        {
+          "code": "structure",
+          "name": "Fee heads & structure",
+          "actions": [
+            "view",
+            "create",
+            "edit",
+            "delete"
+          ],
+          "built": true
+        },
+        {
+          "code": "dues",
+          "name": "Generate dues",
+          "actions": [
+            "view",
+            "create"
+          ],
+          "built": true
+        },
+        {
+          "code": "collection",
+          "name": "Fee collection",
+          "actions": [
+            "view",
+            "create",
+            "print",
+            "export"
+          ],
+          "built": true
+        },
+        {
+          "code": "receipts",
+          "name": "Receipts & cancellation",
+          "actions": [
+            "view",
+            "print",
+            "export",
+            "approve"
+          ],
+          "built": true
+        },
+        {
+          "code": "concessions",
+          "name": "Concessions & scholarships",
+          "actions": [
+            "view",
+            "create",
+            "delete",
+            "approve"
+          ],
+          "built": true
+        },
+        {
+          "code": "defaulters",
+          "name": "Defaulters & reminders",
+          "actions": [
+            "view",
+            "create",
+            "export"
+          ],
+          "built": true
+        },
+        {
+          "code": "online",
+          "name": "Online payment",
+          "actions": [
+            "view",
+            "create"
+          ]
+        },
+        {
+          "code": "refunds",
+          "name": "Refunds",
+          "actions": [
+            "view",
+            "create",
+            "approve"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "accounts",
+      "name": "Accounts",
+      "group": "Finance",
+      "tier": "Phase 3",
+      "submodules": [
+        {
+          "code": "vouchers",
+          "name": "Income & expense vouchers",
+          "actions": [
+            "view",
+            "create",
+            "edit",
+            "delete",
+            "approve",
+            "export"
+          ]
+        },
+        {
+          "code": "books",
+          "name": "Cash, bank & day book",
+          "actions": [
+            "view",
+            "export",
+            "print"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "hr",
+      "name": "Staff & payroll",
+      "group": "Operations",
+      "tier": "Phase 2",
+      "submodules": [
+        {
+          "code": "staff",
+          "name": "Staff profiles & documents",
+          "actions": [
+            "view",
+            "create",
+            "edit",
+            "delete",
+            "export"
+          ],
+          "built": true
+        },
+        {
+          "code": "leave",
+          "name": "Staff leave",
+          "actions": [
+            "view",
+            "create",
+            "approve"
+          ],
+          "built": true
+        },
+        {
+          "code": "payroll",
+          "name": "Salary & payslips",
+          "actions": [
+            "view",
+            "create",
+            "edit",
+            "approve",
+            "export",
+            "print"
+          ],
+          "built": true
+        }
+      ]
+    },
+    {
+      "code": "comms",
+      "name": "Communication",
+      "group": "Communication",
+      "tier": "MVP",
+      "submodules": [
+        {
+          "code": "notices",
+          "name": "Notices & circulars",
+          "actions": [
+            "view",
+            "create",
+            "edit",
+            "delete",
+            "publish"
+          ],
+          "built": true
+        },
+        {
+          "code": "broadcast",
+          "name": "WhatsApp / SMS messages",
+          "actions": [
+            "create"
+          ],
+          "built": true
+        },
+        {
+          "code": "templates",
+          "name": "Message templates",
+          "actions": [
+            "view",
+            "create",
+            "edit",
+            "delete"
+          ]
+        },
+        {
+          "code": "calendar",
+          "name": "Events calendar",
+          "actions": [
+            "view",
+            "create",
+            "edit",
+            "delete"
+          ]
+        },
+        {
+          "code": "messages",
+          "name": "Parent–teacher messages",
+          "actions": [
+            "view",
+            "create"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "transport",
+      "name": "Transport",
+      "group": "Operations",
+      "tier": "Phase 2",
+      "submodules": [
+        {
+          "code": "routes",
+          "name": "Routes, stops & vehicles",
+          "actions": [
+            "view",
+            "create",
+            "edit",
+            "delete"
+          ],
+          "built": true
+        },
+        {
+          "code": "allocation",
+          "name": "Student allocation",
+          "actions": [
+            "view",
+            "create",
+            "edit",
+            "delete"
+          ],
+          "built": true
+        },
+        {
+          "code": "tracking",
+          "name": "GPS tracking",
+          "actions": [
+            "view"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "library",
+      "name": "Library",
+      "group": "Operations",
+      "tier": "Phase 3",
+      "submodules": [
+        {
+          "code": "catalogue",
+          "name": "Book catalogue",
+          "actions": [
+            "view",
+            "create",
+            "edit",
+            "delete"
+          ],
+          "built": true
+        },
+        {
+          "code": "circulation",
+          "name": "Issue & return",
+          "actions": [
+            "view",
+            "create",
+            "edit"
+          ],
+          "built": true
+        }
+      ]
+    },
+    {
+      "code": "hostel",
+      "name": "Hostel",
+      "group": "Operations",
+      "tier": "Phase 3",
+      "submodules": [
+        {
+          "code": "rooms",
+          "name": "Rooms & beds",
+          "actions": [
+            "view",
+            "create",
+            "edit",
+            "delete"
+          ]
+        },
+        {
+          "code": "allocation",
+          "name": "Resident allocation",
+          "actions": [
+            "view",
+            "create",
+            "edit",
+            "delete"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "inventory",
+      "name": "Inventory & sales",
+      "group": "Operations",
+      "tier": "Phase 3",
+      "submodules": [
+        {
+          "code": "items",
+          "name": "Items & stock",
+          "actions": [
+            "view",
+            "create",
+            "edit",
+            "delete"
+          ]
+        },
+        {
+          "code": "sales",
+          "name": "Uniform & book sales",
+          "actions": [
+            "view",
+            "create",
+            "print"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "wellbeing",
+      "name": "Health & discipline",
+      "group": "Operations",
+      "tier": "Phase 3",
+      "submodules": [
+        {
+          "code": "medical",
+          "name": "Medical records",
+          "actions": [
+            "view",
+            "create",
+            "edit"
+          ]
+        },
+        {
+          "code": "discipline",
+          "name": "Incidents & counselling",
+          "actions": [
+            "view",
+            "create",
+            "edit"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "reports",
+      "name": "Reports & analytics",
+      "group": "Reports",
+      "tier": "MVP",
+      "submodules": [
+        {
+          "code": "fees",
+          "name": "Fee reports",
+          "actions": [
+            "view",
+            "export"
+          ],
+          "built": true
+        },
+        {
+          "code": "academic",
+          "name": "Academic reports",
+          "actions": [
+            "view",
+            "export"
+          ],
+          "built": true
+        },
+        {
+          "code": "udise",
+          "name": "UDISE+ export",
+          "actions": [
+            "export"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "settings",
+      "name": "Settings & security",
+      "group": "Core",
+      "tier": "MVP",
+      "core": true,
+      "submodules": [
+        {
+          "code": "school",
+          "name": "School profile & numbering",
+          "actions": [
+            "view",
+            "edit"
+          ],
+          "built": true
+        },
+        {
+          "code": "billing",
+          "name": "Subscription & billing",
+          "actions": [
+            "view",
+            "create"
+          ],
+          "built": true
+        },
+        {
+          "code": "users",
+          "name": "Staff logins",
+          "actions": [
+            "view",
+            "create",
+            "edit",
+            "delete"
+          ],
+          "built": true
+        },
+        {
+          "code": "roles",
+          "name": "Roles & permissions",
+          "actions": [
+            "view",
+            "create",
+            "edit",
+            "delete"
+          ],
+          "built": true
+        },
+        {
+          "code": "integrations",
+          "name": "Payment gateway, Cloudinary, SMS",
+          "actions": [
+            "view",
+            "edit"
+          ]
+        },
+        {
+          "code": "backups",
+          "name": "Backups & data export",
+          "actions": [
+            "view",
+            "create"
+          ]
+        },
+        {
+          "code": "audit",
+          "name": "Audit log",
+          "actions": [
+            "view"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "support",
+      "name": "Help & support",
+      "group": "Core",
+      "tier": "MVP",
+      "core": true,
+      "submodules": [
+        {
+          "code": "tickets",
+          "name": "Support tickets to CodersDuniya",
+          "actions": [
+            "view",
+            "create"
+          ],
+          "built": true
+        }
+      ]
+    }
+  ],
+  "platformModules": [
+    {
+      "code": "plt.tenants",
+      "name": "Schools & groups"
+    },
+    {
+      "code": "plt.licence",
+      "name": "Plans & module licences"
+    },
+    {
+      "code": "plt.billing",
+      "name": "Subscription billing"
+    },
+    {
+      "code": "plt.support",
+      "name": "Support access"
+    },
+    {
+      "code": "plt.templates",
+      "name": "Global templates"
+    },
+    {
+      "code": "plt.audit",
+      "name": "Audit & health"
+    }
+  ],
+  "roles": [
+    {
+      "code": "principal",
+      "name": "Principal / School Admin",
+      "kind": "staff",
+      "locked": true,
+      "description": "Every permission in this school.",
+      "grants": {
+        "*": "school"
+      }
+    },
+    {
+      "code": "vice_principal",
+      "name": "Vice Principal / Academic Coordinator",
+      "kind": "staff",
+      "description": "Academics, attendance and exams for the whole school.",
+      "grants": {
+        "dashboard.overview": [
+          "school",
+          "view"
+        ],
+        "frontdesk.enquiries": [
+          "school",
+          "view"
+        ],
+        "frontdesk.admissions": [
+          "school",
+          "view",
+          "approve"
+        ],
+        "students.profile": [
+          "school",
+          "view",
+          "edit",
+          "export",
+          "print"
+        ],
+        "students.sensitive": [
+          "school",
+          "view"
+        ],
+        "students.promotion": [
+          "school",
+          "view",
+          "create"
+        ],
+        "students.certificates": [
+          "school",
+          "view",
+          "create",
+          "print"
+        ],
+        "academics.setup": [
+          "school",
+          "*"
+        ],
+        "academics.allocation": [
+          "school",
+          "*"
+        ],
+        "academics.timetable": [
+          "school",
+          "*"
+        ],
+        "academics.syllabus": [
+          "school",
+          "*"
+        ],
+        "homework.homework": [
+          "school",
+          "view"
+        ],
+        "homework.material": [
+          "school",
+          "view"
+        ],
+        "attendance.students": [
+          "school",
+          "*"
+        ],
+        "attendance.leave": [
+          "school",
+          "view",
+          "approve"
+        ],
+        "attendance.staff": [
+          "school",
+          "view"
+        ],
+        "exams.setup": [
+          "school",
+          "*"
+        ],
+        "exams.marks": [
+          "school",
+          "*"
+        ],
+        "exams.results": [
+          "school",
+          "*"
+        ],
+        "exams.admit_cards": [
+          "school",
+          "*"
+        ],
+        "comms.notices": [
+          "school",
+          "*"
+        ],
+        "comms.broadcast": [
+          "school",
+          "create"
+        ],
+        "comms.calendar": [
+          "school",
+          "*"
+        ],
+        "transport.routes": [
+          "school",
+          "view"
+        ],
+        "library.catalogue": [
+          "school",
+          "view"
+        ],
+        "hostel.rooms": [
+          "school",
+          "view"
+        ],
+        "reports.academic": [
+          "school",
+          "view",
+          "export"
+        ],
+        "support.tickets": [
+          "own",
+          "view",
+          "create"
+        ]
+      }
+    },
+    {
+      "code": "accountant",
+      "name": "Accountant",
+      "kind": "staff",
+      "description": "Fees and accounts. Requests concessions, refunds and cancellations; cannot approve them.",
+      "grants": {
+        "dashboard.overview": [
+          "school",
+          "view"
+        ],
+        "frontdesk.enquiries": [
+          "school",
+          "view"
+        ],
+        "students.profile": [
+          "school",
+          "view",
+          "export",
+          "print"
+        ],
+        "academics.setup": [
+          "school",
+          "view"
+        ],
+        "attendance.students": [
+          "school",
+          "view"
+        ],
+        "fees.structure": [
+          "school",
+          "*"
+        ],
+        "fees.dues": [
+          "school",
+          "*"
+        ],
+        "fees.collection": [
+          "school",
+          "*"
+        ],
+        "fees.receipts": [
+          "school",
+          "view",
+          "print",
+          "export"
+        ],
+        "fees.concessions": [
+          "school",
+          "view",
+          "create"
+        ],
+        "fees.defaulters": [
+          "school",
+          "*"
+        ],
+        "fees.online": [
+          "school",
+          "*"
+        ],
+        "fees.refunds": [
+          "school",
+          "view",
+          "create"
+        ],
+        "accounts.vouchers": [
+          "school",
+          "view",
+          "create",
+          "edit",
+          "export"
+        ],
+        "accounts.books": [
+          "school",
+          "*"
+        ],
+        "hr.payroll": [
+          "school",
+          "view",
+          "create"
+        ],
+        "comms.notices": [
+          "school",
+          "view",
+          "create"
+        ],
+        "comms.broadcast": [
+          "school",
+          "create"
+        ],
+        "transport.allocation": [
+          "school",
+          "view"
+        ],
+        "reports.fees": [
+          "school",
+          "*"
+        ],
+        "settings.school": [
+          "school",
+          "view"
+        ],
+        "support.tickets": [
+          "own",
+          "view",
+          "create"
+        ]
+      }
+    },
+    {
+      "code": "front_office",
+      "name": "Front office",
+      "kind": "staff",
+      "description": "Enquiries, admissions, visitors and the fee counter.",
+      "grants": {
+        "dashboard.overview": [
+          "school",
+          "view"
+        ],
+        "frontdesk.enquiries": [
+          "school",
+          "*"
+        ],
+        "frontdesk.admissions": [
+          "school",
+          "view"
+        ],
+        "frontdesk.online_form": [
+          "school",
+          "view"
+        ],
+        "frontdesk.visitors": [
+          "school",
+          "*"
+        ],
+        "students.profile": [
+          "school",
+          "view",
+          "create",
+          "edit",
+          "print"
+        ],
+        "students.import": [
+          "school",
+          "create"
+        ],
+        "students.certificates": [
+          "school",
+          "view",
+          "create",
+          "print"
+        ],
+        "students.parent_link": [
+          "school",
+          "view"
+        ],
+        "academics.setup": [
+          "school",
+          "view"
+        ],
+        "academics.timetable": [
+          "school",
+          "view"
+        ],
+        "attendance.students": [
+          "school",
+          "view"
+        ],
+        "fees.collection": [
+          "school",
+          "view",
+          "create",
+          "print"
+        ],
+        "fees.receipts": [
+          "school",
+          "view",
+          "print"
+        ],
+        "fees.defaulters": [
+          "school",
+          "view",
+          "create"
+        ],
+        "comms.notices": [
+          "school",
+          "view",
+          "create"
+        ],
+        "comms.broadcast": [
+          "school",
+          "create"
+        ],
+        "comms.calendar": [
+          "school",
+          "view"
+        ],
+        "transport.routes": [
+          "school",
+          "view"
+        ],
+        "support.tickets": [
+          "own",
+          "view",
+          "create"
+        ]
+      }
+    },
+    {
+      "code": "office_admin",
+      "name": "Office / HR admin",
+      "kind": "staff",
+      "description": "Staff records, staff attendance, leave and payroll preparation.",
+      "grants": {
+        "dashboard.overview": [
+          "school",
+          "view"
+        ],
+        "students.profile": [
+          "school",
+          "view"
+        ],
+        "academics.setup": [
+          "school",
+          "view"
+        ],
+        "attendance.staff": [
+          "school",
+          "*"
+        ],
+        "hr.staff": [
+          "school",
+          "*"
+        ],
+        "hr.leave": [
+          "school",
+          "view",
+          "create"
+        ],
+        "hr.payroll": [
+          "school",
+          "view",
+          "create",
+          "edit",
+          "export",
+          "print"
+        ],
+        "comms.notices": [
+          "school",
+          "view",
+          "create"
+        ],
+        "comms.calendar": [
+          "school",
+          "*"
+        ],
+        "support.tickets": [
+          "own",
+          "view",
+          "create"
+        ]
+      }
+    },
+    {
+      "code": "class_teacher",
+      "name": "Class teacher",
+      "kind": "staff",
+      "description": "Own section: attendance, student details, marks and report cards.",
+      "grants": {
+        "dashboard.overview": [
+          "school",
+          "view"
+        ],
+        "students.profile": [
+          "assigned",
+          "view",
+          "edit",
+          "print"
+        ],
+        "academics.setup": [
+          "school",
+          "view"
+        ],
+        "academics.allocation": [
+          "school",
+          "view"
+        ],
+        "academics.timetable": [
+          "assigned",
+          "view"
+        ],
+        "academics.syllabus": [
+          "assigned",
+          "view",
+          "create",
+          "edit"
+        ],
+        "homework.homework": [
+          "assigned",
+          "*"
+        ],
+        "homework.material": [
+          "assigned",
+          "*"
+        ],
+        "attendance.students": [
+          "assigned",
+          "view",
+          "create",
+          "edit",
+          "print"
+        ],
+        "attendance.leave": [
+          "assigned",
+          "view",
+          "approve"
+        ],
+        "exams.setup": [
+          "school",
+          "view"
+        ],
+        "exams.marks": [
+          "assigned",
+          "view",
+          "create",
+          "edit"
+        ],
+        "exams.results": [
+          "assigned",
+          "view",
+          "print"
+        ],
+        "comms.notices": [
+          "school",
+          "view",
+          "create"
+        ],
+        "comms.broadcast": [
+          "assigned",
+          "create"
+        ],
+        "comms.calendar": [
+          "school",
+          "view"
+        ],
+        "comms.messages": [
+          "assigned",
+          "view",
+          "create"
+        ],
+        "hr.leave": [
+          "own",
+          "view",
+          "create"
+        ],
+        "reports.academic": [
+          "assigned",
+          "view"
+        ],
+        "support.tickets": [
+          "own",
+          "view",
+          "create"
+        ]
+      }
+    },
+    {
+      "code": "subject_teacher",
+      "name": "Subject teacher",
+      "kind": "staff",
+      "description": "Own subjects and sections: marks, homework, period attendance.",
+      "grants": {
+        "dashboard.overview": [
+          "school",
+          "view"
+        ],
+        "students.profile": [
+          "assigned",
+          "view"
+        ],
+        "academics.setup": [
+          "school",
+          "view"
+        ],
+        "academics.timetable": [
+          "assigned",
+          "view"
+        ],
+        "academics.syllabus": [
+          "assigned",
+          "view",
+          "create",
+          "edit"
+        ],
+        "homework.homework": [
+          "assigned",
+          "*"
+        ],
+        "homework.material": [
+          "assigned",
+          "*"
+        ],
+        "attendance.students": [
+          "assigned",
+          "view",
+          "create"
+        ],
+        "exams.setup": [
+          "school",
+          "view"
+        ],
+        "exams.marks": [
+          "assigned",
+          "view",
+          "create",
+          "edit"
+        ],
+        "comms.notices": [
+          "school",
+          "view",
+          "create"
+        ],
+        "comms.calendar": [
+          "school",
+          "view"
+        ],
+        "comms.messages": [
+          "assigned",
+          "view",
+          "create"
+        ],
+        "hr.leave": [
+          "own",
+          "view",
+          "create"
+        ],
+        "reports.academic": [
+          "assigned",
+          "view"
+        ],
+        "support.tickets": [
+          "own",
+          "view",
+          "create"
+        ]
+      }
+    },
+    {
+      "code": "librarian",
+      "name": "Librarian",
+      "kind": "staff",
+      "description": "Library only.",
+      "grants": {
+        "dashboard.overview": [
+          "school",
+          "view"
+        ],
+        "students.profile": [
+          "school",
+          "view"
+        ],
+        "library.catalogue": [
+          "school",
+          "*"
+        ],
+        "library.circulation": [
+          "school",
+          "*"
+        ],
+        "comms.notices": [
+          "school",
+          "view",
+          "create"
+        ],
+        "hr.leave": [
+          "own",
+          "view",
+          "create"
+        ],
+        "support.tickets": [
+          "own",
+          "view",
+          "create"
+        ]
+      }
+    },
+    {
+      "code": "transport_manager",
+      "name": "Transport manager",
+      "kind": "staff",
+      "description": "Transport only.",
+      "grants": {
+        "dashboard.overview": [
+          "school",
+          "view"
+        ],
+        "students.profile": [
+          "school",
+          "view"
+        ],
+        "transport.routes": [
+          "school",
+          "*"
+        ],
+        "transport.allocation": [
+          "school",
+          "*"
+        ],
+        "transport.tracking": [
+          "school",
+          "view"
+        ],
+        "comms.notices": [
+          "school",
+          "view",
+          "create"
+        ],
+        "hr.leave": [
+          "own",
+          "view",
+          "create"
+        ],
+        "support.tickets": [
+          "own",
+          "view",
+          "create"
+        ]
+      }
+    },
+    {
+      "code": "hostel_warden",
+      "name": "Hostel warden",
+      "kind": "staff",
+      "description": "Hostel only.",
+      "grants": {
+        "dashboard.overview": [
+          "school",
+          "view"
+        ],
+        "students.profile": [
+          "school",
+          "view"
+        ],
+        "hostel.rooms": [
+          "school",
+          "*"
+        ],
+        "hostel.allocation": [
+          "school",
+          "*"
+        ],
+        "comms.notices": [
+          "school",
+          "view",
+          "create"
+        ],
+        "hr.leave": [
+          "own",
+          "view",
+          "create"
+        ],
+        "support.tickets": [
+          "own",
+          "view",
+          "create"
+        ]
+      }
+    },
+    {
+      "code": "parent",
+      "name": "Parent",
+      "kind": "family",
+      "description": "Own linked children only.",
+      "grants": {
+        "dashboard.overview": [
+          "child",
+          "view"
+        ],
+        "students.profile": [
+          "child",
+          "view"
+        ],
+        "attendance.students": [
+          "child",
+          "view"
+        ],
+        "attendance.leave": [
+          "child",
+          "view",
+          "create"
+        ],
+        "exams.results": [
+          "child",
+          "view"
+        ],
+        "homework.homework": [
+          "child",
+          "view"
+        ],
+        "homework.material": [
+          "child",
+          "view"
+        ],
+        "fees.collection": [
+          "child",
+          "view"
+        ],
+        "fees.receipts": [
+          "child",
+          "view",
+          "print"
+        ],
+        "fees.online": [
+          "child",
+          "create"
+        ],
+        "comms.notices": [
+          "school",
+          "view"
+        ],
+        "comms.calendar": [
+          "school",
+          "view"
+        ],
+        "comms.messages": [
+          "child",
+          "view",
+          "create"
+        ],
+        "library.circulation": [
+          "child",
+          "view"
+        ],
+        "transport.allocation": [
+          "child",
+          "view"
+        ],
+        "transport.tracking": [
+          "child",
+          "view"
+        ]
+      }
+    },
+    {
+      "code": "student",
+      "name": "Student",
+      "kind": "family",
+      "description": "Self only.",
+      "grants": {
+        "dashboard.overview": [
+          "self",
+          "view"
+        ],
+        "students.profile": [
+          "self",
+          "view"
+        ],
+        "attendance.students": [
+          "self",
+          "view"
+        ],
+        "exams.results": [
+          "self",
+          "view"
+        ],
+        "homework.homework": [
+          "self",
+          "view"
+        ],
+        "homework.material": [
+          "self",
+          "view"
+        ],
+        "comms.notices": [
+          "school",
+          "view"
+        ],
+        "comms.calendar": [
+          "school",
+          "view"
+        ],
+        "library.circulation": [
+          "self",
+          "view"
+        ],
+        "transport.allocation": [
+          "self",
+          "view"
+        ]
+      }
+    }
+  ]
+}

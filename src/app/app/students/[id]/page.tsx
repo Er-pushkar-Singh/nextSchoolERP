@@ -7,6 +7,7 @@ import { CopyButton } from "@/components/CopyButton";
 import { fmtDate, fullName, money, todayIST, waLink } from "@/lib/format";
 import { balance, getClasses, pct, type Due } from "@/lib/erp";
 import { appUrl } from "@/lib/brand";
+import { fmtTime } from "@/lib/transport";
 import { addConcession, applyConcessions, newPortalLink, removeConcession, setStudentStatus } from "../../_actions/students";
 
 export default async function StudentPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ ok?: string; error?: string }> }) {
@@ -29,6 +30,14 @@ export default async function StudentPage({ params, searchParams }: { params: Pr
     feeWrite ? supabase.from("fee_heads").select("id,name").eq("school_id", school.id).order("sort") : Promise.resolve({ data: [] }),
     session ? supabase.from("attendance").select("status").eq("student_id", id).gte("date", session.start_date).lte("date", session.end_date) : Promise.resolve({ data: [] }),
   ]);
+  const [{ data: ride }, { data: books }] = await Promise.all([
+    session && can("transport.allocation.view")
+      ? supabase.from("transport_allocations").select("trip,monthly_fee,end_date,transport_stops(name,pickup_time,monthly_fee),transport_routes(id,name)").eq("student_id", id).eq("session_id", session.id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    can("library.circulation.view") ? supabase.from("library_issues").select("id,due_on,library_books(title)").eq("student_id", id).is("returned_on", null).order("due_on") : Promise.resolve({ data: [] }),
+  ]);
+  const transport = ride as unknown as { trip: string; monthly_fee: number | null; end_date: string | null; transport_stops: { name: string; pickup_time: string | null; monthly_fee: number } | null; transport_routes: { id: string; name: string } | null } | null;
+  const libBooks = (books ?? []) as unknown as { id: string; due_on: string; library_books: { title: string } | null }[];
   const dues = (duesQ.data ?? []) as Due[];
   const due = dues.reduce((t, d) => t + balance(d), 0);
   const overdue = dues.filter((d) => d.due_date <= today).reduce((t, d) => t + balance(d), 0);
@@ -67,6 +76,31 @@ export default async function StudentPage({ params, searchParams }: { params: Pr
           )}
         </div>
       </Card>
+
+      {(can("transport.allocation.view") || can("library.circulation.view")) && (
+        <div className="grid gap-5 md:grid-cols-2">
+          {can("transport.allocation.view") && (
+            <Card title="Transport" icon="transport" actions={can("transport.allocation.create") ? <Link href={`/app/transport/students?student=${id}`} className="text-[14px] font-semibold">{transport ? "Change" : "Add"} →</Link> : undefined}>
+              {transport ? (
+                <p className="m-0 text-[14px]">
+                  {transport.transport_routes ? <Link href={`/app/transport/routes/${transport.transport_routes.id}`}>{transport.transport_routes.name}</Link> : "—"} › <b className="text-ink">{transport.transport_stops?.name}</b>
+                  {transport.transport_stops?.pickup_time ? ` · pickup ${fmtTime(transport.transport_stops.pickup_time)}` : ""} · {money(transport.monthly_fee ?? transport.transport_stops?.monthly_fee ?? 0)}/month
+                  {transport.end_date && <span className="text-error"> · stopped {fmtDate(transport.end_date)}</span>}
+                </p>
+              ) : <p className="m-0 text-[14px] text-muted">Doesn't use school transport.</p>}
+            </Card>
+          )}
+          {can("library.circulation.view") && (
+            <Card title="Library" icon="library">
+              {libBooks.length ? (
+                <ul className="m-0 list-none p-0 text-[14px]">
+                  {libBooks.map((b) => <li key={b.id} className="flex justify-between gap-2"><span>{b.library_books?.title}</span><span className={b.due_on < today ? "font-semibold text-error" : "text-muted"}>due {fmtDate(b.due_on)}</span></li>)}
+                </ul>
+              ) : <p className="m-0 text-[14px] text-muted">No books issued.</p>}
+            </Card>
+          )}
+        </div>
+      )}
 
       {fees && (
         <Card title="Fee ledger" actions={<span className="text-[13px] text-muted">Instalments come from the fee structure → “Generate dues”.</span>}>

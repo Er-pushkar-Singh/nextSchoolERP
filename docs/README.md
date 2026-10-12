@@ -1,0 +1,58 @@
+# School ERP — developer docs
+
+Reference for anyone (human or Claude) changing this codebase. **Read this page first, then only the module file you need.**
+The top-level [`README.md`](../README.md) is the product / setup guide; these docs explain *how the code works* and *where things live*.
+
+## Map
+
+| File | Read it when you… |
+|---|---|
+| [architecture.md](architecture.md) | touch anything for the first time — stack, multi-tenancy, permission engine, request flow, folder layout |
+| [conventions.md](conventions.md) | write a page, server action, migration or test — the patterns every module follows, plus a **new-module checklist** |
+| [gotchas.md](gotchas.md) | something behaves oddly — known traps and bugs already fixed (don't reintroduce them) |
+| [roadmap.md](roadmap.md) | plan new work — what is built, what exists only as permissions, suggested order |
+
+### Modules
+
+| # | Module | Doc | Catalogue code(s) | Status |
+|---|---|---|---|---|
+| 1 | Super Admin / platform | [modules/platform.md](modules/platform.md) | platform roles (not in catalogue) | Built |
+| 2 | Registration, plans & subscription billing | [modules/subscriptions.md](modules/subscriptions.md) | `settings.billing` | Built |
+| 3 | Staff access, roles & permissions | [modules/access.md](modules/access.md) | `settings.users`, `settings.roles` | Built |
+| 4 | Settings centre & integrations | [modules/settings.md](modules/settings.md) | `settings.*`, `academics.setup` | Built |
+| 5 | Dashboard | [modules/dashboard.md](modules/dashboard.md) | `dashboard.overview` | Built |
+| 6 | Students | [modules/students.md](modules/students.md) | `students.*` | Built (certificates, sensitive: not yet) |
+| 7 | Admissions & enquiries | [modules/admissions.md](modules/admissions.md) | `frontdesk.enquiries` | Built (visitors, online form: not yet) |
+| 8 | Attendance | [modules/attendance.md](modules/attendance.md) | `attendance.students` | Built (student leave, staff attendance: not yet) |
+| 9 | Exams & results | [modules/exams.md](modules/exams.md) | `exams.*` | Built (admit cards: not yet) |
+| 10 | Fees | [modules/fees.md](modules/fees.md) | `fees.*` | Built (online payment, refunds: not yet) |
+| 11 | Notices | [modules/notices.md](modules/notices.md) | `comms.notices` | Built (templates, calendar, messages: not yet) |
+| 12 | Parent page | [modules/parent-portal.md](modules/parent-portal.md) | none — secret link | Built |
+| 13 | Homework & study material | [modules/homework.md](modules/homework.md) | `homework.*` | Built (step 5) |
+| 14 | Transport | [modules/transport.md](modules/transport.md) | `transport.*` | Built (step 5; GPS tracking: not yet) |
+| 15 | Staff & payroll (HR) | [modules/hr-payroll.md](modules/hr-payroll.md) | `hr.*` | Built (step 5) |
+| 16 | Library | [modules/library.md](modules/library.md) | `library.*` | Built (step 5) |
+| 17 | Help & support desk | [modules/support.md](modules/support.md) | `support.tickets` | Built |
+
+Not built yet (permissions exist, no screens): Accounts, Hostel, Inventory & sales, Health & discipline, Timetable, Syllabus, and the sub-modules marked "not yet" above — see [roadmap.md](roadmap.md).
+
+## Each module doc has the same sections
+
+1. **Purpose** — what problem it solves for the school
+2. **Who uses it** — roles and permission keys (with scope)
+3. **Screens** — routes and what is on them
+4. **Server actions & API** — functions in `src/app/app/_actions/*.ts`, route handlers
+5. **Database** — tables, SQL functions, triggers, RLS rules
+6. **Business rules** — the invariants the code / database enforce
+7. **Connects to** — other modules it reads or writes
+8. **Tests** — which SQL test covers it
+9. **Gaps & ideas** — known limitations and next steps
+
+## Keeping these docs useful
+
+- When you change a module, update its doc **in the same change** (routes, tables, rules). Stale docs are worse than none.
+- New module → copy [modules/_template.md](modules/_template.md), add a row above, follow the checklist in [conventions.md](conventions.md).
+- Record surprises in [gotchas.md](gotchas.md) so nobody hits them twice.
+- Dates: write absolute dates (e.g. 12 Oct 2026), never "last week".
+
+_Last full review: 12 Oct 2026 (after step 5 — Standard-plan modules)._

@@ -9,6 +9,8 @@ const TABLES = [
   "roles", "school_members", "member_roles", "member_overrides", "staff_assignments", "students", "guardians", "student_guardians",
   "enquiries", "fee_heads", "fee_plans", "student_concessions", "fee_dues", "fee_receipts", "fee_receipt_lines",
   "attendance", "exams", "exam_subjects", "marks", "notices", "tickets",
+  "homework", "transport_vehicles", "transport_routes", "transport_stops", "transport_allocations",
+  "staff", "staff_leaves", "payroll_runs", "payslips", "library_books", "library_issues",
 ];
 
 /** Full JSON export of one school (platform staff with tenant access). Logged in the audit trail. */

@@ -187,6 +187,10 @@ begin
     update public.payroll_runs set status = 'draft' where id = run;
     perform pg_temp.check(false, 'reopened a paid month');
   exception when others then perform pg_temp.check(sqlerrm like '%paid%', 'a month with paid salaries cannot be reopened'); end;
+  begin
+    delete from public.payroll_runs where id = run;
+    perform pg_temp.check(false, 'deleted approved payroll');
+  exception when others then perform pg_temp.check(sqlerrm like '%cannot be deleted%', 'an approved payroll cannot be deleted'); end;
   perform pg_temp.act_admin();
   perform pg_temp.act_as(te);
   perform pg_temp.check((select count(*) from public.payslips where school_id = a) = 1, 'a teacher sees only their own payslip once approved');
@@ -228,6 +232,13 @@ begin
   exception when others then perform pg_temp.check(sqlerrm not like 'FAIL%', 'an unlicensed module refuses writes'); end;
   perform pg_temp.act_admin();
   perform pg_temp.check(exists (select 1 from public.audit_log where school_id = a and entity = 'payslips'), 'payroll changes are audited');
+
+  -- Deleting a whole school removes the new modules' data too
+  perform pg_temp.act_as(ow);
+  delete from public.schools where id = a;
+  perform pg_temp.act_admin();
+  perform pg_temp.check(not exists (select 1 from public.staff where school_id = a) and not exists (select 1 from public.library_books where school_id = a)
+                    and not exists (select 1 from public.transport_routes where school_id = a), 'deleting a school removes its staff, library and transport data');
 end $$;
 
 select 'ALL STANDARD MODULE TESTS PASSED' as result;

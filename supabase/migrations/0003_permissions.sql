@@ -264,6 +264,8 @@ language plpgsql security definer set search_path = public as $$
 declare r record; missing text;
 begin
   select * into r from public.roles where id = coalesce(new.role_id, old.role_id);
+  -- role already gone: this row is being removed by a cascade (role or whole school deleted)
+  if tg_op = 'DELETE' and r.id is null then return old; end if;
   if r.school_id is distinct from coalesce(new.school_id, old.school_id) then raise exception 'Role belongs to another school.'; end if;
   if tg_op = 'DELETE' and r.code = 'principal' and not exists (
        select 1 from public.member_roles where role_id = r.id and user_id <> old.user_id) then

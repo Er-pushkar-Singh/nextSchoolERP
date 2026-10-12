@@ -50,7 +50,7 @@ Everything a SaaS owner needs, under `/platform` (sidebar shows only what your p
 | Area | What it does |
 |---|---|
 | **Dashboard** | Schools by status, MRR / ARR, collected this month, overdue, trials ending, open tickets, 12-month revenue & signup charts |
-| **Tenants** | Search / filter by status, plan, group; onboarding wizard (school + plan + principal login in one step); tenant page with tabs — overview, subscription (plan, period, invoices), modules on/off, users (add, reset password, remove), activity (audit), support, danger zone (suspend, archive/restore, delete, JSON export of all 30 tables) |
+| **Tenants** | Search / filter by status, plan, group; onboarding wizard (school + plan + principal login in one step); tenant page with tabs — overview, subscription (plan, period, invoices), modules on/off, users (add, reset password, remove), activity (audit), support, danger zone (suspend, archive/restore, delete, JSON export of all 41 tables) |
 | **Support sessions** | Platform staff are read-only inside a school. "Start support session" (reason + 30/60/120 min) opens writes for that school only; every change is logged against the session; a red banner shows inside the school |
 | **Groups / trusts** | Multi-branch chains: group owner / viewer logins see every branch (read-only) and a consolidated `/group` overview |
 | **Domains** | Each school gets `code.<root domain>`; custom domains supported; the login page shows the school's logo and name |
@@ -63,7 +63,7 @@ Everything a SaaS owner needs, under `/platform` (sidebar shows only what your p
 
 **Loaders:** every form submit shows a spinner on the button and a top progress bar until the new page renders; every module has skeleton screens (`loading.tsx`) while data loads.
 
-Tests: `supabase/tests/platform.test.sql` (26 checks) + `permissions.test.sql` (48) + `subscriptions.test.sql` (20) + `settings.test.sql` (13).
+Tests: `supabase/tests/platform.test.sql` (26 checks) + `permissions.test.sql` (48) + `subscriptions.test.sql` (20) + `settings.test.sql` (13) + `standard_modules.test.sql` (42).
 
 ## Settings centre & integrations (step 4)
 
@@ -89,6 +89,27 @@ Tests: `supabase/tests/platform.test.sql` (26 checks) + `permissions.test.sql` (
 `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"` → add to `.env.local` and Vercel. Don't change it later (saved keys would have to be re-entered).
 
 **Upgrading an existing database:** run `supabase/migrations/0006_settings.sql` once (or the whole `setup.sql` — safe to re-run). `npm run setup-sql` rebuilds `setup.sql` from the migrations.
+
+## Standard-plan modules (step 5)
+
+The four modules the **Standard** plan sells ("Starter + homework, staff & payroll, transport, library") are built. They appear in the sidebar only when the school's plan licenses them and the user's role allows it. Database: `supabase/migrations/0007_standard_modules.sql`.
+
+| Module | Screens | What it does |
+|---|---|---|
+| **Homework & study material** | `/app/homework` | Homework (with submit-by date) and study material (links to Drive / YouTube / PDF) per class or section and subject; one-tap *Copy for WhatsApp group*. Teachers can post only for the sections / subjects assigned to them. Parents see the last two weeks' homework and all material on their page. |
+| **Transport** | `/app/transport`, `…/routes/<id>`, `…/vehicles`, `…/students` | Vehicles (seats, driver, attendant, insurance / fitness / permit / PUC expiry alerts), routes with ordered stops, pickup / drop times and a monthly fee per stop; allocate students (pickup / drop / both, special fee), seat limit enforced; printable route sheet for the driver. **Bill transport fees** turns allocations into ordinary "Transport Fee" dues (stop fee × months, concessions applied, idempotent) — so collection, receipts, defaulters and UPI on the parent page work unchanged. Parents see route, stop, times, bus number and driver phone. |
+| **Staff & payroll** | `/app/hr`, `…/staff/<id>`, `…/leave`, `…/payroll`, `…/payroll/<id>`, `…/payroll/slip/<id>` | Staff directory for everyone on the payroll (with or without a login; *Add everyone with a login* in one click), salary structure (earnings / deductions), bank / PAN / UAN, yearly leave quota. Leave: staff apply for themselves, approvers approve / reject (never their own), overlaps refused, balances shown. Payroll: one run per month → payslip per person, approved leave-without-pay and days before joining / after leaving deducted pro rata, adjustments (bonus / recovery), *Approve & lock*, mark paid (UTR), bank-sheet CSV, printable payslip. Staff see their own approved payslips under *Leave*. |
+| **Library** | `/app/library`, `/app/library/books` | Catalogue (accession no., ISBN, category, shelf, copies), issue by accession no. + admission no. (or to staff), can't issue more copies than exist, return with a suggested late fine, renew, overdue list with WhatsApp reminder to the parent. Parents see the books their child has and when they're due. |
+
+Student profiles show the student's transport and library books. The tenant JSON export includes the new tables, and every change is in the audit log.
+
+**Fixed in this step (existing bugs, fixed in 0003 and again in 0007 so upgrades pick them up):**
+- `has_perm_school()` returned NULL instead of false for users with no grant at all, so the guards inside `collect_fee`, `generate_dues`, `promote_students`, `set_module_enabled`, `next_school_number`, `set_current_session` and `reset_role_to_template` let **any signed-in user** through when called directly through the API.
+- Deleting a school from Super Admin failed with "Role belongs to another school" (the member-roles guard ran during the cascade).
+
+**Upgrading an existing database:** run the whole `supabase/setup.sql` again (safe to re-run; data is kept). Or run just `0002_catalog.sql` (marks the new sub-modules as built) and `0007_standard_modules.sql`.
+
+Test: `supabase/tests/standard_modules.test.sql` (42 checks: scopes for teachers / parents / other schools, seat limits, transport billing, leave rules, payroll maths and locking, library copies, unlicensed modules, school deletion).
 
 ## Look & feel
 

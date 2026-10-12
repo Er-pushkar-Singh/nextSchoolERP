@@ -3,7 +3,8 @@ import Link from "next/link";
 import { portalStudent } from "@/lib/portal";
 import { classResults } from "@/lib/results";
 import { balance, pct, type Due } from "@/lib/erp";
-import { fmtDate, fullName, money, todayIST } from "@/lib/format";
+import { addDays, fmtDate, fullName, money, todayIST } from "@/lib/format";
+import { fmtTime } from "@/lib/transport";
 import { CopyButton } from "@/components/CopyButton";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +24,30 @@ export default async function Parent({ params }: { params: Promise<{ token: stri
     db.from("notices").select("id,title,body,published_on,class_id").eq("school_id", s.school_id).or(`class_id.is.null${s.class_id ? `,class_id.eq.${s.class_id}` : ""}`).order("published_on", { ascending: false }).limit(10),
     session ? db.from("exams").select("id,name").eq("session_id", session.id).eq("published", true).order("sort") : Promise.resolve({ data: [] }),
   ]);
+  // Standard-plan modules: shown only when the school has the module switched on
+  const { data: mods } = await db.from("school_modules").select("module_code").eq("school_id", s.school_id).eq("licensed", true).eq("enabled", true).in("module_code", ["homework", "transport", "library"]);
+  const on = new Set((mods ?? []).map((m) => m.module_code));
+  const since = addDays(today, -14);
+  const [{ data: hw }, { data: ride }, { data: books }] = await Promise.all([
+    on.has("homework") && s.class_id
+      ? db.from("homework").select("id,kind,title,details,link_url,assigned_on,due_on,subjects(name)").eq("class_id", s.class_id)
+          .or(`section_id.is.null${s.section_id ? `,section_id.eq.${s.section_id}` : ""}`)
+          .eq("school_id", s.school_id).filter("session_id", session ? "eq" : "is", session ? session.id : null).order("assigned_on", { ascending: false }).limit(80)
+      : Promise.resolve({ data: [] }),
+    on.has("transport") && session
+      ? db.from("transport_allocations").select("trip,end_date,transport_stops(name,pickup_time,drop_time),transport_routes(name,transport_vehicles(reg_no,driver_name,driver_phone,attendant_name,attendant_phone))")
+          .eq("student_id", s.id).eq("session_id", session.id).is("end_date", null).maybeSingle()
+      : Promise.resolve({ data: null }),
+    on.has("library") ? db.from("library_issues").select("id,due_on,library_books(title)").eq("student_id", s.id).is("returned_on", null).order("due_on") : Promise.resolve({ data: [] }),
+  ]);
+  type Hw = { id: string; kind: string; title: string; details: string | null; link_url: string | null; assigned_on: string; due_on: string | null; subjects: { name: string } | null };
+  const HW = ((hw ?? []) as unknown as Hw[]);
+  // homework of the last two weeks or still to be submitted; all study material
+  const homework = HW.filter((h) => h.kind === "homework" && (h.assigned_on >= since || (h.due_on ?? "") >= today));
+  const material = HW.filter((h) => h.kind === "material");
+  const R = ride as unknown as { trip: string; transport_stops: { name: string; pickup_time: string | null; drop_time: string | null } | null;
+    transport_routes: { name: string; transport_vehicles: { reg_no: string; driver_name: string | null; driver_phone: string | null; attendant_name: string | null; attendant_phone: string | null } | null } | null } | null;
+  const L = (books ?? []) as unknown as { id: string; due_on: string; library_books: { title: string } | null }[];
   const D = (dues ?? []) as Due[];
   const unpaid = D.filter((d) => balance(d) > 0);
   const overdue = unpaid.filter((d) => d.due_date <= today).reduce((t, d) => t + balance(d), 0);
@@ -111,6 +136,71 @@ export default async function Parent({ params }: { params: Promise<{ token: stri
               </tbody></table>
             </details>
           ))}
+        </section>
+      )}
+
+      {homework.length > 0 && (
+        <section className="rounded-[12px] border border-line bg-white p-4">
+          <h2 className="m-0 mb-2 text-[17px] font-bold text-ink">Homework</h2>
+          {homework.map((h) => (
+            <div key={h.id} className="border-t border-line py-2 first:border-0">
+              <p className="m-0 text-[15px] font-semibold text-ink">{h.subjects ? `${h.subjects.name}: ` : ""}{h.title}</p>
+              <p className="m-0 text-[12px] text-muted">Given {fmtDate(h.assigned_on)}{h.due_on ? <> · <span className={h.due_on < today ? "" : "font-semibold text-ink"}>submit by {fmtDate(h.due_on)}</span></> : ""}</p>
+              {h.details && <p className="m-0 mt-1 text-[14px] whitespace-pre-line">{h.details}</p>}
+              {h.link_url && <a href={h.link_url} target="_blank" rel="noopener noreferrer" className="text-[14px] break-all">{h.link_url}</a>}
+            </div>
+          ))}
+        </section>
+      )}
+
+      {material.length > 0 && (
+        <section className="rounded-[12px] border border-line bg-white p-4">
+          <h2 className="m-0 mb-2 text-[17px] font-bold text-ink">Study material</h2>
+          <ul className="m-0 list-none p-0 text-[14px]">
+            {material.map((h) => (
+              <li key={h.id} className="border-t border-line py-1.5 first:border-0">
+                {h.link_url ? <a href={h.link_url} target="_blank" rel="noopener noreferrer" className="font-semibold">{h.title}</a> : <b className="text-ink">{h.title}</b>}
+                {h.subjects ? <span className="text-muted"> · {h.subjects.name}</span> : null}
+                {h.details && <div className="text-muted whitespace-pre-line">{h.details}</div>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {R && (
+        <section className="rounded-[12px] border border-line bg-white p-4">
+          <h2 className="m-0 mb-2 text-[17px] font-bold text-ink">School transport</h2>
+          <p className="m-0 text-[15px]"><b className="text-ink">{R.transport_routes?.name}</b> · stop <b className="text-ink">{R.transport_stops?.name}</b></p>
+          <p className="m-0 text-[14px] text-muted">
+            {R.trip !== "drop" && R.transport_stops?.pickup_time ? `Pickup ${fmtTime(R.transport_stops.pickup_time)}` : ""}
+            {R.trip === "both" && R.transport_stops?.pickup_time && R.transport_stops?.drop_time ? " · " : ""}
+            {R.trip !== "pickup" && R.transport_stops?.drop_time ? `Drop ${fmtTime(R.transport_stops.drop_time)}` : ""}
+          </p>
+          {R.transport_routes?.transport_vehicles && (() => {
+            const v = R.transport_routes!.transport_vehicles!;
+            return (
+              <p className="mt-2 mb-0 text-[14px]">
+                Vehicle <b className="font-mono">{v.reg_no}</b>
+                {v.driver_name && <> · Driver {v.driver_name}{v.driver_phone && <> (<a href={`tel:${v.driver_phone}`}>{v.driver_phone}</a>)</>}</>}
+                {v.attendant_name && <> · Attendant {v.attendant_name}{v.attendant_phone && <> (<a href={`tel:${v.attendant_phone}`}>{v.attendant_phone}</a>)</>}</>}
+              </p>
+            );
+          })()}
+        </section>
+      )}
+
+      {L.length > 0 && (
+        <section className="rounded-[12px] border border-line bg-white p-4">
+          <h2 className="m-0 mb-2 text-[17px] font-bold text-ink">Library books with {s.first_name}</h2>
+          <ul className="m-0 list-none p-0 text-[14px]">
+            {L.map((b) => (
+              <li key={b.id} className="flex justify-between gap-2 border-t border-line py-1.5 first:border-0">
+                <span>{b.library_books?.title}</span>
+                <span className={b.due_on < today ? "font-semibold text-error" : "text-muted"}>{b.due_on < today ? "overdue since " : "return by "}{fmtDate(b.due_on)}</span>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 

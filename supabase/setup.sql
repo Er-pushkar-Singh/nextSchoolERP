@@ -1785,6 +1785,8 @@ language plpgsql security definer set search_path = public as $$
 declare r record; missing text;
 begin
   select * into r from public.roles where id = coalesce(new.role_id, old.role_id);
+  -- role already gone: this row is being removed by a cascade (role or whole school deleted)
+  if tg_op = 'DELETE' and r.id is null then return old; end if;
   if r.school_id is distinct from coalesce(new.school_id, old.school_id) then raise exception 'Role belongs to another school.'; end if;
   if tg_op = 'DELETE' and r.code = 'principal' and not exists (
        select 1 from public.member_roles where role_id = r.id and user_id <> old.user_id) then
@@ -3254,6 +3256,31 @@ $$;
 create or replace function public.has_perm_school(sid uuid, pkey text) returns boolean
 language sql stable security definer set search_path = public as $$ select coalesce(public.perm_scope(sid, pkey) = 'school', false); $$;
 
+-- Fix: deleting a school (or a role) failed with "Role belongs to another school" because this guard ran
+-- on member_roles rows removed by the cascade after their role was already gone.
+create or replace function public.guard_member_roles() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare r record; missing text;
+begin
+  select * into r from public.roles where id = coalesce(new.role_id, old.role_id);
+  -- role already gone: this row is being removed by a cascade (role or whole school deleted)
+  if tg_op = 'DELETE' and r.id is null then return old; end if;
+  if r.school_id is distinct from coalesce(new.school_id, old.school_id) then raise exception 'Role belongs to another school.'; end if;
+  if tg_op = 'DELETE' and r.code = 'principal' and not exists (
+       select 1 from public.member_roles where role_id = r.id and user_id <> old.user_id) then
+    if exists (select 1 from public.schools where id = old.school_id) then
+      raise exception 'A school must always have at least one Principal / School Admin.';
+    end if;
+  end if;
+  if public.is_platform_admin() or auth.uid() is null then return coalesce(new, old); end if;
+  if coalesce(new.user_id, old.user_id) = auth.uid() then raise exception 'You cannot change your own roles.'; end if;
+  if tg_op = 'INSERT' then
+    select rp.perm_key into missing from public.role_permissions rp where rp.role_id = r.id and public.perm_scope(r.school_id, rp.perm_key) is null limit 1;
+    if missing is not null then raise exception 'You cannot assign this role: it includes % which you do not have.', missing; end if;
+  end if;
+  return coalesce(new, old);
+end $$;
+
 -- Can the user use permission pkey on something that belongs to a class (and optionally one section / subject)?
 --   school   → yes
 --   assigned → teaches that section (sec null: for view any section of the class, for changes every section of it)
@@ -3388,8 +3415,8 @@ create table if not exists public.transport_allocations (
   school_id   uuid not null references public.schools(id) on delete cascade,
   session_id  uuid not null references public.sessions(id) on delete cascade,
   student_id  uuid not null references public.students(id) on delete cascade,
-  route_id    uuid not null references public.transport_routes(id) on delete restrict,
-  stop_id     uuid not null references public.transport_stops(id) on delete restrict,
+  route_id    uuid not null references public.transport_routes(id),
+  stop_id     uuid not null references public.transport_stops(id),
   trip        text not null default 'both' check (trip in ('both','pickup','drop')),
   monthly_fee numeric(10,2) check (monthly_fee is null or monthly_fee >= 0),   -- null = the stop's fee
   start_date  date not null default (now() at time zone 'Asia/Kolkata')::date,
@@ -3595,7 +3622,7 @@ create table if not exists public.payslips (
   id               uuid primary key default gen_random_uuid(),
   school_id        uuid not null references public.schools(id) on delete cascade,
   run_id           uuid not null references public.payroll_runs(id) on delete cascade,
-  staff_id         uuid not null references public.staff(id) on delete restrict,
+  staff_id         uuid not null references public.staff(id),
   working_days     int not null check (working_days between 1 and 31),
   lop_days         numeric(5,1) not null default 0 check (lop_days >= 0),
   base_earnings    jsonb not null default '[]',
@@ -3642,7 +3669,9 @@ create or replace function public.guard_payroll_run() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
   if tg_op = 'DELETE' then
-    if old.status <> 'draft' then raise exception 'An approved payroll cannot be deleted. Reopen it first.'; end if;
+    if old.status <> 'draft' and exists (select 1 from public.schools where id = old.school_id) then  -- (whole school being deleted: allow)
+      raise exception 'An approved payroll cannot be deleted. Reopen it first.';
+    end if;
     return old;
   end if;
   if new.status = 'approved' and old.status = 'draft' then
@@ -3781,7 +3810,7 @@ create index if not exists library_books_title_idx on public.library_books (scho
 create table if not exists public.library_issues (
   id             uuid primary key default gen_random_uuid(),
   school_id      uuid not null references public.schools(id) on delete cascade,
-  book_id        uuid not null references public.library_books(id) on delete restrict,
+  book_id        uuid not null references public.library_books(id),
   student_id     uuid references public.students(id) on delete cascade,
   staff_id       uuid references public.staff(id) on delete cascade,
   issued_on      date not null default (now() at time zone 'Asia/Kolkata')::date,

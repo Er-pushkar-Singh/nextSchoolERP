@@ -6,7 +6,7 @@ export async function GET(req: Request) {
   const u = new URL(req.url);
   const d = (k: string) => { const v = u.searchParams.get(k); return v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null; };
   const from = d("from") ?? "1900-01-01", to = d("to") ?? "2999-12-31";
-  let q = supabase.from("fee_receipts").select("receipt_no,paid_on,amount,mode,reference,collected_by,cancelled,cancelled_reason,note,students(admission_no,first_name,last_name,father_name,classes(name),sections(name))")
+  let q = supabase.from("fee_receipts").select("receipt_no,paid_on,amount,mode,reference,collected_by,cancelled,cancelled_reason,note,students(admission_no,first_name,last_name,father_name,classes!class_id(name),sections(name))")
     .eq("school_id", school.id).gte("paid_on", from).lte("paid_on", to);
   const mode = u.searchParams.get("mode");
   if (mode) q = q.eq("mode", mode);

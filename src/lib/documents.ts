@@ -1,4 +1,4 @@
-export const CATEGORIES: [string, string][] = [["certificate", "Certificate"], ["id_card", "ID card"], ["letter", "Letter / notice"], ["other", "Other"]];
+export const CATEGORIES: [string, string][] = [["certificate", "Certificate"], ["id_card", "ID card"], ["letter", "Letter / notice"], ["fees", "Fees"], ["other", "Other"]];
 export const AUDIENCES: [string, string][] = [["student", "Student"], ["staff", "Staff"]];
 
 /** Placeholders a template can use ({{group.key}}). The values are built in the database from the school's records. */
@@ -18,6 +18,13 @@ export const PLACEHOLDERS: { group: string; items: [string, string][] }[] = [
   { group: "School", items: [["school.name", "School name"], ["school.address", "Address"], ["school.city", "City"], ["school.pincode", "PIN"], ["school.phone", "Phone"], ["school.email", "Email"],
     ["school.board", "Board"], ["school.affiliation_no", "Affiliation no."], ["school.udise_code", "UDISE code"], ["school.principal_name", "Principal"], ["school.logo", "Logo (image)"]] },
   { group: "Document", items: [["doc.no", "Document number"], ["doc.date", "Issue date"], ["doc.session", "Session"], ["doc.valid_until", "Valid until"], ["dues.text", "Fee dues sentence"], ["dues.outstanding", "Fee dues amount"]] },
+  { group: "Fees (fee templates only)", items: [
+    ["fee.receipt_no", "Receipt no."], ["fee.date", "Receipt date"], ["fee.amount", "Amount received"], ["fee.amount_words", "Amount in words"], ["fee.mode", "Mode"], ["fee.payments", "Payment methods (Cash ₹… + Card ₹…)"],
+    ["fee.reference", "Reference"], ["fee.note", "Note"], ["fee.collected_by", "Collected by"], ["fee.balance", "Balance after this receipt"], ["fee.advance", "Advance received"],
+    ["fee.wallet_used", "Paid from advance"], ["fee.status", "CANCELLED (if cancelled)"], ["fee.lines_html", "Table: what was paid (receipt)"],
+    ["fee.total_due", "Total outstanding"], ["fee.overdue", "Overdue amount"], ["fee.due_words", "Outstanding in words"], ["fee.paid_total", "Paid so far"], ["fee.billed_total", "Billed so far"],
+    ["fee.as_on", "As on date"], ["fee.dues_html", "Table: instalments (demand / statement)"], ["fee.receipts_html", "Table: receipts (statement)"],
+  ] },
   { group: "Asked at issue", items: [["extra.reason", "Reason"], ["extra.remarks", "Remarks"], ["extra.last_exam", "Last exam"], ["extra.result", "Result"], ["extra.promotion", "Promotion"],
     ["extra.conduct", "Conduct"], ["extra.working_days", "Working days"], ["extra.days_present", "Days present"], ["extra.left_on", "Date of leaving"]] },
 ];

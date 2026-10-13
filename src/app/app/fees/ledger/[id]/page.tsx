@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePerm } from "@/lib/school";
 import { Card, Empty, PageHeader, Table, td } from "@/components/ui/ui";
@@ -13,7 +14,7 @@ export default async function Ledger({ params }: { params: Promise<{ id: string 
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
   const { supabase, school } = await requirePerm("fees.collection.view", "fees.receipts.view");
-  const { data: s } = await supabase.from("students").select("id,admission_no,first_name,middle_name,last_name,father_name,classes(name),sections(name)").eq("id", id).eq("school_id", school.id).maybeSingle();
+  const { data: s } = await supabase.from("students").select("id,admission_no,first_name,middle_name,last_name,father_name,classes!class_id(name),sections(name)").eq("id", id).eq("school_id", school.id).maybeSingle();
   if (!s) notFound();
   const [{ data: dues }, { data: recs }, { data: adj }, { data: wal }] = await Promise.all([
     supabase.from("fee_dues").select("id,label,due_date,amount,concession,fine,paid,status,kind,session_id").eq("student_id", id).order("due_date"),
@@ -33,7 +34,7 @@ export default async function Ledger({ params }: { params: Promise<{ id: string 
   return (
     <div className="flex flex-col gap-5">
       <PageHeader icon="fees" title="Fee statement" subtitle={`${fullName(stu)} · Adm. ${stu.admission_no} · Class ${stu.classes?.name ?? ""}${stu.sections ? `-${stu.sections.name}` : ""}`}
-        back={{ href: `/app/fees/collect?student=${id}`, label: "Collect fee" }} actions={<PrintButton />} />
+        back={{ href: `/app/fees/collect?student=${id}`, label: "Collect fee" }} actions={<><Link href={`/app/fees/print/statement?student=${id}`} className="btn btn-sm btn-secondary">Official statement</Link><PrintButton /></>} />
       <p className="m-0 hidden text-[14px] print:block">{school.name} — fee statement of {fullName(stu)}, father {stu.father_name ?? "—"}</p>
       <div className="grid grid-cols-2 gap-3 text-[14px] lg:grid-cols-5">
         <Card><p className="m-0 text-muted">Billed (with fine)</p><b className="text-[18px] text-ink">{money(billed)}</b></Card>

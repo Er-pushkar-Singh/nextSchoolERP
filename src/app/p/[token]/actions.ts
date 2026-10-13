@@ -5,6 +5,7 @@ import { portalStudent } from "@/lib/portal";
 import { resolveIntegration } from "@/lib/integrations";
 import { createRazorpayLink } from "@/lib/razorpay";
 import { appUrl } from "@/lib/brand";
+import { todayIST } from "@/lib/format";
 
 /**
  * Parent taps "Pay online": we create an order (server checks the amount against what is due),
@@ -15,6 +16,7 @@ export async function startOnlinePayment(f: FormData) {
   const token = String(f.get("token") ?? "");
   const back = (q: string): never => redirect(`/p/${token}?${q}`);
   const { db, s } = await portalStudent(token);
+  if (s.blocked_at && (!s.blocked_till || s.blocked_till >= todayIST())) back("pay_error=" + encodeURIComponent("This page is not available right now."));
   const amount = Math.round(Number(f.get("amount")) * 100) / 100;
   if (!Number.isFinite(amount) || amount <= 0) back("pay_error=" + encodeURIComponent("Enter the amount to pay."));
   if (s.status !== "active") back("pay_error=" + encodeURIComponent("Online payment is available for current students only."));

@@ -62,5 +62,27 @@ Students (ledger, concessions), Admissions (`bill_student_dues`), Transport (`ge
 ## Setup for online payment
 Settings → Integrations → Razorpay (school's own key id, key secret, webhook secret) → Razorpay dashboard: webhook URL `<app url>/api/razorpay/fees`, event `payment_link.paid`, same secret → Fee settings: switch **Allow online payment** on.
 
+## Fees add-ons (step 11) — migration `0013_admissions_fees_addons.sql`
+- **Sibling discount**: `fee_settings.sibling_percent` (+ `sibling_head_id`); applied automatically at admission and with one click on the collect screen (`apply_sibling_discount`); once per student. The collect screen lists siblings with their balances.
+- **Promise to pay**: `fee_followups` (date, amount, note); `/app/fees/followups`; the daily job `mark_broken_promises()` settles passed promises as kept / broken; overdue count on the Fees overview.
+- **Structure tools** (`/app/fees/charges`): copy one class's instalments to other classes (`copy_fee_plans`), copy the whole structure to a new session with date shift and % increase (`copy_session_plans`).
+- **Split an instalment** (collect screen → Adjust → Split): equal parts with a gap in days; concession divided; recorded as `fee_adjustments.kind = 'split'`; part-paid instalments cannot be split.
+- **Outstanding by class × fee head** (`fee_outstanding`, `/app/fees/reports`, CSV).
+- **Daily late-fine job**: `/api/cron/late-fines` (vercel cron 04:00, `Authorization: Bearer CRON_SECRET`) calls `apply_late_fines_all()` and `mark_broken_promises()`.
+
+## Demo data
+`supabase/seed/demo_data.sql` (set `v_code`, run in the SQL editor after `setup.sql`) creates one school's worth of realistic data through the real functions — fee structure for Nursery–10, 39 students incl. siblings and RTE, 16 applications in every state, 6 enquiries, concessions in all states, receipts in all modes (split, cheque cleared / deposited / received / bounced, advance), refunds in all states, waivers, extension, split, promises, day close. Run once; `supabase/seed/demo_remove.sql` removes it. Both verified on a fresh database.
+
 ## Gaps & ideas
 Automatic SMS / WhatsApp reminders and receipt messages, sibling-discount rules, Tally export, a daily job calling `apply_late_fines_all` (currently fines update at payment time or by button), refunds paid back through Razorpay, instalment plans for individual students, receipt print in Hindi.
+
+## Payment methods, links and fee templates (step 14, 13 Oct 2026) — migration `0016_fix_embed_and_fee_templates.sql`
+- **Methods at the desk**: Cash · Card (debit / credit — stored as `mode = card`, `sub_type = debit|credit`) · Others (UPI / QR, cheque, bank transfer, demand draft `dd`, other `other` with a label) · **Payment gateway / payment link** (below). Up to three lines per receipt (split payment). Stored per line in `fee_receipt_payments(mode, sub_type, reference)`.
+- **Payment link / counter gateway** (collect screen → card "Payment gateway / payment link", `fees.online.create`): the server creates a Razorpay payment link on the school's own account for an amount (oldest dues first), records who made it, the phone, a note and a 3-day expiry in `fee_online_orders` (`channel = link | gateway`). Buttons: Open payment page, Copy, Send on WhatsApp, Cancel (also cancels it at Razorpay). Payment arrives through the same webhook (`/api/razorpay/fees`) and makes the receipt automatically. Applicants with status `admission_pending` can be billed this way too.
+- **`/app/fees/links`**: every parent / link / counter payment with status (waiting, paid, failed, expired, cancelled), filters, pagination.
+- **Fee templates** (`/app/fees/templates`): `fee_receipt` (A5), `fee_demand` (A4), `fee_statement` (A4) live in `document_templates` with `category = 'fees'` and are edited in the same editor (versions, restore). Rendering is in the database: `fee_template_data()` builds the numbers (Indian formatting, amount in words, payment methods), `render_fee_document(kind, subject)` returns sanitised HTML (null when the template is switched off → the app's built-in layout is used). `fee.*_html` placeholders (tables) are inserted as built by the server; every other value — including anything typed by users — is HTML-escaped.
+- **Where they print**: receipt page (template layout), Defaulters → Demand notice / "print all shown" (`/app/fees/print/demand`), Fee statement → Official statement (`/app/fees/print/statement`).
+- **Tests**: `supabase/tests/fee_templates.test.sql` (25 checks).
+
+### The 404 on student and board pages (fixed in 0016)
+`students.admission_class_id` was a second foreign key to `classes`; PostgREST then refuses the embed `classes(name)` as ambiguous, the page got no data and showed 404, and the fee desk / receipts / board / certificates pages that embed the class broke the same way. The column is now a plain uuid. If you ever add another column that references `classes` or `sections` from `students`, use an explicit hint (`classes!class_id(name)`).

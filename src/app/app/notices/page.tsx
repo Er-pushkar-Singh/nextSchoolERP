@@ -10,7 +10,7 @@ export default async function Notices({ searchParams }: { searchParams: Promise<
   const sp = await searchParams;
   const [classes, { data }] = await Promise.all([
     getClasses(supabase, school.id),
-    supabase.from("notices").select("id,title,body,class_id,published_on,created_by,classes(name)").eq("school_id", school.id).order("published_on", { ascending: false }).limit(100),
+    supabase.from("notices").select("id,title,body,class_id,published_on,created_by,classes!class_id(name)").eq("school_id", school.id).order("published_on", { ascending: false }).limit(100),
   ]);
   const canWrite = can("comms.notices.create");
   const rows = (data ?? []) as unknown as { id: string; title: string; body: string | null; published_on: string; created_by: string | null; classes: { name: string } | null }[];

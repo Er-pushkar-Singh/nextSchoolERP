@@ -12,13 +12,14 @@ import { DOC_BUCKET } from "@/lib/student-docs";
 import { ContactsCard, DocumentsCard, EnrolmentHistoryCard, IdentityCard, PriorExamsCard, type Contact, type Doc, type Enrolment, type Prior, type Sensitive } from "@/components/StudentRecords";
 import { fmtTime } from "@/lib/transport";
 import { addConcession, applyConcessions, newPortalLink, removeConcession, setStudentStatus } from "../../_actions/students";
+import { blockStudent, deleteStudent, unblockStudent } from "../../_actions/people";
 
 export default async function StudentPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ ok?: string; error?: string }> }) {
   const { id } = await params;
   const sp = await searchParams;
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
   const { supabase, school, session, can } = await requirePerm("students.profile.view");
-  const { data: s } = await supabase.from("students").select("*, classes(name), sections(name)").eq("id", id).eq("school_id", school.id).maybeSingle();
+  const { data: s } = await supabase.from("students").select("*, classes!class_id(name), sections(name)").eq("id", id).eq("school_id", school.id).maybeSingle();
   if (!s) notFound();
   const fees = can("fees.collection.view");
   const feeWrite = can("fees.concessions.create");
@@ -58,6 +59,9 @@ export default async function StudentPage({ params, searchParams }: { params: Pr
   const photoPath = ((docRows ?? []) as { doc_type: string; file_path: string | null; status: string }[]).find((d) => d.doc_type === "photo" && d.file_path && d.status !== "rejected")?.file_path;
   const photoUrl = photoPath ? (await supabaseAdmin()?.storage.from(DOC_BUCKET).createSignedUrl(photoPath, 300))?.data?.signedUrl ?? null : null;
   const canLink = can("students.parent_link.view");
+  const canBlock = can("students.profile.block");
+  const canDelete = can("students.profile.delete");
+  const isBlocked = Boolean(s.blocked_at) && (!s.blocked_till || s.blocked_till >= todayIST());
   const transport = ride as unknown as { trip: string; monthly_fee: number | null; end_date: string | null; transport_stops: { name: string; pickup_time: string | null; monthly_fee: number } | null; transport_routes: { id: string; name: string } | null } | null;
   const libBooks = (books ?? []) as unknown as { id: string; due_on: string; library_books: { title: string } | null }[];
   const dues = (duesQ.data ?? []) as Due[];
@@ -75,11 +79,23 @@ ${link}`) : null;
     <div className="flex flex-col gap-5">
       <PageHeader
         title={name}
-        subtitle={<>Adm. no. <span className="font-mono">{s.admission_no}</span> · Class {cls}{s.roll_no ? ` · Roll ${s.roll_no}` : ""} · {s.father_name ?? "—"} · {s.guardian_phone ?? "no phone"} {s.status !== "active" && <Badge value={s.status} />}</>}
+        subtitle={<>Adm. no. <span className="font-mono">{s.admission_no}</span> · Class {cls}{s.roll_no ? ` · Roll ${s.roll_no}` : ""} · {s.father_name ?? "—"} · {s.guardian_phone ?? "no phone"} {s.status !== "active" && <Badge value={s.status} />}{isBlocked && <> <Badge value="overdue" text="Blocked" /></>}</>}
         back={{ href: "/app/students", label: "Students" }}
         actions={fees && !isNaN(due) && can("fees.collection.create") && due > 0 ? <Link href={`/app/fees/collect?student=${id}`} className="btn btn-sm btn-primary">Collect fee</Link> : undefined}
       />
       <Flash ok={sp.ok} error={sp.error} />
+      {s.status === "admission_pending" && (
+        <div role="note" className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-[#cfd9f7] bg-blue-tint px-4 py-3 text-[14px] text-blue-strong">
+          <span><b>Admission in progress.</b> No class or section yet — they are given at the last step, after the admission fee is paid.</span>
+          {s.application_id && <Link href={`/app/admissions/applications/${s.application_id}`} className="btn btn-sm btn-primary">Open admission file</Link>}
+        </div>
+      )}
+      {isBlocked && (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-[#f3b8b1] bg-[#fdecea] px-4 py-3 text-[14px] text-[#7a1a12]">
+          <span><b>Blocked</b>{s.blocked_till ? ` until ${fmtDate(s.blocked_till)}` : ""} — {s.block_reason}{s.blocked_by_name ? ` (by ${s.blocked_by_name})` : ""}. The parent link shows a notice instead of the student&apos;s page.</span>
+          {canBlock && <form action={unblockStudent}><input type="hidden" name="id" value={id} /><button className="btn btn-sm btn-secondary cursor-pointer">Unblock</button></form>}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {fees && <Stat label="Total due (session)" value={money(due)} />}
@@ -257,6 +273,27 @@ ${link}`) : null;
             <Input label="TC number" name="tc_no" defaultValue={s.tc_no} />
             <Input label="TC issued on" name="tc_issued_on" type="date" defaultValue={s.tc_issued_on} />
             <div className="flex items-end"><Submit variant="secondary">Update status</Submit></div>
+          </form>
+        </Card>
+      )}
+
+      {canBlock && !isBlocked && (
+        <Card title="Block this student" description="For discipline, a long fee default or any other reason. The parent link stops showing the student&apos;s page; fee dues, attendance and records are untouched. Can be lifted any time.">
+          <form action={blockStudent} className="grid gap-3 sm:grid-cols-4">
+            <input type="hidden" name="id" value={id} />
+            <Input label="Reason" name="reason" required className="sm:col-span-2" />
+            <Input label="Blocked until (optional)" name="till" type="date" />
+            <div className="flex items-end"><Submit variant="secondary">Block</Submit></div>
+          </form>
+        </Card>
+      )}
+
+      {canDelete && (
+        <Card title="Delete this record" description="Only for a record entered by mistake. A student with fee receipts, attendance, marks, certificates or other history cannot be deleted — mark them Left / Withdrawn instead.">
+          <form action={deleteStudent} className="flex flex-wrap items-end gap-3">
+            <input type="hidden" name="id" value={id} />
+            <Input label={`Type the admission number (${s.admission_no}) to confirm`} name="confirm" required />
+            <Submit variant="danger">Delete student</Submit>
           </form>
         </Card>
       )}

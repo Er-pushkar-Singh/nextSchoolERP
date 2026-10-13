@@ -15,7 +15,7 @@ export default async function Documents({ searchParams }: { searchParams: Promis
   const q = cleanSearch(sp.find ?? "").trim();
   const search = cleanSearch(sp.q ?? "").trim();
   const canIssue = can("documents.issue.create");
-  const { data: tplRows } = await supabase.from("document_templates").select("id,code,name,category,audience,active,page_size").eq("school_id", school.id).order("category").order("name");
+  const { data: tplRows } = await supabase.from("document_templates").select("id,code,name,category,audience,active,page_size").eq("school_id", school.id).neq("category", "fees").order("category").order("name");
   const T = (tplRows ?? []) as Tpl[];
   let list = supabase.from("issued_documents")
     .select("id,doc_no,template_name,category,status,issued_on,is_duplicate,students(id,first_name,last_name,admission_no),staff(id,name,emp_code)")
@@ -27,7 +27,7 @@ export default async function Documents({ searchParams }: { searchParams: Promis
     list,
     q && canIssue
       ? Promise.all([
-          supabase.from("students").select("id,first_name,last_name,admission_no,father_name,classes(name),sections(name)").eq("school_id", school.id)
+          supabase.from("students").select("id,first_name,last_name,admission_no,father_name,classes!class_id(name),sections(name)").eq("school_id", school.id)
             .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,admission_no.ilike.${q}%,father_name.ilike.%${q}%`).order("first_name").limit(10),
           supabase.from("staff").select("id,name,emp_code,designation").eq("school_id", school.id).or(`name.ilike.%${q}%,emp_code.ilike.${q}%`).order("name").limit(10),
         ])

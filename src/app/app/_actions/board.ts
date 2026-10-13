@@ -15,7 +15,7 @@ export async function startRegistration(f: FormData) {
   const stu = uuid(f, "student_id");
   const to = `/app/board/${stu}`;
   if (!session) go("/app/board", { error: "Set a current session first (Settings → Classes & sessions)." });
-  const { data: s } = await supabase.from("students").select("id,classes(name)").eq("id", stu!).eq("school_id", school.id).maybeSingle();
+  const { data: s } = await supabase.from("students").select("id,classes!class_id(name)").eq("id", stu!).eq("school_id", school.id).maybeSingle();
   const lv = boardLevel((s as unknown as { classes: { name: string } | null } | null)?.classes?.name);
   if (!s || !lv) go("/app/board", { error: "Board registration is for students of Class 9, 10, 11 or 12." });
   const year = Math.round(num(f, "exam_year") ?? defaultExamYear(session!.name, lv!.kind));

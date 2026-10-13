@@ -2,7 +2,7 @@ import { requirePerm } from "@/lib/school";
 import { Card, Flash, Input, PageHeader, Select, Submit } from "@/components/ui/ui";
 import { classOptions, getClasses, sectionOptions } from "@/lib/erp";
 import { addDays, todayIST } from "@/lib/format";
-import { addCharge, carryForward, runLateFines } from "../../_actions/fees2";
+import { addCharge, carryForward, copyClassPlans, copySessionPlans, runLateFines } from "../../_actions/fees2";
 
 export default async function Charges({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string }> }) {
   const { supabase, school, session } = await requirePerm("fees.dues.create");
@@ -37,6 +37,28 @@ export default async function Charges({ searchParams }: { searchParams: Promise<
       <Card title="Late fine" description={st?.fine_enabled ? "The rule in Fee settings is applied to every overdue instalment." : "Switch the late fine on in Fee settings first."}>
         <form action={runLateFines}><Submit>Update late fines up to today</Submit></form>
         <p className="mt-3 mb-0 text-[13px] text-muted">Fines also update automatically whenever a payment is received. Running this is safe any number of times.</p>
+      </Card>
+
+      <Card title="Copy the fee structure" description="Save typing: copy one class's instalments to other classes, or the whole structure to a new session.">
+        <form action={copyClassPlans} className="grid gap-3">
+          <p className="m-0 text-[14px] font-bold text-ink">Class → other classes (current session)</p>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Select label="Copy from" name="from_class" blank="Choose class" options={classOptions(classes)} />
+          </div>
+          <fieldset className="m-0 flex flex-wrap gap-x-4 gap-y-1 border-0 p-0 text-[14px]">
+            <legend className="mb-1 text-[13px] font-semibold text-ink">Copy to</legend>
+            {classes.map((c) => <label key={c.id} className="flex items-center gap-1"><input type="checkbox" name="to_class" value={c.id} /> {c.name}</label>)}
+          </fieldset>
+          <div><Submit variant="secondary">Copy instalments</Submit></div>
+        </form>
+        <form action={copySessionPlans} className="mt-5 grid gap-3 border-t border-line pt-4 sm:grid-cols-2 lg:grid-cols-5">
+          <p className="m-0 text-[14px] font-bold text-ink sm:col-span-2 lg:col-span-5">Whole structure → another session</p>
+          <Select label="From session" name="from_session" options={sessOpts} />
+          <Select label="To session" name="to_session" options={sessOpts} />
+          <Input label="Move dates by (years)" name="years" type="number" min={0} max={5} defaultValue={1} />
+          <Input label="Increase amounts by (%)" name="increase" type="number" step="0.5" min={0} max={100} defaultValue={0} />
+          <div className="flex items-end"><Submit variant="secondary">Copy structure</Submit></div>
+        </form>
       </Card>
 
       <Card title="Carry arrears to the next session" description="Unpaid balances of the old session become one “Arrears” instalment in the new one; the old balance is closed.">

@@ -58,4 +58,4 @@ Not built yet (permissions exist, no screens): Accounts, Hostel, Inventory & sal
 - Record surprises in [gotchas.md](gotchas.md) so nobody hits them twice.
 - Dates: write absolute dates (e.g. 12 Oct 2026), never "last week".
 
-_Last full review: 12 Oct 2026 (after step 10 — Fees 2.0 (online payment, refunds, cheques, fines, reports))._
+_Last full review: 12 Oct 2026 (after step 14 — fee templates, payment methods / links, embed fix)._

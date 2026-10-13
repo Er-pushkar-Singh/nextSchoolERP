@@ -12,13 +12,13 @@ export default async function Certificates({ searchParams }: { searchParams: Pro
   const sp = await searchParams;
   const kind = KINDS.some(([k]) => k === sp.kind) ? sp.kind! : null;
   const q = cleanSearch(sp.q ?? "").trim();
-  let list = supabase.from("student_certificates").select("id,kind,cert_no,issued_on,is_duplicate,status,students(id,first_name,last_name,admission_no,classes(name))")
+  let list = supabase.from("student_certificates").select("id,kind,cert_no,issued_on,is_duplicate,status,students(id,first_name,last_name,admission_no,classes!class_id(name))")
     .eq("school_id", school.id).order("created_at", { ascending: false }).limit(100);
   if (kind) list = list.eq("kind", kind);
   const [{ data: rows }, found] = await Promise.all([
     list,
     q && can("students.certificates.create")
-      ? supabase.from("students").select("id,first_name,last_name,admission_no,father_name,classes(name),sections(name)").eq("school_id", school.id)
+      ? supabase.from("students").select("id,first_name,last_name,admission_no,father_name,classes!class_id(name),sections(name)").eq("school_id", school.id)
           .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,admission_no.ilike.${q}%,father_name.ilike.%${q}%`).order("first_name").limit(15).then((r) => (r.data ?? []) as unknown as Stu[])
       : Promise.resolve([] as Stu[]),
   ]);

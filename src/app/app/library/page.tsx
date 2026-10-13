@@ -10,7 +10,7 @@ type Issue = {
   students: { id: string; first_name: string; last_name: string | null; admission_no: string; guardian_phone: string | null; classes: { name: string } | null; sections: { name: string } | null } | null;
   staff: { id: string; name: string; phone: string | null } | null;
 };
-const sel = "id,book_id,issued_on,due_on,returned_on,fine,issued_by_name,library_books(title,accession_no,author),students(id,first_name,last_name,admission_no,guardian_phone,classes(name),sections(name)),staff(id,name,phone)";
+const sel = "id,book_id,issued_on,due_on,returned_on,fine,issued_by_name,library_books(title,accession_no,author),students(id,first_name,last_name,admission_no,guardian_phone,classes!class_id(name),sections(name)),staff(id,name,phone)";
 /** Suggested late fine per day (₹); the librarian can change it on each return. */
 const FINE_PER_DAY = 1;
 

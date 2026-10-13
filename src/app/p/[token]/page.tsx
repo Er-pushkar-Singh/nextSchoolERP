@@ -18,6 +18,14 @@ export default async function Parent({ params, searchParams }: { params: Promise
   const { db, s } = await portalStudent(token);
   const school = s.schools;
   const today = todayIST();
+  if (s.blocked_at && (!s.blocked_till || s.blocked_till >= today)) {
+    return (
+      <div className="mx-auto flex max-w-md flex-col gap-3 px-4 py-16 text-center">
+        <h1 className="m-0 text-[22px] font-extrabold text-ink">{school.name}</h1>
+        <p className="m-0 rounded-[12px] border border-line bg-white p-5 text-[15px]">This page is not available right now. Please contact the school office{school.phone ? ` on ${school.phone}` : ""}.</p>
+      </div>
+    );
+  }
   const { data: session } = await db.from("sessions").select("id,name,start_date,end_date").eq("school_id", s.school_id).eq("is_current", true).maybeSingle();
 
   const [{ data: dues }, { data: receipts }, { data: att }, { data: notices }, { data: exams }] = await Promise.all([

@@ -15,7 +15,7 @@ alter table public.students
   add column if not exists middle_name        text,
   add column if not exists application_no     text,
   add column if not exists admission_category text check (admission_category is null or admission_category in ('general','rte','staff_ward','sibling','other')),
-  add column if not exists admission_class_id uuid references public.classes(id) on delete set null,
+  add column if not exists admission_class_id uuid,   -- plain column on purpose: a second foreign key to classes makes every students → classes embed ambiguous
   add column if not exists previous_school    text,
   add column if not exists previous_board     text,
   add column if not exists previous_class     text,

@@ -8,7 +8,7 @@ export default async function Fees() {
   const { supabase, school, session, can } = await requirePerm("fees.collection.view", "fees.structure.view", "fees.defaulters.view", "fees.receipts.view");
   const today = todayIST();
   if (!session) return <Empty>No current session. Set one in Settings.</Empty>;
-  const [{ data: s }, { data: byClass }, { data: todays }, pendCon, pendRef, chq, { data: wal }] = await Promise.all([
+  const [{ data: s }, { data: byClass }, { data: todays }, pendCon, pendRef, chq, { data: wal }, prom] = await Promise.all([
     supabase.rpc("fee_summary", { sid: school.id, sess: session.id, on_day: today }),
     supabase.rpc("class_fee_summary", { sid: school.id, sess: session.id, on_day: today }),
     supabase.from("fee_receipts").select("amount,mode").eq("school_id", school.id).eq("paid_on", today).eq("cancelled", false),
@@ -16,6 +16,7 @@ export default async function Fees() {
     supabase.from("fee_refunds").select("id", { count: "exact", head: true }).eq("school_id", school.id).in("status", ["requested", "approved"]),
     supabase.from("fee_cheques").select("id", { count: "exact", head: true }).eq("school_id", school.id).in("status", ["received", "deposited"]),
     supabase.from("fee_wallet_entries").select("amount").eq("school_id", school.id).limit(5000),
+    supabase.from("fee_followups").select("id", { count: "exact", head: true }).eq("school_id", school.id).eq("status", "open").lt("promised_on", today),
   ]);
   const advance = ((wal ?? []) as { amount: number }[]).reduce((t, w) => t + Number(w.amount), 0);
   const f = s as { billed: number; collected: number; concession: number; overdue: number; overdue_students: number; outstanding: number; today: number; today_count: number; month: number };
@@ -29,10 +30,11 @@ export default async function Fees() {
         {can("fees.defaulters.view") && <Link href="/app/fees/defaulters" className="btn btn-sm btn-secondary">Defaulters</Link>}
         <Link href="/app/fees/reports" className="btn btn-sm btn-secondary">Reports</Link>
       </>} />
-      {((pendCon.count ?? 0) > 0 || (pendRef.count ?? 0) > 0 || (chq.count ?? 0) > 0 || advance > 0) && (
+      {((pendCon.count ?? 0) > 0 || (pendRef.count ?? 0) > 0 || (chq.count ?? 0) > 0 || (prom.count ?? 0) > 0 || advance > 0) && (
         <div className="flex flex-wrap gap-x-5 gap-y-1 rounded-[12px] border border-line bg-white px-4 py-3 text-[14px]">
           {(pendCon.count ?? 0) > 0 && <Link href="/app/fees/concessions">{pendCon.count} concession(s) waiting for approval</Link>}
           {(pendRef.count ?? 0) > 0 && <Link href="/app/fees/refunds">{pendRef.count} refund(s) open</Link>}
+          {(prom.count ?? 0) > 0 && <Link href="/app/fees/followups">{prom.count} promise(s) to pay are overdue</Link>}
           {(chq.count ?? 0) > 0 && <Link href="/app/fees/cheques">{chq.count} cheque(s) not yet cleared</Link>}
           {advance > 0 && <span className="text-muted">Advance held for students: <b className="text-ink">{money(advance)}</b></span>}
         </div>

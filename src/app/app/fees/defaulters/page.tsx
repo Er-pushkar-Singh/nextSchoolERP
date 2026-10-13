@@ -37,6 +37,7 @@ export default async function Defaulters({ searchParams }: { searchParams: Promi
       </form>
       {rows.length ? (
         <>
+          <p className="m-0 text-[14px] print:hidden"><Link href={`/app/fees/print/demand?${new URLSearchParams({ ...(cls ? { class_id: cls } : {}), min: String(min) })}`}>Print demand notices for all {rows.length > 60 ? "(first 60) " : ""}shown →</Link></p>
           <WaQueue items={msgs} />
           <Table head={["Student", "Class", "Father / phone", "Overdue", "Since", ""]}>
             {rows.map((r, i) => (
@@ -48,7 +49,8 @@ export default async function Defaulters({ searchParams }: { searchParams: Promi
                 <td className={td}>{fmtDate(r.oldest_due)}</td>
                 <td className={`${td} whitespace-nowrap`}>
                   {msgs[i].href ? <a href={msgs[i].href!} target="_blank" rel="noopener" className="mr-3">WhatsApp</a> : <span className="mr-3 text-muted">—</span>}
-                  <Link href={`/app/fees/collect?student=${r.student_id}`}>Collect</Link>
+                  <Link href={`/app/fees/collect?student=${r.student_id}`} className="mr-3">Collect</Link>
+                  <Link href={`/app/fees/print/demand?student=${r.student_id}`}>Demand notice</Link>
                 </td>
               </tr>
             ))}

@@ -12,7 +12,7 @@ export default async function Receipts({ searchParams }: { searchParams: Promise
   const today = todayIST();
   const from = valid(sp.from) ?? today.slice(0, 8) + "01";
   const to = valid(sp.to) ?? today;
-  let q = supabase.from("fee_receipts").select("id,receipt_no,paid_on,amount,mode,reference,collected_by,cancelled,students(first_name,last_name,admission_no,classes(name))")
+  let q = supabase.from("fee_receipts").select("id,receipt_no,paid_on,amount,mode,reference,collected_by,cancelled,students(first_name,last_name,admission_no,classes!class_id(name))")
     .eq("school_id", school.id).gte("paid_on", from).lte("paid_on", to);
   if (sp.mode) q = q.eq("mode", sp.mode);
   const { data } = await q.order("paid_on", { ascending: false }).order("receipt_no", { ascending: false }).limit(1000);
@@ -31,7 +31,7 @@ export default async function Receipts({ searchParams }: { searchParams: Promise
         <label className="text-[13px] font-semibold">From<input type="date" name="from" defaultValue={from} className="input !min-h-10 !py-2" /></label>
         <label className="text-[13px] font-semibold">To<input type="date" name="to" defaultValue={to} className="input !min-h-10 !py-2" /></label>
         <label className="text-[13px] font-semibold">Mode
-          <select name="mode" defaultValue={sp.mode ?? ""} className="input !min-h-10 !py-2"><option value="">All</option>{["cash", "upi", "cheque", "bank_transfer", "card", "online", "mixed", "wallet"].map((m) => <option key={m} value={m}>{m.replace("_", " ")}</option>)}</select>
+          <select name="mode" defaultValue={sp.mode ?? ""} className="input !min-h-10 !py-2"><option value="">All</option>{["cash", "card", "upi", "cheque", "bank_transfer", "dd", "other", "online", "mixed", "wallet"].map((m) => <option key={m} value={m}>{m.replace("_", " ")}</option>)}</select>
         </label>
         <button className="btn btn-sm btn-secondary cursor-pointer">Show</button>
         <Link href={`/app/fees/receipts?from=${today}&to=${today}`} className="text-[14px]">Today</Link>

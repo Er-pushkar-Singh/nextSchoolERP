@@ -15,11 +15,11 @@ export default async function Concessions({ searchParams }: { searchParams: Prom
   const status = ["pending", "approved", "rejected"].includes(sp.status ?? "") ? sp.status! : "pending";
   const q = cleanSearch(sp.find ?? "").trim();
   const [{ data }, { data: heads }, found, { count: pending }] = await Promise.all([
-    supabase.from("student_concessions").select("id,kind,value,category,status,reason,valid_from,valid_to,decision_note,created_at,students(id,first_name,last_name,admission_no,classes(name)),fee_heads(name)")
+    supabase.from("student_concessions").select("id,kind,value,category,status,reason,valid_from,valid_to,decision_note,created_at,students(id,first_name,last_name,admission_no,classes!class_id(name)),fee_heads(name)")
       .eq("school_id", school.id).eq("status", status).order("created_at", { ascending: false }).limit(200),
     supabase.from("fee_heads").select("id,name").eq("school_id", school.id).order("sort"),
     q && can("fees.concessions.create")
-      ? supabase.from("students").select("id,first_name,last_name,admission_no,classes(name)").eq("school_id", school.id).or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,admission_no.ilike.${q}%`).order("first_name").limit(8)
+      ? supabase.from("students").select("id,first_name,last_name,admission_no,classes!class_id(name)").eq("school_id", school.id).or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,admission_no.ilike.${q}%`).order("first_name").limit(8)
       : Promise.resolve({ data: null }),
     supabase.from("student_concessions").select("id", { count: "exact", head: true }).eq("school_id", school.id).eq("status", "pending"),
   ]);

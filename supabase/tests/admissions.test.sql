@@ -42,6 +42,7 @@ begin
   insert into public.member_roles (school_id, user_id, role_id)
     select a, x.u, r.id from (values (pr, 'principal'), (fo, 'front_office'), (te, 'class_teacher')) x(u, c) join public.roles r on r.school_id = a and r.code = x.c;
   insert into public.member_roles (school_id, user_id, role_id) select b, ot, id from public.roles where school_id = b and code = 'principal';
+  insert into public.admission_settings (school_id, strict_workflow, fee_before_allotment) values (a, false, false);
   select id into c6 from public.classes where school_id = a and name = '6';
   select id into c10 from public.classes where school_id = a and name = '10';
   select id into sec6 from public.sections where class_id = c6 limit 1;

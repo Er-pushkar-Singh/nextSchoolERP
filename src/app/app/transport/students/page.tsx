@@ -10,7 +10,7 @@ type Alloc = {
   id: string; route_id: string; stop_id: string; trip: string; monthly_fee: number | null; start_date: string; end_date: string | null;
   students: Stu | null; transport_stops: { name: string; pickup_time: string | null; monthly_fee: number } | null; transport_routes: { name: string } | null;
 };
-const stuSel = "id,admission_no,first_name,last_name,father_name,guardian_phone,classes(name),sections(name)";
+const stuSel = "id,admission_no,first_name,last_name,father_name,guardian_phone,classes!class_id(name),sections(name)";
 
 export default async function TransportStudents({ searchParams }: { searchParams: Promise<{ q?: string; student?: string; route?: string; ended?: string; ok?: string; error?: string }> }) {
   const { supabase, school, session, can } = await requirePerm("transport.allocation.view");

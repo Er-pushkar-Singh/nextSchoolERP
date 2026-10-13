@@ -19,7 +19,7 @@ export default async function BoardSheet({ params }: { params: Promise<{ id: str
   const { supabase, school, session, can } = await requirePerm("students.board_reg.view");
   if (!session) notFound();
   const [{ data: s }, { data: reg }, { data: sens }, { data: subs }, { data: codes }, { data: prior }, { data: photo }] = await Promise.all([
-    supabase.from("students").select("*, classes(name), sections(name)").eq("id", id).eq("school_id", school.id).maybeSingle(),
+    supabase.from("students").select("*, classes!class_id(name), sections(name)").eq("id", id).eq("school_id", school.id).maybeSingle(),
     supabase.from("board_registrations").select("*").eq("student_id", id).eq("session_id", session.id).maybeSingle(),
     can("students.sensitive.view") ? supabase.from("student_sensitive").select("pen,apaar_id,aadhaar_enc,aadhaar_last4,disability_type").eq("student_id", id).maybeSingle() : Promise.resolve({ data: null }),
     supabase.from("student_board_subjects").select("slot,code").eq("student_id", id).eq("session_id", session.id),

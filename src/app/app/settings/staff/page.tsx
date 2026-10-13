@@ -5,11 +5,13 @@ import { Badge, Card, Empty, Flash, Input, PageHeader, Submit, Table, td } from 
 import { CopyButton } from "@/components/CopyButton";
 import { getClasses } from "@/lib/erp";
 import { appUrl } from "@/lib/brand";
+import { todayIST } from "@/lib/format";
 import catalog from "@/lib/catalog.json";
 import { addAssignment, addStaff, removeAssignment, removeStaff, setOverride, setStaffRoles } from "../../_actions/access";
+import { setLoginBlocked } from "../../_actions/people";
 
 type Role = { id: string; name: string; kind: string; code: string };
-type Member = { user_id: string; name: string | null; email: string | null; phone: string | null };
+type Member = { user_id: string; name: string | null; email: string | null; phone: string | null; blocked_at: string | null; blocked_till: string | null };
 
 export default async function Staff({ searchParams }: { searchParams: Promise<{ user?: string; ok?: string; error?: string }> }) {
   const { supabase, school, user, can } = await requirePerm("settings.users.view");
@@ -19,7 +21,7 @@ export default async function Staff({ searchParams }: { searchParams: Promise<{ 
   try { newpw = raw ? JSON.parse(raw) : null; } catch { newpw = null; }
 
   const [{ data: members }, { data: mr }, { data: roles }, classes, { data: subjects }, { data: assigns }] = await Promise.all([
-    supabase.from("school_members").select("user_id,name,email,phone").eq("school_id", school.id).order("name"),
+    supabase.from("school_members").select("user_id,name,email,phone,blocked_at,blocked_till").eq("school_id", school.id).order("name"),
     supabase.from("member_roles").select("user_id,role_id").eq("school_id", school.id),
     supabase.from("roles").select("id,name,kind,code").eq("school_id", school.id).order("created_at"),
     getClasses(supabase, school.id),
@@ -54,7 +56,7 @@ export default async function Staff({ searchParams }: { searchParams: Promise<{ 
           const a = (assigns ?? []).filter((x) => x.user_id === m.user_id);
           return (
             <tr key={m.user_id} className={sel?.user_id === m.user_id ? "bg-blue-tint" : ""}>
-              <td className={`${td} font-semibold text-ink`}>{m.name ?? "—"}{m.user_id === user.id && <span className="ml-1 text-[12px] font-normal text-muted">(you)</span>}</td>
+              <td className={`${td} font-semibold text-ink`}>{m.name ?? "—"}{m.user_id === user.id && <span className="ml-1 text-[12px] font-normal text-muted">(you)</span>}{m.blocked_at && (!m.blocked_till || m.blocked_till >= todayIST()) && <span className="ml-1"><Badge value="overdue" text="Blocked" /></span>}</td>
               <td className={td}>{m.email}<div className="text-[12px] text-muted">{m.phone ?? ""}</div></td>
               <td className={td}><span className="flex flex-wrap gap-1">{rolesOf(m.user_id).map((r) => <Badge key={r.id} value="contacted" text={r.name} />)}</span></td>
               <td className={`${td} text-[13px]`}>{a.length ? a.map((x) => `${secName.get(x.section_id) ?? "?"}${x.is_class_teacher ? " (class teacher)" : x.subject_id ? ` ${subName.get(x.subject_id) ?? ""}` : ""}`).join(", ") : <span className="text-muted">—</span>}</td>
@@ -79,6 +81,25 @@ export default async function Staff({ searchParams }: { searchParams: Promise<{ 
                 </form>
               )}
             </section>
+            {can("hr.staff.block") && sel.user_id !== user.id && (
+              <section className="lg:col-span-2">
+                <h3 className="m-0 mb-2 text-[15px] font-bold text-ink">Login access</h3>
+                {sel.blocked_at ? (
+                  <form action={setLoginBlocked} className="flex flex-wrap items-center gap-3 text-[14px]">
+                    <input type="hidden" name="user_id" value={sel.user_id} /><input type="hidden" name="block" value="0" />
+                    <span className="text-error">This login is blocked{sel.blocked_till ? ` until ${sel.blocked_till}` : ""}.</span>
+                    <Submit variant="secondary">Unblock</Submit>
+                  </form>
+                ) : (
+                  <form action={setLoginBlocked} className="flex flex-wrap items-end gap-3">
+                    <input type="hidden" name="user_id" value={sel.user_id} /><input type="hidden" name="block" value="1" />
+                    <Input label="Block until (optional)" name="till" type="date" />
+                    <Submit variant="secondary">Block this login</Submit>
+                    <span className="pb-2 text-[13px] text-muted">They are shut out immediately; roles and records are kept.</span>
+                  </form>
+                )}
+              </section>
+            )}
             <section>
               <h3 className="m-0 mb-2 text-[15px] font-bold text-ink">Classes & subjects (for “assigned” permissions)</h3>
               <ul className="m-0 mb-3 list-none p-0 text-[14px]">

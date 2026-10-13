@@ -30,7 +30,12 @@ export default async function TemplatePage({ params, searchParams }: { params: P
   const stf = staffTpl ? (sp.staff && /^[0-9a-f-]{36}$/.test(sp.staff) ? sp.staff : sampleStf?.id ?? null) : null;
   let preview: string | null = null;
   let previewError: string | null = null;
-  if (stu || stf) {
+  if (t.category === "fees") {
+    const { data, error } = await supabase.rpc("preview_fee_template", { tpl: id });
+    if (error) previewError = error.message;
+    else preview = (data as { html?: string } | null)?.html ? sanitizeHtml(String((data as { html: string }).html)) : null;
+    if (!preview && !error) previewError = "Preview appears once the school has a receipt (receipt template) or a student with dues (demand / statement).";
+  } else if (stu || stf) {
     const { data, error } = await supabase.rpc("preview_document", { tpl: id, stu, stf });
     if (error) previewError = error.message; else preview = withPhoto(sanitizeHtml(String(data ?? "")), null);
   }
@@ -38,7 +43,7 @@ export default async function TemplatePage({ params, searchParams }: { params: P
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader icon="academics" title={t.name} subtitle={<>Version {t.version} · <span className="font-mono">{t.code}</span>{t.is_system ? " · standard template" : ""}</>} back={{ href: "/app/documents/templates", label: "Templates" }}
+      <PageHeader icon="academics" title={t.name} subtitle={<>Version {t.version} · <span className="font-mono">{t.code}</span>{t.is_system ? " · standard template" : ""}</>} back={t.category === "fees" ? { href: "/app/fees/templates", label: "Fee templates" } : { href: "/app/documents/templates", label: "Templates" }}
         actions={can("documents.issue.create") && t.active ? <Link href={`/app/documents/bulk?template=${id}`} className="btn btn-sm btn-secondary">Issue in bulk</Link> : undefined} />
       <Flash ok={sp.ok} error={sp.error} />
       <TemplateEditor t={t as unknown as Tpl} canEdit={can("documents.templates.edit")} canDelete={can("documents.templates.delete")} />

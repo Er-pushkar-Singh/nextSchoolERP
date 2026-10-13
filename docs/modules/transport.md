@@ -47,3 +47,22 @@ Fees (dues, collection, defaulters, parent UPI), student profile card, parent pa
 
 ## Gaps & ideas
 Live GPS tracking (`transport.tracking`) via driver phone app / GPS vendor API, transport attendance (boarded / dropped), route optimisation, distance-slab fees, fuel & maintenance log (could feed Accounts), driver document expiry, SMS when bus is delayed.
+
+## Live tracking & reform (step 18) — migration `0020_transport_live.sql`
+**Ola / Rapido style, for parents and the office.** Catalogue `transport.tracking.view` is now built.
+
+| Who | Screen | What |
+|---|---|---|
+| Driver | `/drive/<token>` (no login) | Private link per vehicle. Start **morning pickup** / **evening drop**; the phone sends its GPS every ~4 s (heartbeat every 15 s when standing), screen wake-lock, End trip. Reopening the page resumes a running trip |
+| Parent | `/p/<link>/bus` (button "Track bus live" on the parent page) | Full-screen map, bus glides to each new position, status chip (not started / starting / on the way / almost there / reached / no signal), **ETA** and distance to the child's stop, driver name with one-tap call, stops with ✓ for visited ones, "your child's stop" highlighted. Only the child's own bus is ever returned |
+| Office / principal | `/app/transport/live` | All vehicles on one map, per-route colours, route stops and line for the selected vehicle, green trail of the current trip, searchable / filterable / paged list (route, status), counts on the road / no signal / idle. School location can be set on the map |
+| Office | `/app/transport/trips`, `/trips/[id]` | Trip history (paged, per vehicle) and the recorded path of each trip on the map |
+
+- **Locations**: `transport_stops.lat/lng` (click the map in the stop form, or "Use my location"), `schools.lat/lng`.
+- **Data**: `transport_trips` (one running trip per vehicle), `transport_vehicle_position` (last position, deleted when the trip ends), `transport_position_log` (a point every ≥ 8 s, kept 45 days). `transport_vehicles.track_token` = the driver's private link; "New link" rotates it and ends any running trip.
+- **Driver functions** (`driver_status / start_trip / ping / end_trip`) are service-role only and called by `/api/transport/driver`; the database throttles pings (2 s), rejects impossible coordinates and pings without a trip. Parent data comes from `child_bus(student)` via `/api/transport/child?token=` (blocked students get nothing). Office data: `live_vehicles`, `trip_trace`, `trip_history` (permission `transport.tracking.view`).
+- **ETA** = straight-line distance ÷ max(current speed, 18 km/h) — an estimate; state `reached` within 150 m, `near` within 1 km, `offline` after 90 s without a ping.
+- **Lists in the database** (search, filters, sort, count, pages): `transport_riders()` for Students on transport (search, route, stop, class, trip, stopped, sort; total and monthly fee), `vehicle_list()` for Vehicles (search, type, status, papers due), routes on the Transport home (search, vehicle, status), trip history.
+- **Map**: Leaflet + OpenStreetMap tiles (no API key; keep to light use or switch to a paid tile provider for heavy use). The `Permissions-Policy` now allows `geolocation=(self)` for the driver page.
+- **Honest limits**: web tracking works while the driver's page is open with the screen on (mobile browsers pause background tabs); a native driver app or a GPS box feeding `driver_ping` removes that. ETA ignores roads and traffic. No "approaching" push messages yet (they belong to the Communications module).
+- **Tests**: `supabase/tests/transport_live.test.sql` (38 checks).

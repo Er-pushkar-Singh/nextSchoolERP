@@ -5,6 +5,11 @@
 --   module  : which module the template belongs to (students, staff, fees, admissions, library, transport …)
 -- Safe to run again.
 -- ═══════════════════════════════════════════════════════════════════════════
+-- (also in 0016; repeated so this migration works on its own) the "fees" category of fee receipts / notices / statements
+alter table public.document_templates drop constraint if exists document_templates_category_check;
+alter table public.document_templates add constraint document_templates_category_check
+  check (category in ('certificate','id_card','letter','fees','other'));
+
 alter table public.document_templates add column if not exists design jsonb;
 alter table public.document_templates add column if not exists module text;
 alter table public.document_templates add column if not exists preset text;          -- the gallery design it was made from

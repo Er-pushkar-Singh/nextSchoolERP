@@ -35,7 +35,7 @@ export function TemplateDesigner({ initial, name: initialName, action, templateI
   const designRef = useRef(design);
   const stage = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
-  designRef.current = design;
+  useEffect(() => { designRef.current = design; });
   const S = PX_PER_MM * zoom;
 
   const items = design.items;
@@ -403,11 +403,10 @@ export function TemplateDesigner({ initial, name: initialName, action, templateI
                     <label className={lbl}>Spacing<input type="number" min={-2} max={20} step="0.5" value={one.ls} onChange={(e) => update([one.id], { ls: num(e.target.value) }, false)} className={inp} /></label>
                   </div>
                   <div className="flex flex-wrap gap-1 text-[12px]">
-                    {([["weight", one.weight && one.weight >= 700, "B", () => update([one.id], { weight: one.weight && one.weight >= 700 ? 400 : 800 })],
-                       ["italic", one.italic, "I", () => update([one.id], { italic: !one.italic })], ["underline", one.underline, "U", () => update([one.id], { underline: !one.underline })],
-                       ["upper", one.upper, "AA", () => update([one.id], { upper: !one.upper })]] as [string, boolean | undefined, string, () => void][]).map(([k, on, g, fn]) => (
-                      <button type="button" key={k} onClick={fn} className={`cursor-pointer rounded-md border px-2.5 py-1 ${on ? "border-ink bg-ink text-white" : "border-line bg-white"}`}>{g}</button>
-                    ))}
+                    <button type="button" onClick={() => update([one.id], { weight: one.weight && one.weight >= 700 ? 400 : 800 })} className={`cursor-pointer rounded-md border px-2.5 py-1 ${one.weight && one.weight >= 700 ? "border-ink bg-ink text-white" : "border-line bg-white"}`}>B</button>
+                    <button type="button" onClick={() => update([one.id], { italic: !one.italic })} className={`cursor-pointer rounded-md border px-2.5 py-1 ${one.italic ? "border-ink bg-ink text-white" : "border-line bg-white"}`}>I</button>
+                    <button type="button" onClick={() => update([one.id], { underline: !one.underline })} className={`cursor-pointer rounded-md border px-2.5 py-1 ${one.underline ? "border-ink bg-ink text-white" : "border-line bg-white"}`}>U</button>
+                    <button type="button" onClick={() => update([one.id], { upper: !one.upper })} className={`cursor-pointer rounded-md border px-2.5 py-1 ${one.upper ? "border-ink bg-ink text-white" : "border-line bg-white"}`}>AA</button>
                     {(["left", "center", "right", "justify"] as const).map((a) => (
                       <button type="button" key={a} onClick={() => update([one.id], { align: a })} className={`cursor-pointer rounded-md border px-2 py-1 ${one.align === a ? "border-ink bg-ink text-white" : "border-line bg-white"}`}>{{ left: "⯇", center: "≡", right: "⯈", justify: "☰" }[a]}</button>
                     ))}

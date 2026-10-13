@@ -95,7 +95,7 @@ insert into public.erp_submodules (code, module_code, name, built, sort) values
   ('comms.messages', 'comms', 'Parent–teacher messages', false, 4),
   ('transport.routes', 'transport', 'Routes, stops & vehicles', true, 0),
   ('transport.allocation', 'transport', 'Student allocation', true, 1),
-  ('transport.tracking', 'transport', 'GPS tracking', false, 2),
+  ('transport.tracking', 'transport', 'GPS tracking', true, 2),
   ('library.catalogue', 'library', 'Book catalogue', true, 0),
   ('library.circulation', 'library', 'Issue & return', true, 1),
   ('hostel.rooms', 'hostel', 'Rooms & beds', false, 0),

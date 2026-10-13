@@ -1,21 +1,32 @@
 import Link from "next/link";
 import { requirePerm } from "@/lib/school";
 import { Badge, Card, Empty, Flash, Input, PageHeader, Select, Stat, Submit } from "@/components/ui/ui";
-import { money } from "@/lib/format";
+import { Pagination, pageParams } from "@/components/ui/Pagination";
+import { cleanSearch, money } from "@/lib/format";
 import { expiringDocs, fmtTime, type Vehicle } from "@/lib/transport";
 import { saveRoute } from "../_actions/transport";
 
 type Route = { id: string; name: string; active: boolean; vehicle_id: string | null; transport_stops: { id: string; name: string; sort: number; pickup_time: string | null; monthly_fee: number }[] };
 
-export default async function Transport({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string }> }) {
+export default async function Transport({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const { supabase, school, session, can } = await requirePerm("transport.routes.view");
   const sp = await searchParams;
-  const [{ data: routes }, { data: vehicles }, { data: allocs }] = await Promise.all([
-    supabase.from("transport_routes").select("id,name,active,vehicle_id,transport_stops(id,name,sort,pickup_time,monthly_fee)").eq("school_id", school.id).order("name"),
+  const { page, size, offset } = pageParams(sp, 12);
+  const q = cleanSearch(sp.q ?? "").trim();
+  const activeF = ["yes", "no"].includes(sp.active ?? "") ? sp.active! : null;
+  const vehF = sp.vehicle && /^[0-9a-f-]{36}$/.test(sp.vehicle) ? sp.vehicle : null;
+  let rq = supabase.from("transport_routes").select("id,name,active,vehicle_id,transport_stops(id,name,sort,pickup_time,monthly_fee)", { count: "exact" }).eq("school_id", school.id);
+  if (q) rq = rq.ilike("name", `%${q}%`);
+  if (activeF) rq = rq.eq("active", activeF === "yes");
+  if (vehF) rq = rq.eq("vehicle_id", vehF);
+  const [{ data: routes, count: routeCount }, { data: vehicles }, { data: allocs }, { count: allRoutes }, { count: stopCount }] = await Promise.all([
+    rq.order("name").range(offset, offset + size - 1),
     supabase.from("transport_vehicles").select("*").eq("school_id", school.id).order("reg_no"),
     session && can("transport.allocation.view")
       ? supabase.from("transport_allocations").select("route_id").eq("session_id", session.id).is("end_date", null).limit(10000)
       : Promise.resolve({ data: null }),
+    supabase.from("transport_routes").select("id", { count: "exact", head: true }).eq("school_id", school.id).eq("active", true),
+    supabase.from("transport_stops").select("id", { count: "exact", head: true }).eq("school_id", school.id),
   ]);
   const R = (routes ?? []) as unknown as Route[];
   const V = (vehicles ?? []) as Vehicle[];
@@ -24,7 +35,7 @@ export default async function Transport({ searchParams }: { searchParams: Promis
   for (const a of allocs ?? []) onRoute.set(a.route_id, (onRoute.get(a.route_id) ?? 0) + 1);
   const alerts = V.filter((v) => v.active).flatMap((v) => expiringDocs(v).map((d) => ({ v, d })));
   const riders = allocs ? allocs.length : null;
-  const seats = R.filter((r) => r.active).reduce((t, r) => t + (vById.get(r.vehicle_id ?? "")?.capacity ?? 0), 0);
+  const seats = V.filter((v) => v.active).reduce((t, v) => t + (v.capacity ?? 0), 0);
 
   return (
     <div className="flex flex-col gap-5">
@@ -32,11 +43,12 @@ export default async function Transport({ searchParams }: { searchParams: Promis
         actions={<>
           {can("transport.allocation.view") && <Link href="/app/transport/students" className="btn btn-sm btn-primary">Students on transport</Link>}
           <Link href="/app/transport/vehicles" className="btn btn-sm btn-secondary">Vehicles</Link>
+          {can("transport.tracking.view") && <Link href="/app/transport/live" className="btn btn-sm btn-primary">Live map</Link>}
         </>} />
       <Flash ok={sp.ok} error={sp.error} />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Routes" value={R.filter((r) => r.active).length} hint={`${R.reduce((t, r) => t + r.transport_stops.length, 0)} stops`} icon="route" />
+        <Stat label="Routes" value={allRoutes ?? 0} hint={`${stopCount ?? 0} stops`} icon="route" />
         <Stat label="Vehicles" value={V.filter((v) => v.active).length} hint={seats ? `${seats} seats on active routes` : undefined} icon="transport" tone="cyan" />
         {riders !== null && <Stat label="Students on transport" value={riders} hint={session ? `Session ${session.name}` : undefined} href="/app/transport/students" icon="students" tone="green" />}
         <Stat label="Papers due (30 days)" value={alerts.length} hint={alerts.length ? "Insurance, fitness, permit, PUC" : "All papers valid"} icon="notifications" tone={alerts.length ? "rose" : "green"} />
@@ -66,6 +78,13 @@ export default async function Transport({ searchParams }: { searchParams: Promis
         </Card>
       )}
 
+      <form className="flex flex-wrap items-end gap-2">
+        <Input label="Search routes" name="q" defaultValue={sp.q} placeholder="Route name" />
+        <Select label="Vehicle" name="vehicle" blank="Any" defaultValue={vehF} options={V.map((v) => [v.id, v.reg_no] as [string, string])} />
+        <Select label="Status" name="active" blank="All" defaultValue={activeF} options={[["yes", "Active"], ["no", "Inactive"]]} />
+        <button className="btn btn-sm btn-secondary cursor-pointer">Show</button>
+      </form>
+
       {R.length ? (
         <div className="grid gap-4 md:grid-cols-2">
           {R.map((r) => {
@@ -90,7 +109,8 @@ export default async function Transport({ searchParams }: { searchParams: Promis
             );
           })}
         </div>
-      ) : <Empty>No routes yet.</Empty>}
+      ) : <Empty>{q || activeF || vehF ? "No route matches these filters." : "No routes yet."}</Empty>}
+      <Pagination total={routeCount ?? 0} page={page} size={size} basePath="/app/transport" params={{ q: q || undefined, active: activeF ?? undefined, vehicle: vehF ?? undefined }} />
     </div>
   );
 }

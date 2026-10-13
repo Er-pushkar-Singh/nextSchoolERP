@@ -53,6 +53,9 @@ Student / board 404 fix (ambiguous embed), fee templates (receipt, demand notice
 ## Done in step 16
 Template studio: Canva-style designer for ID cards, certificates, receipts and letters; per-module gallery and registry.
 
+## Done in step 18
+Transport live tracking (driver page, parent map, office map, trips) and database-side lists for vehicles, riders, routes.
+
 ## Suggested order (updated)
 1. **Automatic SMS / WhatsApp** on events (fee reminders, receipts, absence)  2. Staff attendance → payroll  3. Timetable + calendar  4. Accounts  5. Hostel / inventory / health  6. Parent & student logins (PWA), admit cards (a template + exam data), UDISE+ export
 

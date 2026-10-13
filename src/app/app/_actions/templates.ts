@@ -23,7 +23,18 @@ export async function saveDesign(f: FormData) {
     .update({ design, body_html: html, ...pageOf(design), ...(name ? { name } : {}) })
     .eq("id", id!).eq("school_id", school.id).select("id");
   revalidatePath(STUDIO);
-  go(to, error ? { error: errMsg(error) } : data?.length ? { ok: "Design saved (a new version was recorded)." } : { error: "Not allowed." });
+  // a fee template that is not yet chosen for anything becomes the one for its document, when that document has none
+  let note = "";
+  if (!error && data?.length) {
+    const { data: t } = await supabase.from("document_templates").select("category,fee_kind,code,preset").eq("id", id!).maybeSingle();
+    if (t?.category === "fees" && !t.fee_kind) {
+      const k = /demand/.test(`${t.code} ${t.preset ?? ""}`) ? "demand" : /statement/.test(`${t.code} ${t.preset ?? ""}`) ? "statement" : "receipt";
+      const { data: taken } = await supabase.from("document_templates").select("id").eq("school_id", school.id).eq("fee_kind", k).maybeSingle();
+      if (!taken) { await supabase.rpc("set_fee_template", { tpl: id, p_kind: k }); note = ` It is now used for ${k === "receipt" ? "fee receipts" : k === "demand" ? "demand notices" : "fee statements"}.`; }
+      else note = " Choose it under Fees → Fee templates → “Use this template for” to start using it.";
+    }
+  }
+  go(to, error ? { error: errMsg(error) } : data?.length ? { ok: `Design saved (a new version was recorded).${note}` } : { error: "Not allowed." });
 }
 
 /** One click: a starter design becomes a template of the school (or replaces the layout of a standard fee template). */
@@ -36,13 +47,23 @@ export async function useDesign(f: FormData) {
   const html = sanitizeHtml(compileDesign(design));
   const page = pageOf(design);
 
-  if (preset!.target) {
-    const { data: t } = await supabase.from("document_templates").select("id").eq("school_id", school.id).eq("code", preset!.target).maybeSingle();
-    if (t) {
-      const { error } = await supabase.from("document_templates").update({ design, body_html: html, ...page, preset: preset!.key, active: true }).eq("id", t.id).eq("school_id", school.id);
+  const feeKind = preset!.category === "fees" ? ({ fee_receipt: "receipt", fee_demand: "demand", fee_statement: "statement" } as Record<string, string>)[preset!.kind] ?? null : null;
+  if (feeKind) {
+    // the template that is already used for this document (or has the standard code) takes the design
+    const { data: rows } = await supabase.from("document_templates").select("id,code,fee_kind").eq("school_id", school.id).eq("category", "fees");
+    const mine = (rows ?? []).find((r) => r.fee_kind === feeKind) ?? (rows ?? []).find((r) => r.code === preset!.target);
+    if (mine) {
+      const { error } = await supabase.from("document_templates").update({ design, body_html: html, ...page, preset: preset!.key, active: true, fee_kind: feeKind, module: "fees" }).eq("id", mine.id).eq("school_id", school.id);
       revalidatePath(STUDIO);
-      go(error ? STUDIO : `/app/documents/templates/${t.id}/design`, error ? { error: errMsg(error) } : { ok: `“${preset!.name}” applied. Adjust it as you like.` });
+      go(error ? STUDIO : `/app/documents/templates/${mine.id}/design`, error ? { error: errMsg(error) } : { ok: `“${preset!.name}” applied — it is now used for ${feeKind === "receipt" ? "fee receipts" : feeKind === "demand" ? "demand notices" : "fee statements"}.` });
     }
+    const { data, error } = await supabase.from("document_templates").insert({
+      school_id: school.id, code: preset!.target ?? preset!.key, name: preset!.name, category: "fees", audience: "student", body_html: html, design, ...page,
+      numbering_prefix: "FEE", fields: [], module: "fees", preset: preset!.key, fee_kind: feeKind, is_system: false,
+    }).select("id").single();
+    if (error) go(STUDIO, { error: /fee_kind/.test(error.message) ? "Apply migration 0019 (fee template binding) first." : errMsg(error) });
+    revalidatePath(STUDIO);
+    go(`/app/documents/templates/${data!.id}/design`, { ok: `“${preset!.name}” is ready and in use. Make it yours.` });
   }
   const base = preset!.key.replace(/[^a-z0-9_]/g, "_").slice(0, 30);
   const { data: existing } = await supabase.from("document_templates").select("code").eq("school_id", school.id).like("code", `${base}%`);
@@ -72,4 +93,30 @@ export async function newBlankDesign(f: FormData) {
   }).select("id").single();
   if (error) go(STUDIO, { error: errMsg(error) });
   go(`/app/documents/templates/${data!.id}/design`, { ok: "Blank canvas ready." });
+}
+
+/** Fees → Fee templates: choose which template prints the receipt / demand notice / statement. */
+export async function setFeeTemplate(f: FormData) {
+  const { supabase } = await requirePerm("documents.templates.edit");
+  const id = uuid(f, "id");
+  const kind = String(f.get("kind") ?? "");
+  const { error } = await supabase.rpc("set_fee_template", { tpl: id, p_kind: ["receipt", "demand", "statement"].includes(kind) ? kind : null });
+  revalidatePath("/app/fees/templates");
+  go("/app/fees/templates", error ? { error: errMsg(error) } : { ok: kind ? "Saved — this template is now used." : "This template is no longer used (the built-in layout applies)." });
+}
+
+/** A blank fee template for one of the three documents. */
+export async function newFeeTemplate(f: FormData) {
+  const { supabase, school } = await requirePerm("documents.templates.create");
+  const kind = String(f.get("kind") ?? "receipt");
+  if (!["receipt", "demand", "statement"].includes(kind)) go("/app/fees/templates", { error: "Choose the document." });
+  const portrait = kind !== "receipt" ? { w: 210, h: 297 } : { w: 148, h: 210 };
+  const design = normalizeDesign({ v: 1, ...portrait, bg: "#ffffff", items: [] });
+  const { count } = await supabase.from("document_templates").select("id", { count: "exact", head: true }).eq("school_id", school.id).like("code", `fee_${kind}%`);
+  const { data, error } = await supabase.from("document_templates").insert({
+    school_id: school.id, code: `fee_${kind}_${(count ?? 0) + 1}`, name: `${kind === "receipt" ? "Fee receipt" : kind === "demand" ? "Fee demand notice" : "Fee statement"} — my design`,
+    category: "fees", audience: "student", body_html: " ", design, ...pageOf(design), numbering_prefix: "FEE", module: "fees", fee_kind: null,
+  }).select("id").single();
+  if (error) go("/app/fees/templates", { error: errMsg(error) });
+  go(`/app/documents/templates/${data!.id}/design`, { ok: "Blank canvas ready. After saving, choose \u201cUse for\u201d on the Fee templates page." });
 }

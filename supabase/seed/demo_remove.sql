@@ -21,6 +21,8 @@ begin
   delete from public.admission_applications where school_id = sid and form ? 'demo';
   delete from public.enquiries where school_id = sid and notes like 'DEMO%';
   delete from public.staff where school_id = sid and emp_code like 'DEMO-E%';
+  delete from public.transport_routes where school_id = sid and name like 'DEMO Route%';
+  delete from public.transport_vehicles where school_id = sid and reg_no like 'DEMO %';
   delete from public.fee_day_close where school_id = sid and not exists (select 1 from public.fee_receipts r where r.school_id = sid);
   -- charges and fee dues of removed students are gone with them (cascade); leftover guardians of demo students
   delete from public.guardians g where g.school_id = sid and not exists (select 1 from public.student_guardians sg where sg.guardian_id = g.id);

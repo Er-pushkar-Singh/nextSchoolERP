@@ -5,9 +5,11 @@ import { Card, Empty, Flash, Input, PageHeader, Select, Submit, Table, td } from
 import { PrintButton } from "@/components/ui/PrintButton";
 import { fullName, money } from "@/lib/format";
 import { fmtTime, TRIPS, type Vehicle } from "@/lib/transport";
+import { LocationPicker } from "@/components/transport/LocationPicker";
+import { LiveMap, type MapMarker } from "@/components/transport/LiveMap";
 import { deleteRoute, deleteStop, saveRoute, saveStop } from "../../../_actions/transport";
 
-type Stop = { id: string; name: string; sort: number; pickup_time: string | null; drop_time: string | null; monthly_fee: number };
+type Stop = { id: string; name: string; sort: number; pickup_time: string | null; drop_time: string | null; monthly_fee: number; lat: number | null; lng: number | null };
 type Alloc = {
   id: string; stop_id: string; trip: string; students: { id: string; admission_no: string; first_name: string; last_name: string | null; guardian_phone: string | null; classes: { name: string } | null; sections: { name: string } | null } | null;
 };
@@ -20,13 +22,15 @@ export default async function RoutePage({ params, searchParams }: { params: Prom
   const { data: route } = await supabase.from("transport_routes").select("id,name,vehicle_id,active,notes").eq("id", id).eq("school_id", school.id).maybeSingle();
   if (!route) notFound();
   const [{ data: stops }, { data: vehicles }, { data: allocs }] = await Promise.all([
-    supabase.from("transport_stops").select("id,name,sort,pickup_time,drop_time,monthly_fee").eq("route_id", id).order("sort").order("name"),
+    supabase.from("transport_stops").select("id,name,sort,pickup_time,drop_time,monthly_fee,lat,lng").eq("route_id", id).order("sort").order("name"),
     supabase.from("transport_vehicles").select("*").eq("school_id", school.id).order("reg_no"),
     session && can("transport.allocation.view")
       ? supabase.from("transport_allocations").select("id,stop_id,trip,students(id,admission_no,first_name,last_name,guardian_phone,classes!class_id(name),sections(name))").eq("route_id", id).eq("session_id", session.id).is("end_date", null)
       : Promise.resolve({ data: null }),
   ]);
   const S = (stops ?? []) as Stop[];
+  const stopMarkers: MapMarker[] = S.filter((x) => x.lat != null && x.lng != null).map((x) => ({ id: `s${x.id}`, kind: "stop" as const, lat: Number(x.lat), lng: Number(x.lng), seq: x.sort, label: x.name }));
+  const routeLine = stopMarkers.map((m) => [m.lat, m.lng] as [number, number]);
   const V = (vehicles ?? []) as Vehicle[];
   const v = V.find((x) => x.id === route.vehicle_id);
   const A = (allocs ?? []) as unknown as Alloc[];
@@ -49,6 +53,13 @@ export default async function RoutePage({ params, searchParams }: { params: Prom
             <Select label="Status" name="active" defaultValue={route.active ? "1" : "0"} options={[["1", "Active"], ["0", "Inactive"]]} />
             <div className="flex items-end"><Submit>Save</Submit></div>
           </form>
+        </Card>
+      )}
+
+      {stopMarkers.length > 0 && (
+        <Card title="Route on the map" className="print:hidden" description="Stops with a location. Parents see this route and the live bus on it.">
+          <LiveMap markers={stopMarkers} line={routeLine} fitKey={`${id}-${stopMarkers.length}`} height={280} />
+          {can("transport.tracking.view") && <p className="mt-2 mb-0 text-[13px]"><Link href="/app/transport/live">Open the live map →</Link></p>}
         </Card>
       )}
 
@@ -77,6 +88,7 @@ export default async function RoutePage({ params, searchParams }: { params: Prom
                             <Input label="Drop" name="drop_time" type="time" defaultValue={s.drop_time?.slice(0, 5)} />
                           </div>
                           <Input label="Fee / month (₹)" name="monthly_fee" type="number" step="0.01" min={0} defaultValue={s.monthly_fee} />
+                          <LocationPicker lat={s.lat != null ? Number(s.lat) : null} lng={s.lng != null ? Number(s.lng) : null} height={200} others={stopMarkers.filter((m) => m.id !== `s${s.id}`)} />
                           <Submit>Save stop</Submit>
                         </form>
                       )}
@@ -95,6 +107,9 @@ export default async function RoutePage({ params, searchParams }: { params: Prom
             <Input label="Order" name="sort" type="number" defaultValue={(S.at(-1)?.sort ?? 0) + 1} />
             <Input label="Pickup" name="pickup_time" type="time" />
             <Input label="Fee / month (₹)" name="monthly_fee" type="number" step="0.01" min={0} defaultValue={S.at(-1)?.monthly_fee ?? ""} />
+            <div className="sm:col-span-6">
+              <LocationPicker others={stopMarkers} hint="Click where the bus stops for this student group — parents see this pin." />
+            </div>
             <div className="flex items-end"><Submit>Add stop</Submit></div>
           </form>
         )}

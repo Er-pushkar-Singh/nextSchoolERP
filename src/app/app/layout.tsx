@@ -61,6 +61,7 @@ const NAV: Entry[] = [
   ] },
   { key: "transport", label: "Transport", icon: "transport", section: "Operations", items: [
     { href: "/app/transport", label: "Routes & stops", any: ["transport.routes.view"] },
+    { href: "/app/transport/live", label: "Live bus map", any: ["transport.tracking.view"] },
     { href: "/app/transport/students", label: "Students on transport", any: ["transport.allocation.view"] },
     { href: "/app/transport/vehicles", label: "Vehicles", any: ["transport.routes.view"] },
   ] },

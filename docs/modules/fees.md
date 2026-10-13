@@ -86,3 +86,9 @@ Automatic SMS / WhatsApp reminders and receipt messages, sibling-discount rules,
 
 ### The 404 on student and board pages (fixed in 0016)
 `students.admission_class_id` was a second foreign key to `classes`; PostgREST then refuses the embed `classes(name)` as ambiguous, the page got no data and showed 404, and the fee desk / receipts / board / certificates pages that embed the class broke the same way. The column is now a plain uuid. If you ever add another column that references `classes` or `sections` from `students`, use an explicit hint (`classes!class_id(name)`).
+
+## Collect desk, structure-wise (step 15) — migration `0017_collect_by_structure.sql`
+- **Fees are chosen and paid one by one**: the collect screen lists the student's open fees grouped by fee head (Tuition, Admission, Annual…); tick any, change the "Pay now" amount of each (up to its balance), or use Overdue only / All / Select all of a head. The database receives `p_alloc = [{due_id, amount}]` and pays exactly those amounts (`collect_fee_core`); without an allocation the old "oldest first" rule still applies (parent page, online payments, API callers).
+- **Late fine is fetched automatically**: opening a student calls `refresh_student_fines()` so every instalment already shows its fine; fine is part of the balance and of "Pay now". A manual "extra fine / charge" joins the first chosen fee.
+- **Payment method details open by themselves**: Cash (nothing), Debit / credit card (POS slip / last 4, bank), UPI (UTR), Cheque / DD (number, bank, date), Bank transfer (UTR, bank), Other (what it is + reference). Split between two methods on request; the first line is always the remaining amount.
+- **Rules**: payment must cover the chosen fees (shortfall refused); extra becomes advance when the school allows; an instalment of another student, duplicates, or an amount above the balance are refused. Tests: `supabase/tests/collect_structure.test.sql` (13 checks).

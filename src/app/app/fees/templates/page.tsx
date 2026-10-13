@@ -45,7 +45,9 @@ export default async function FeeTemplates({ searchParams }: { searchParams: Pro
                 {p?.html ? <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(p.html) }} /> : <p className="m-0 text-[13px] text-muted">The preview appears once there is a receipt / a student with dues.</p>}
               </div>
               <div className="flex flex-wrap gap-3">
-                <Link href={`/app/documents/templates/${t.id}`} className="btn btn-sm btn-primary">{canEdit ? "Edit layout" : "View"}</Link>
+                {canEdit && <Link href={`/app/documents/templates/${t.id}/design?start=1`} className="btn btn-sm btn-primary">Design visually</Link>}
+                <Link href={`/app/documents/templates/${t.id}`} className="btn btn-sm btn-secondary">{canEdit ? "Edit HTML & settings" : "View"}</Link>
+                <Link href="/app/templates?module=fees" className="btn btn-sm btn-secondary">Gallery</Link>
               </div>
             </Card>
           );

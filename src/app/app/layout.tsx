@@ -29,6 +29,7 @@ const NAV: Entry[] = [
     { href: "/app/admissions/online", label: "Online admission form", any: ["frontdesk.online_form.view"] },
     { href: "/app/board", label: "UP Board registration", any: ["students.board_reg.view"] },
     { href: "/app/documents", label: "Documents & templates", any: ["documents.issue.view", "documents.templates.view"] },
+    { href: "/app/templates", label: "Template studio", any: ["documents.templates.view"] },
     { href: "/app/certificates", label: "Old-format certificates", any: ["students.certificates.view"] },
   ] },
   { key: "attendance", label: "Attendance", icon: "attendance", items: [

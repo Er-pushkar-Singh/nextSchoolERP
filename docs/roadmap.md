@@ -50,6 +50,9 @@ Admission as one guided flow: enquiry → details → documents → test → dec
 ## Done in step 14
 Student / board 404 fix (ambiguous embed), fee templates (receipt, demand notice, statement), payment methods (cash, debit / credit card, others, gateway, payment links), payment-link register.
 
+## Done in step 16
+Template studio: Canva-style designer for ID cards, certificates, receipts and letters; per-module gallery and registry.
+
 ## Suggested order (updated)
 1. **Automatic SMS / WhatsApp** on events (fee reminders, receipts, absence)  2. Staff attendance → payroll  3. Timetable + calendar  4. Accounts  5. Hostel / inventory / health  6. Parent & student logins (PWA), admit cards (a template + exam data), UDISE+ export
 

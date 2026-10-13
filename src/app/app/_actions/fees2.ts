@@ -42,19 +42,30 @@ export async function collectFeeV2(f: FormData) {
   const student = uuid(f, "student_id");
   const back = `/app/fees/collect?student=${student}`;
   if (!student) go("/app/fees/collect", { error: "Choose a student." });
+  // fees chosen on the desk: alloc_<instalment id> = amount for that instalment
+  const alloc: { due_id: string; amount: number }[] = [];
+  for (const [k, v] of f.entries()) {
+    const m = /^alloc_([0-9a-f-]{36})$/.exec(k);
+    const amount = money2(Number(v));
+    if (m && amount && amount > 0) alloc.push({ due_id: m[1], amount });
+  }
   const splits: Record<string, string | number | null>[] = [];
   for (let i = 1; i <= 4; i++) {
     const amount = money2(num(f, `amount_${i}`));
     if (!amount || amount <= 0) continue;
     const m = methodOf(oneOf(f, `mode_${i}`, METHODS.map((x) => x.value) as readonly string[], "cash"));
     const reference = str(f, `reference_${i}`, 80);
-    splits.push({ mode: m.mode, sub_type: m.sub ?? null, amount, reference, cheque_no: m.mode === "cheque" || m.mode === "dd" ? str(f, `reference_${i}`, 40) : null, bank: str(f, `bank_${i}`, 60), cheque_date: date(f, `cheque_date_${i}`) });
+    const label = str(f, `label_${i}`, 40);
+    splits.push({
+      mode: m.mode, sub_type: m.value === "other" ? label ?? "Other" : m.sub ?? null, amount, reference,
+      cheque_no: m.mode === "cheque" || m.mode === "dd" ? str(f, `reference_${i}`, 40) : null, bank: str(f, `bank_${i}`, 60), cheque_date: date(f, `cheque_date_${i}`),
+    });
   }
   const wallet = Math.max(0, money2(num(f, "wallet_use")) ?? 0);
+  if (!alloc.length) go(back, { error: "Tick at least one fee to collect." });
   if (!splits.length && wallet <= 0) go(back, { error: "Enter the amount received." });
-  const picked = ids(f, "due_id");
   const { data, error } = await supabase.rpc("collect_fee_v2", {
-    sid: school.id, stu: student, p_splits: splits, p_due_ids: picked.length ? picked : null, p_wallet_use: wallet,
+    sid: school.id, stu: student, p_splits: splits, p_due_ids: null, p_wallet_use: wallet, p_alloc: alloc,
     p_paid_on: date(f, "paid_on"), p_note: str(f, "note", 300), p_by: myName || null, p_fine: Math.max(0, money2(num(f, "fine")) ?? 0),
   });
   if (error) go(back, { error: errMsg(error) });

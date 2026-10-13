@@ -44,7 +44,10 @@ export default async function TemplatePage({ params, searchParams }: { params: P
   return (
     <div className="flex flex-col gap-5">
       <PageHeader icon="academics" title={t.name} subtitle={<>Version {t.version} · <span className="font-mono">{t.code}</span>{t.is_system ? " · standard template" : ""}</>} back={t.category === "fees" ? { href: "/app/fees/templates", label: "Fee templates" } : { href: "/app/documents/templates", label: "Templates" }}
-        actions={can("documents.issue.create") && t.active ? <Link href={`/app/documents/bulk?template=${id}`} className="btn btn-sm btn-secondary">Issue in bulk</Link> : undefined} />
+        actions={<>
+          {can("documents.templates.edit") && <Link href={`/app/documents/templates/${id}/design${t.design ? "" : "?start=1"}`} className="btn btn-sm btn-primary">Visual designer</Link>}
+          {can("documents.issue.create") && t.active && t.category !== "fees" && <Link href={`/app/documents/bulk?template=${id}`} className="btn btn-sm btn-secondary">Issue in bulk</Link>}
+        </>} />
       <Flash ok={sp.ok} error={sp.error} />
       <TemplateEditor t={t as unknown as Tpl} canEdit={can("documents.templates.edit")} canDelete={can("documents.templates.delete")} />
 

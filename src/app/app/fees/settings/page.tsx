@@ -52,7 +52,7 @@ export default async function FeeSettings({ searchParams }: { searchParams: Prom
           </div>
         </Card>
 
-        <Card title="Online payment by parents" description="Parents pay from their link; the receipt is created automatically when Razorpay confirms.">
+        <Card title="Online payment by parents" description="Parents pay from their page, and staff can generate a payment link or take a payment through the gateway at the counter. The receipt is created automatically when Razorpay confirms.">
           <div className="grid gap-4">
             <Check name="online_enabled" label="Allow online payment" on={!!s?.online_enabled} />
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

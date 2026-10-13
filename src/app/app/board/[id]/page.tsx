@@ -17,7 +17,7 @@ export default async function BoardStudent({ params, searchParams }: { params: P
   const { supabase, school, session, can } = await requirePerm("students.board_reg.view");
   const sp = await searchParams;
   const { data: s } = await supabase.from("students")
-    .select("id,admission_no,first_name,middle_name,last_name,father_name,mother_name,dob,gender,category,roll_no,class_id,classes(name),sections(name)").eq("id", id).eq("school_id", school.id).maybeSingle();
+    .select("id,admission_no,first_name,middle_name,last_name,father_name,mother_name,dob,gender,category,roll_no,class_id,classes!class_id(name),sections(name)").eq("id", id).eq("school_id", school.id).maybeSingle();
   if (!s) notFound();
   const cn = (s as unknown as { classes: { name: string } | null }).classes?.name;
   const lv = boardLevel(cn);

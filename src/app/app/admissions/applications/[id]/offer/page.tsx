@@ -12,7 +12,7 @@ export default async function Offer({ params }: { params: Promise<{ id: string }
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
   const { supabase, school } = await requirePerm("frontdesk.admissions.view");
-  const { data: a } = await supabase.from("admission_applications").select("id,application_no,applicant_name,father_name,status,class_id,session_id,offer_valid_till,decision_note,classes(name),sessions(name)").eq("id", id).eq("school_id", school.id).maybeSingle();
+  const { data: a } = await supabase.from("admission_applications").select("id,application_no,applicant_name,father_name,status,class_id,session_id,offer_valid_till,decision_note,classes!class_id(name),sessions(name)").eq("id", id).eq("school_id", school.id).maybeSingle();
   if (!a) notFound();
   if (a.status !== "approved" && a.status !== "admitted") notFound();
   const [{ data: quote }, { data: docs }] = await Promise.all([

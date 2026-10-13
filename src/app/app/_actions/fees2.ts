@@ -2,7 +2,10 @@
 
 import { requirePerm } from "@/lib/school";
 import { date, errMsg, go, num, oneOf, str, uuid } from "@/lib/action-util";
-import { PAY_MODES } from "@/lib/fees";
+import { METHODS, methodOf } from "@/lib/fees";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+import { resolveIntegration } from "@/lib/integrations";
+import { createRazorpayLink } from "@/lib/razorpay";
 
 const ids = (f: FormData, k: string) => f.getAll(k).map(String).filter((x) => /^[0-9a-f-]{36}$/.test(x));
 const money2 = (n: number | null) => (n === null ? null : Math.round(n * 100) / 100);
@@ -43,8 +46,9 @@ export async function collectFeeV2(f: FormData) {
   for (let i = 1; i <= 4; i++) {
     const amount = money2(num(f, `amount_${i}`));
     if (!amount || amount <= 0) continue;
-    const mode = oneOf(f, `mode_${i}`, PAY_MODES.map((m) => m[0]) as readonly string[], "cash");
-    splits.push({ mode, amount, reference: str(f, `reference_${i}`, 80), cheque_no: mode === "cheque" ? str(f, `reference_${i}`, 40) : null, bank: str(f, `bank_${i}`, 60), cheque_date: date(f, `cheque_date_${i}`) });
+    const m = methodOf(oneOf(f, `mode_${i}`, METHODS.map((x) => x.value) as readonly string[], "cash"));
+    const reference = str(f, `reference_${i}`, 80);
+    splits.push({ mode: m.mode, sub_type: m.sub ?? null, amount, reference, cheque_no: m.mode === "cheque" || m.mode === "dd" ? str(f, `reference_${i}`, 40) : null, bank: str(f, `bank_${i}`, 60), cheque_date: date(f, `cheque_date_${i}`) });
   }
   const wallet = Math.max(0, money2(num(f, "wallet_use")) ?? 0);
   if (!splits.length && wallet <= 0) go(back, { error: "Enter the amount received." });
@@ -220,4 +224,56 @@ export async function siblingDiscount(f: FormData) {
   const student = uuid(f, "student_id");
   const { data, error } = await supabase.rpc("apply_sibling_discount", { sid: school.id, stu: student });
   go(`/app/fees/collect?student=${student}`, error ? { error: errMsg(error) } : data ? { ok: "Sibling discount applied to the unpaid instalments." } : { error: "No sibling found, or the discount is already applied." });
+}
+
+/* ───────────── Payment gateway / payment link (staff) ───────────── */
+export async function createPaymentLink(f: FormData) {
+  const { school, myName } = await requirePerm("fees.online.create");
+  const student = uuid(f, "student_id");
+  const back = `/app/fees/collect?student=${student}`;
+  const channel = oneOf(f, "channel", ["link", "gateway"] as const, "link");
+  const amount = money2(num(f, "amount"));
+  if (!student || !amount || amount <= 0) go(back, { error: "Enter the amount to collect." });
+  const rz = await resolveIntegration(school.id, "razorpay");
+  if (!rz || rz.source !== "school" || !rz.config.key_id || !rz.secrets.key_secret) go(back, { error: "Connect the school's Razorpay account first (Settings → Integrations → Razorpay)." });
+  const db = supabaseAdmin();
+  if (!db) go(back, { error: "SUPABASE_SECRET_KEY is not configured." });
+  const { data: stu } = await db!.from("students").select("id,first_name,last_name,admission_no,guardian_phone").eq("id", student!).eq("school_id", school.id).maybeSingle();
+  if (!stu) go(back, { error: "Student not found." });
+  const phone = str(f, "phone", 15) ?? stu!.guardian_phone;
+  const { data: oid, error } = await db!.rpc("create_online_order", { sid: school.id, stu: student, p_amount: amount, p_due_ids: null, p_channel: channel, p_by: myName || null, p_note: str(f, "note", 200), p_phone: phone });
+  if (error || !oid) go(back, { error: errMsg(error, "Could not create the link.") });
+  try {
+    const link = await createRazorpayLink({ keyId: rz!.config.key_id, keySecret: rz!.secrets.key_secret }, {
+      amountInr: amount, currency: "INR", description: `School fee · ${stu!.first_name} ${stu!.last_name ?? ""} · Adm. ${stu!.admission_no}`.trim(),
+      referenceId: String(oid), customer: { name: [stu!.first_name, stu!.last_name].filter(Boolean).join(" "), contact: phone },
+      callbackUrl: undefined, expireBy: Math.floor(Date.now() / 1000) + 3 * 24 * 3600,
+    });
+    await db!.from("fee_online_orders").update({ link_id: link.id, link_url: link.url }).eq("id", oid as string);
+  } catch (e) {
+    await db!.from("fee_online_orders").update({ status: "failed", error: String((e as Error).message).slice(0, 300) }).eq("id", oid as string);
+    go(back, { error: `The payment page could not be created: ${(e as Error).message}` });
+  }
+  go(`${back}&link=${oid}`, { ok: channel === "gateway" ? "Payment page ready — open it and let the payer complete the payment." : "Payment link ready — share it with the parent." });
+}
+
+export async function cancelPaymentLink(f: FormData) {
+  const { supabase, school } = await requirePerm("fees.online.create");
+  const id = uuid(f, "id");
+  const back = String(f.get("back") ?? "").startsWith("/app/fees") ? String(f.get("back")) : "/app/fees/links";
+  const { data: linkId, error } = await supabase.rpc("cancel_payment_link", { oid: id });
+  if (error) go(back, { error: errMsg(error) });
+  // also close it at Razorpay so it cannot be paid by mistake (best effort)
+  const rz = await resolveIntegration(school.id, "razorpay");
+  if (rz?.source === "school" && linkId && rz.config.key_id && rz.secrets.key_secret) {
+    const auth = Buffer.from(`${rz.config.key_id}:${rz.secrets.key_secret}`).toString("base64");
+    await fetch(`https://api.razorpay.com/v1/payment_links/${linkId}/cancel`, { method: "POST", headers: { Authorization: `Basic ${auth}` } }).catch(() => null);
+  }
+  go(back, { ok: "Payment link cancelled." });
+}
+
+export async function seedFeeTemplates() {
+  const { supabase, school } = await requirePerm("fees.structure.edit", "documents.templates.create");
+  const { data, error } = await supabase.rpc("seed_fee_templates", { sid: school.id });
+  go("/app/fees/templates", error ? { error: errMsg(error) } : { ok: data ? `${data} template(s) added.` : "The standard templates are already there." });
 }

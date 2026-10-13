@@ -71,3 +71,21 @@ Parents fill the application themselves at `/apply/<school code>` — no login �
 
 Rules: approval stamps `offer_valid_till` = today + `admission_settings.offer_days`; an expired offer is cancelled by `lapse_expired_offers()` (principal) and the seat is released; `promote_waitlist()` approves waitlisted applicants in waitlist order while seats are free; siblings are matched by parent phone or father + mother name (`student_siblings`, `application_siblings`); at **Admit**, `bill_student_dues()` first applies the school's sibling discount (Fees → Fee settings) so the new dues already carry it.
 Tables: `admission_settings`, `application_followups`; `admission_applications.offer_valid_till`. Tests: `supabase/tests/addons.test.sql`.
+
+## The admission flow (step 13, 13 Oct 2026) — migration `0015_admission_workflow.sql`
+One fixed order, one file per applicant, one timeline:
+
+| # | Step | Done when | Enforced by |
+|---|---|---|---|
+| 1 | Enquiry | an enquiry is linked (created automatically if the application starts without one) | `create_application_core` |
+| 2 | Student & parent details | name, DOB, gender, father, mother, parent mobile, address present | approval gate |
+| 3 | Documents | every *required* document (default: birth certificate, photograph) is uploaded / verified / not applicable — or waived by the principal with a reason | approval gate, `waive_application_docs` |
+| 4 | Test / interview | marks recorded (only when the school marks it required) | approval gate |
+| 5 | Principal's decision | approved (waitlist / reject also possible) | existing workflow trigger |
+| 6 | Admission fee | **Start admission** creates the student record with status `admission_pending` and **no class / section**, bills the fees of the class applied for; the family pays at the normal fee desk; done when the dues falling due within `fee_window_days` (default 31) are paid — or waived by the principal in writing | `begin_admission`, `admission_fee_status`, `waive_application_fee` |
+| 7 | Class & section (last) | `admit_application` — refused until step 6 is done; checks a free seat; a different class is allowed only while nothing is paid (fees are re-billed); the student becomes `active`, the class history opens | `admit_application` |
+
+- **Screens**: application page = tracker (7 steps with what is missing) + numbered cards (details, documents, test, decision, admission fee, class & section) + follow-ups + fee quote + **timeline** (enquiry, documents, decision, fee receipts, waivers, allotment). List page = board by stage with counts (`application_board`, `application_stage_counts`), search, class filter, pagination. Pipeline page = per-stage counts and the **flow rules** form (required documents, test required, fee before class, check before approval, fee window).
+- **Settings** (`admission_settings`): `strict_workflow`, `fee_before_allotment`, `required_docs`, `require_test`, `fee_window_days`, `offer_days`. With `fee_before_allotment = false` the old one-step admit still works.
+- **Pending students**: `students.status = 'admission_pending'` — class and section are null; they do not appear in attendance, class lists or dues generation; they are findable in the fee desk, and in Students → "Admission in progress". Cancelling / rejecting the application deletes the pending record if nothing was paid.
+- **Tests**: `supabase/tests/workflow.test.sql` (45 checks). The older admission suites switch the gates off (`strict_workflow = false, fee_before_allotment = false`) to test the legacy path.

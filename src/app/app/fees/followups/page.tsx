@@ -12,7 +12,7 @@ export default async function Promises({ searchParams }: { searchParams: Promise
   const sp = await searchParams;
   const today = todayIST();
   const all = sp.show === "all";
-  let q = supabase.from("fee_followups").select("id,promised_on,amount,note,status,created_by_name,students(id,first_name,last_name,admission_no,guardian_phone,classes(name))").eq("school_id", school.id);
+  let q = supabase.from("fee_followups").select("id,promised_on,amount,note,status,created_by_name,students(id,first_name,last_name,admission_no,guardian_phone,classes!class_id(name))").eq("school_id", school.id);
   q = all ? q.order("promised_on", { ascending: false }).limit(200) : q.eq("status", "open").order("promised_on").limit(200);
   const { data } = await q;
   const rows = (data ?? []) as unknown as P[];

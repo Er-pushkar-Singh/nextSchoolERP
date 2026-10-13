@@ -6,7 +6,7 @@ import { cleanSearch, fullName, money } from "@/lib/format";
 import { getClasses, sectionOptions } from "@/lib/erp";
 import { bulkStudents } from "../_actions/people";
 
-const STUDENT_STATUS: [string, string][] = [["active", "Active"], ["left", "Left"], ["transferred", "Transferred"], ["withdrawn", "Withdrawn"], ["passed_out", "Passed out"], ["all", "All"]];
+const STUDENT_STATUS: [string, string][] = [["active", "Active"], ["left", "Left"], ["transferred", "Transferred"], ["withdrawn", "Withdrawn"], ["passed_out", "Passed out"], ["admission_pending", "Admission in progress"], ["all", "All"]];
 const SORTS: [string, string][] = [["name", "Name"], ["class", "Class & roll"], ["adm", "Admission no."], ["newest", "Newest first"], ["dues", "Highest dues"]];
 const CATEGORIES = ["General", "OBC", "SC", "ST", "EWS", "Other"];
 

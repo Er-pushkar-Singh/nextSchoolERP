@@ -4,6 +4,8 @@ import { requirePerm } from "@/lib/school";
 import { Badge, Card, Empty, Flash, Input, PageHeader, Select, Stat, Submit, Table, Textarea, td } from "@/components/ui/ui";
 import { ApplicationForm } from "@/components/ApplicationForm";
 import { ClassSection } from "@/components/ClassSection";
+import { AdmissionTracker, type Step } from "@/components/AdmissionTracker";
+import { beginAdmission, waiveDocs, waiveFee } from "../../../_actions/admission-flow";
 import { addDays, fmtDate, money, todayIST } from "@/lib/format";
 import { getClasses } from "@/lib/erp";
 import { ageWarning } from "@/lib/student-form";
@@ -27,15 +29,30 @@ export default async function ApplicationPage({ params, searchParams }: { params
   const sp = await searchParams;
   const { data: a } = await supabase.from("admission_applications").select("*").eq("id", id).eq("school_id", school.id).maybeSingle();
   if (!a) notFound();
-  const [classes, { data: docs }, { data: events }, seatsQ, sibQ, quoteQ, { data: fups }] = await Promise.all([
+  const [classes, { data: docs }, timelineQ, seatsQ, sibQ, quoteQ, { data: fups }, progQ] = await Promise.all([
     getClasses(supabase, school.id),
     supabase.from("application_documents").select("id,doc_type,title,status,file_name,due_by,uploaded_by_name,uploaded_at,verified_by_name,verified_at,reject_reason").eq("application_id", id).order("created_at"),
-    supabase.from("admission_application_events").select("id,at,actor_name,event,details").eq("application_id", id).order("id", { ascending: false }).limit(40),
+    supabase.rpc("application_timeline", { app: id }),
     session ? supabase.rpc("admission_seats", { sid: school.id, sess: a.session_id ?? session.id }) : Promise.resolve({ data: [] }),
     supabase.rpc("application_siblings", { app: id }),
     a.class_id && !["admitted", "cancelled", "rejected"].includes(a.status) ? supabase.rpc("admission_fee_quote", { app: id }) : Promise.resolve({ data: [] }),
     supabase.from("application_followups").select("id,due_on,channel,note,done,outcome").eq("application_id", id).order("due_on", { ascending: false }).limit(10),
+    supabase.rpc("application_progress", { app: id }),
   ]);
+  const prog = (progQ.data ?? null) as null | {
+    stage: string; steps: Step[]; blockers: string[]; can_approve: boolean; can_start: boolean; can_allot: boolean; seat_free: number | null; student_id: string | null;
+    fee: { required: number; paid: number; balance: number; ready: boolean; waived: boolean; lines: number } | null; fee_before_allotment: boolean; strict: boolean; docs_missing: string[];
+  };
+  const timeline = (timelineQ.data ?? []) as { at: string; actor: string | null; event: string; details: { note?: string; receipt?: string; amount?: number } | null; source: string }[];
+  const stuId = prog?.student_id ?? a.student_id ?? null;
+  const [duesQ, rcptQ] = stuId
+    ? await Promise.all([
+        supabase.from("fee_dues").select("id,label,due_date,amount,concession,fine,paid,status").eq("student_id", stuId).order("due_date"),
+        supabase.from("fee_receipts").select("id,receipt_no,paid_on,amount,mode,cancelled").eq("student_id", stuId).order("paid_on", { ascending: false }).limit(10),
+      ])
+    : [{ data: [] }, { data: [] }];
+  const feeDues = (duesQ.data ?? []) as { id: string; label: string; due_date: string; amount: number; concession: number; fine: number; paid: number; status: string }[];
+  const feeReceipts = (rcptQ.data ?? []) as { id: string; receipt_no: string; paid_on: string; amount: number; mode: string; cancelled: boolean }[];
   const siblings = (sibQ.data ?? []) as { student_id: string; name: string; admission_no: string; class_name: string | null }[];
   const quote = (quoteQ.data ?? []) as { head: string; label: string; due_date: string; amount: number }[];
   const followups = (fups ?? []) as { id: string; due_on: string; channel: string; note: string | null; done: boolean; outcome: string | null }[];
@@ -82,6 +99,7 @@ export default async function ApplicationPage({ params, searchParams }: { params
           {a.student_id && <Link href={`/app/students/${a.student_id}`} className="btn btn-sm btn-primary">Open student</Link>}
         </>} />
       <Flash ok={sp.ok} error={sp.error} />
+      {prog && <AdmissionTracker steps={prog.steps} stage={prog.stage} />}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Documents" value={`${ADMISSION_DOCS.length - missingDocs.length}/${ADMISSION_DOCS.length}`} hint={missingDocs.length ? `${missingDocs.length} pending` : "all received"} icon="layers" tone={missingDocs.length ? "amber" : "green"} />
@@ -202,26 +220,94 @@ export default async function ApplicationPage({ params, searchParams }: { params
             <div className="flex flex-wrap gap-2">
               {a.status === "submitted" && <button name="status" value="under_review" className="btn btn-sm btn-secondary cursor-pointer">Start review</button>}
               {["submitted", "under_review"].includes(a.status) && <button name="status" value="test_scheduled" className="btn btn-sm btn-secondary cursor-pointer">Test scheduled (set date above first)</button>}
-              {approve && a.status !== "approved" && <button name="status" value="approved" className="btn btn-sm btn-primary cursor-pointer">Approve</button>}
+              {approve && a.status !== "approved" && <button name="status" value="approved" disabled={Boolean(prog && !prog.can_approve)} title={prog && !prog.can_approve ? prog.blockers.join("; ") : undefined} className="btn btn-sm btn-primary cursor-pointer disabled:cursor-not-allowed disabled:opacity-50">Approve</button>}
               {approve && a.status !== "waitlisted" && <button name="status" value="waitlisted" className="btn btn-sm btn-secondary cursor-pointer">Waitlist</button>}
               {approve && <button name="status" value="rejected" className="btn btn-sm btn-secondary cursor-pointer">Reject</button>}
               <button name="status" value="cancelled" className="btn btn-sm cursor-pointer border border-line bg-white text-error">Cancel application</button>
             </div>
           </form>
+          {prog && !prog.can_approve && a.status !== "approved" && (
+            <div className="mt-3 rounded-[10px] border border-[#f1d39a] bg-[#fff4e0] p-3 text-[14px] text-[#7a4b00]">
+              <b>Approval is waiting for:</b>
+              <ul className="my-1 pl-5">{prog.blockers.map((b) => <li key={b}>{b}</li>)}</ul>
+              {approve && prog.docs_missing.length > 0 && a.docs_waiver_note == null && (
+                <form action={waiveDocs} className="mt-2 flex flex-wrap items-end gap-2">
+                  <input type="hidden" name="id" value={id} />
+                  <Input label="Waive the missing documents — reason" name="note" required className="min-w-[260px] flex-1" />
+                  <Submit variant="secondary">Waive documents</Submit>
+                </form>
+              )}
+            </div>
+          )}
+          {a.docs_waiver_note && <p className="mt-3 mb-0 text-[13px] text-muted">Documents waived by {a.docs_waived_by || "the principal"}: {a.docs_waiver_note}</p>}
         </Card>
       )}
       {a.status === "rejected" && a.decision_note && <p className="m-0 text-[14px] text-error">Rejected: {a.decision_note}</p>}
 
+      {(a.status === "approved" || a.status === "admitted" || stuId) && (
+        <Card title="Admission fee" icon="fees" description="Step 6 — the family pays before a class and section are given. The fees of the class applied for are billed when the admission is started.">
+          <span id="fee" />
+          {!stuId ? (
+            approve && a.status === "approved" ? (
+              <form action={beginAdmission} className="grid gap-3 sm:grid-cols-4">
+                <input type="hidden" name="id" value={id} />
+                <Input label="Admission no." name="admission_no" hint="Blank = next number" />
+                <Input label="Admission date" name="admission_date" type="date" defaultValue={todayIST()} />
+                <div className="flex items-end sm:col-span-2"><Submit>Start admission &amp; bill fees</Submit></div>
+              </form>
+            ) : <p className="m-0 text-[14px] text-muted">The principal starts the admission after approval; the fees are billed then.</p>
+          ) : (
+            <>
+              <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <Stat label="Admission fee" value={money(prog?.fee?.required ?? 0)} icon="fees" />
+                <Stat label="Paid" value={money(prog?.fee?.paid ?? 0)} icon="revenue" tone="green" />
+                <Stat label="Balance" value={money(prog?.fee?.balance ?? 0)} icon="notifications" tone={prog?.fee?.ready ? "green" : "rose"} />
+                <Stat label="Status" value={prog?.fee?.waived ? "Waived" : prog?.fee?.ready ? "Paid" : "Pending"} icon="school" tone={prog?.fee?.ready ? "green" : "amber"} />
+              </div>
+              {feeDues.length > 0 && (
+                <Table head={["Fee", "Due", "Amount", "Paid", "Balance"]} minWidth={520}>
+                  {feeDues.map((d) => (
+                    <tr key={d.id}><td className={td}>{d.label}</td><td className={td}>{fmtDate(d.due_date)}</td><td className={td}>{money(Number(d.amount) - Number(d.concession) + Number(d.fine))}</td>
+                      <td className={td}>{money(d.paid)}</td><td className={`${td} font-semibold text-ink`}>{money(Math.max(Number(d.amount) - Number(d.concession) + Number(d.fine) - Number(d.paid), 0))}</td></tr>
+                  ))}
+                </Table>
+              )}
+              {feeReceipts.length > 0 && (
+                <ul className="m-0 mt-3 list-none p-0 text-[14px]">
+                  {feeReceipts.map((r) => <li key={r.id} className="flex justify-between gap-2 border-t border-line py-1.5 first:border-0"><Link href={`/app/fees/receipts/${r.id}`} className="font-mono text-[13px]">{r.receipt_no}</Link><span className="text-muted">{fmtDate(r.paid_on)} · {r.mode}</span><b className={r.cancelled ? "line-through text-muted" : ""}>{money(r.amount)}</b></li>)}
+                </ul>
+              )}
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                {can("fees.collection.create") && !prog?.fee?.ready && <Link href={`/app/fees/collect?student=${stuId}`} className="btn btn-sm btn-primary">Collect admission fee</Link>}
+                {a.fee_waiver_note && <span className="text-[13px] text-muted">Waived by {a.fee_waived_by || "the principal"}: {a.fee_waiver_note}</span>}
+              </div>
+              {approve && a.status === "approved" && !prog?.fee?.ready && (
+                <form action={waiveFee} className="mt-3 flex flex-wrap items-end gap-2 border-t border-line pt-3">
+                  <input type="hidden" name="id" value={id} />
+                  <Input label="Waive the admission fee (principal) — reason" name="note" required className="min-w-[260px] flex-1" />
+                  <Submit variant="secondary">Waive fee</Submit>
+                </form>
+              )}
+            </>
+          )}
+        </Card>
+      )}
+
       {a.status === "approved" && approve && (
-        <Card title="Admit" icon="students" description="Creates the student record, class history, documents, contacts and fee dues from this application.">
-          <form action={admitApplication} className="grid gap-3 sm:grid-cols-4">
-            <input type="hidden" name="id" value={id} />
-            <ClassSection classes={classes} classId={a.class_id} required />
-            <Input label="Roll no." name="roll_no" type="number" min={1} />
-            <Input label="Admission no." name="admission_no" hint="Blank = next number" />
-            <Input label="Admission date" name="admission_date" type="date" defaultValue={todayIST()} />
-            <div className="flex items-end sm:col-span-4"><Submit>Admit student</Submit></div>
-          </form>
+        <Card title="Class & section" icon="students" description="Step 7 — the last step. The class and section are given only after the admission fee is paid or waived.">
+          {prog?.can_allot || (!prog?.fee_before_allotment) ? (
+            <form action={admitApplication} className="grid gap-3 sm:grid-cols-4">
+              <input type="hidden" name="id" value={id} />
+              <ClassSection classes={classes} classId={a.class_id} required />
+              <Input label="Roll no." name="roll_no" type="number" min={1} />
+              <Input label="Admission no." name="admission_no" hint={stuId ? "Already given — leave blank" : "Blank = next number"} />
+              <Input label="Admission date" name="admission_date" type="date" defaultValue={todayIST()} />
+              {prog?.seat_free !== null && prog?.seat_free !== undefined && <p className="m-0 text-[13px] text-muted sm:col-span-4">Free seats in the applied class: <b className={prog.seat_free <= 0 ? "text-error" : "text-ink"}>{prog.seat_free}</b></p>}
+              <div className="flex items-end sm:col-span-4"><Submit>Complete admission</Submit></div>
+            </form>
+          ) : (
+            <p className="m-0 rounded-[10px] bg-surface px-3 py-2 text-[14px] text-muted">🔒 Locked until the admission fee is paid{stuId ? ` (balance ${money(prog?.fee?.balance ?? 0)})` : " — start the admission above first"}.</p>
+          )}
         </Card>
       )}
 
@@ -265,14 +351,18 @@ export default async function ApplicationPage({ params, searchParams }: { params
         )}
       </div>
 
-      <Card title="History" icon="notifications">
-        {(events ?? []).length ? (
-          <Table head={["When", "Who", "What"]} minWidth={480}>
-            {(events ?? []).map((e) => (
-              <tr key={e.id}><td className={td}>{fmtDate(e.at)}</td><td className={`${td} text-[13px]`}>{e.actor_name || "—"}</td>
-                <td className={td}>{e.event}{(e.details as { note?: string })?.note ? <div className="text-[12px] text-muted">{(e.details as { note?: string }).note}</div> : null}</td></tr>
+      <Card title="Timeline" icon="notifications" description="Everything that happened on this admission, newest first.">
+        {timeline.length ? (
+          <ol className="m-0 list-none border-l-2 border-line p-0 pl-4">
+            {timeline.map((e, i) => (
+              <li key={i} className="relative pb-3 text-[14px] last:pb-0">
+                <span className="absolute -left-[22px] top-1.5 h-2.5 w-2.5 rounded-full bg-blue" />
+                <b className="text-ink">{e.event}</b>
+                {e.details?.receipt ? <span className="text-muted"> · {e.details.receipt} · {money(e.details.amount ?? 0)}</span> : null}
+                <div className="text-[12px] text-muted">{fmtDate(e.at)}{e.actor ? ` · ${e.actor}` : ""}{e.details?.note ? ` — ${e.details.note}` : ""}</div>
+              </li>
             ))}
-          </Table>
+          </ol>
         ) : <Empty>No history.</Empty>}
       </Card>
     </div>

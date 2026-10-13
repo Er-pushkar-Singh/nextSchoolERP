@@ -20,7 +20,7 @@ export default async function Issue({ searchParams }: { searchParams: Promise<{ 
   const { data: t } = await supabase.from("document_templates").select("*").eq("id", tplId).eq("school_id", school.id).maybeSingle();
   if (!t || !t.active) notFound();
   const [{ data: s }, { data: w }, { data: dues }, { data: prev }] = await Promise.all([
-    stu ? supabase.from("students").select("id,first_name,middle_name,last_name,admission_no,status,dob,father_name,classes(name),sections(name)").eq("id", stu).eq("school_id", school.id).maybeSingle() : Promise.resolve({ data: null }),
+    stu ? supabase.from("students").select("id,first_name,middle_name,last_name,admission_no,status,dob,father_name,classes!class_id(name),sections(name)").eq("id", stu).eq("school_id", school.id).maybeSingle() : Promise.resolve({ data: null }),
     stf ? supabase.from("staff").select("id,name,designation,emp_code,status").eq("id", stf).eq("school_id", school.id).maybeSingle() : Promise.resolve({ data: null }),
     stu ? supabase.from("fee_dues").select("amount,concession,fine,paid").eq("student_id", stu) : Promise.resolve({ data: [] }),
     supabase.from("issued_documents").select("doc_no").eq("school_id", school.id).eq("template_code", t.code).eq("status", "issued").eq(stu ? "student_id" : "staff_id", (stu ?? stf)!).limit(5),

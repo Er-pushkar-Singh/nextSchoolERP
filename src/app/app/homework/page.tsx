@@ -22,7 +22,7 @@ export default async function Homework({ searchParams }: { searchParams: Promise
   const today = todayIST();
 
   let q = supabase.from("homework")
-    .select("id,kind,class_id,section_id,subject_id,title,details,link_url,assigned_on,due_on,created_by_name,classes(name),sections(name),subjects(name)")
+    .select("id,kind,class_id,section_id,subject_id,title,details,link_url,assigned_on,due_on,created_by_name,classes!class_id(name),sections(name),subjects(name)")
     .eq("school_id", school.id).eq("kind", kind).order("assigned_on", { ascending: false }).order("created_at", { ascending: false }).limit(100);
   if (isUuid(sp.class_id)) q = q.eq("class_id", sp.class_id!);
   if (isUuid(sp.section_id)) q = q.or(`section_id.is.null,section_id.eq.${sp.section_id}`);

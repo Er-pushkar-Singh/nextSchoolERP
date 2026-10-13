@@ -23,7 +23,7 @@ export default async function RoutePage({ params, searchParams }: { params: Prom
     supabase.from("transport_stops").select("id,name,sort,pickup_time,drop_time,monthly_fee").eq("route_id", id).order("sort").order("name"),
     supabase.from("transport_vehicles").select("*").eq("school_id", school.id).order("reg_no"),
     session && can("transport.allocation.view")
-      ? supabase.from("transport_allocations").select("id,stop_id,trip,students(id,admission_no,first_name,last_name,guardian_phone,classes(name),sections(name))").eq("route_id", id).eq("session_id", session.id).is("end_date", null)
+      ? supabase.from("transport_allocations").select("id,stop_id,trip,students(id,admission_no,first_name,last_name,guardian_phone,classes!class_id(name),sections(name))").eq("route_id", id).eq("session_id", session.id).is("end_date", null)
       : Promise.resolve({ data: null }),
   ]);
   const S = (stops ?? []) as Stop[];

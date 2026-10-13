@@ -11,7 +11,7 @@ export default async function NewCertificate({ searchParams }: { searchParams: P
   if (!sp.student || !/^[0-9a-f-]{36}$/.test(sp.student)) notFound();
   const kind = CERT_KINDS.some(([k]) => k === sp.kind) ? sp.kind! : "bonafide";
   const { data: s } = await supabase.from("students")
-    .select("id,admission_no,first_name,middle_name,last_name,father_name,mother_name,dob,status,tc_no,admission_date,classes(name),sections(name)").eq("id", sp.student).eq("school_id", school.id).maybeSingle();
+    .select("id,admission_no,first_name,middle_name,last_name,father_name,mother_name,dob,status,tc_no,admission_date,classes!class_id(name),sections(name)").eq("id", sp.student).eq("school_id", school.id).maybeSingle();
   if (!s) notFound();
   const [{ data: dues }, { data: prev }] = await Promise.all([
     supabase.from("fee_dues").select("amount,concession,fine,paid").eq("student_id", s.id),

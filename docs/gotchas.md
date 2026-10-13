@@ -61,3 +61,14 @@ Things that have already bitten this project. Check here before debugging someth
 - `like_escape()` is used for every search; never interpolate user text into `.or(ilike…)` any more — call the list functions.
 - Page files in the App Router may export only the page itself (no extra `export const`); keep shared constants in `src/lib`.
 - A `<form>` or block element inside `<p>` breaks hydration. `node scratchpad/nestcheck.mjs` (JSX nesting) and `schemacheck.mjs` (columns / RPC names vs the real schema) were used to audit the code; both are worth re-creating in `scripts/` if the screens grow.
+
+## Admission flow traps (step 13)
+- `students.class_id` is NULL while `status = 'admission_pending'`. Anything that joins students to classes with an inner join will not see them (intended). `bill_student_dues()` (class from the student) is for active students; applicants are billed with `bill_application_dues(sid, stu, class)`.
+- Approval is gated inside `guard_application()` (needs `approval_blockers(new)`); do not approve with a plain update in new code unless `strict_workflow` is off for that school.
+- `admit_application()` sets `app.admitting = '1'` before touching the application row; the "class is fixed once the admission started" guard honours that flag.
+- `application_board()` recomputes the stage per row (no stored stage column) — keep the stage rules in sync with `application_progress()`.
+
+## Step 14 traps
+- **One foreign key per pair of tables** is the safest design for PostgREST embeds. Two FKs (e.g. `students.class_id` and `students.admission_class_id` → `classes`) make `classes(name)` ambiguous and the whole page returns "not found" (the code treated the error as "no row"). Either use one FK (the rest plain uuid columns) or write `classes!class_id(name)`.
+- Pages that do `if (!row) notFound()` also swallow query errors. When a page 404s for a record that exists, check the select string first.
+- Do not name a plpgsql parameter `kind` when the query touches a table that has a column `kind` (`fee_dues.kind`): use `p_kind`.

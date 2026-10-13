@@ -19,7 +19,7 @@ export default async function StudentPage({ params, searchParams }: { params: Pr
   const sp = await searchParams;
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
   const { supabase, school, session, can } = await requirePerm("students.profile.view");
-  const { data: s } = await supabase.from("students").select("*, classes(name), sections(name)").eq("id", id).eq("school_id", school.id).maybeSingle();
+  const { data: s } = await supabase.from("students").select("*, classes!class_id(name), sections(name)").eq("id", id).eq("school_id", school.id).maybeSingle();
   if (!s) notFound();
   const fees = can("fees.collection.view");
   const feeWrite = can("fees.concessions.create");
@@ -84,6 +84,12 @@ ${link}`) : null;
         actions={fees && !isNaN(due) && can("fees.collection.create") && due > 0 ? <Link href={`/app/fees/collect?student=${id}`} className="btn btn-sm btn-primary">Collect fee</Link> : undefined}
       />
       <Flash ok={sp.ok} error={sp.error} />
+      {s.status === "admission_pending" && (
+        <div role="note" className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-[#cfd9f7] bg-blue-tint px-4 py-3 text-[14px] text-blue-strong">
+          <span><b>Admission in progress.</b> No class or section yet — they are given at the last step, after the admission fee is paid.</span>
+          {s.application_id && <Link href={`/app/admissions/applications/${s.application_id}`} className="btn btn-sm btn-primary">Open admission file</Link>}
+        </div>
+      )}
       {isBlocked && (
         <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-[#f3b8b1] bg-[#fdecea] px-4 py-3 text-[14px] text-[#7a1a12]">
           <span><b>Blocked</b>{s.blocked_till ? ` until ${fmtDate(s.blocked_till)}` : ""} — {s.block_reason}{s.blocked_by_name ? ` (by ${s.blocked_by_name})` : ""}. The parent link shows a notice instead of the student&apos;s page.</span>

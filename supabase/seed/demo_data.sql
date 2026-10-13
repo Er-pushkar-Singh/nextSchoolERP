@@ -11,7 +11,7 @@
 --   • Settings: late fine, concession approval, sibling discount, seats per class, extra sections
 --   • Fee structure for Nursery–10 (tuition monthly, admission, annual, exam) → dues for every student
 --   • 39 students (3 per class) incl. 3 sibling pairs and 2 RTE students
---   • 6 enquiries and 16 admission applications in every state (received … admitted, waitlisted, rejected)
+--   • 6 enquiries and 18 admission applications in every state (received … admitted, waitlisted, rejected)
 --   • Concessions (approved / pending / rejected), receipts (cash, UPI, split, cheque), advance, bounced cheque,
 --     refunds (paid / approved / requested), waivers, extension, split instalment, promises to pay, day close
 -- Also: 8 staff (one left, one blocked) and one blocked student.
@@ -64,8 +64,9 @@ begin
   values (sid, true, 'per_day', 5, 5, 200, true, true, 100, 10, 'Fees once paid are not refundable. Please keep this receipt.')
   on conflict (school_id) do update set fine_enabled = true, fine_mode = 'per_day', fine_amount = 5, fine_grace_days = 5, fine_cap = 200, concession_approval = true,
         advance_allowed = true, bounce_charge = 100, sibling_percent = 10, receipt_footer = excluded.receipt_footer;
-  insert into public.admission_settings (school_id, offer_days, auto_sibling_discount) values (sid, 7, true)
-  on conflict (school_id) do update set offer_days = 7, auto_sibling_discount = true;
+  insert into public.admission_settings (school_id, offer_days, auto_sibling_discount, strict_workflow, fee_before_allotment, require_test, required_docs)
+  values (sid, 7, true, true, true, false, array['birth_certificate','photo'])
+  on conflict (school_id) do update set offer_days = 7, auto_sibling_discount = true, strict_workflow = true, fee_before_allotment = true, require_test = false, required_docs = array['birth_certificate','photo'];
 
   select id into head_tui from public.fee_heads where school_id = sid and name = 'Tuition Fee';
   select id into head_adm from public.fee_heads where school_id = sid and name = 'Admission Fee';
@@ -251,8 +252,8 @@ begin
     (sid, 'Lakshya Verma',  '3',   'Sandeep Verma', '9810011005', 'Banner/Hoarding',    'lost',      null,             'DEMO · joined another school'),
     (sid, 'Navya Mishra',   'UKG', 'Alok Mishra',   '9810011006', 'WhatsApp',           'new',       current_date - 1, 'DEMO · asked about transport');
 
-  -- 16 applications: class 6 (5 seats, nearly full) and 1 / 9
-  for i in 1..16 loop
+  -- 18 applications: class 6 (5 seats, nearly full) and 1 / 9
+  for i in 1..18 loop
     gender := case when i % 2 = 0 then 'F' else 'M' end;
     fn := case when gender = 'F' then girls[1 + (i * 9) % 20] else boys[1 + (i * 7) % 20] end;
     ln := surn[1 + (i * 3) % 16];
@@ -260,10 +261,11 @@ begin
          'guardian_phone', '97' || lpad((20000000 + i * 6007)::text, 8, '0'), 'city', 'Lucknow', 'district', 'Lucknow', 'state', 'Uttar Pradesh', 'category', (array['General','OBC','SC'])[1 + i % 3],
          'medium', 'hindi', 'previous_school', 'Little Angels School', 'demo', true,
          'dob', make_date(yr - case when i <= 10 then 11 when i <= 13 then 6 else 14 end, 1 + i % 12, 1 + (i * 3) % 27)::text);
+    if i = 1 then f := f - 'mother_name' - 'city'; end if;                -- details still incomplete → stage "details"
     -- application 16 is the brother of student 5; application 15 of student 9 → sibling discount at admit
     if i = 16 then f := f || jsonb_build_object('father_name', (select father_name from public.students where id = student_ids[5]), 'mother_name', (select mother_name from public.students where id = student_ids[5]),
                                                  'guardian_phone', (select guardian_phone from public.students where id = student_ids[5]), 'last_name', (select last_name from public.students where id = student_ids[5])); end if;
-    app := public.create_application(sid, case when i <= 10 then c6 when i <= 13 then c1 else c9 end, null, f, i in (4, 12), case when i in (4, 12) then 'RTE/UP/2026/' || (1000 + i) end,
+    app := public.create_application(sid, case when i <= 10 or i = 16 then c6 when i <= 13 then c1 else c9 end, null, f, i in (4, 12), case when i in (4, 12) then 'RTE/UP/2026/' || (1000 + i) end,
                                      (array['Walk-in','Online','Referral','Google','Online'])[1 + i % 5]);
     -- documents
     insert into public.application_documents (school_id, application_id, doc_type, status, due_by) values
@@ -275,10 +277,24 @@ begin
     if i in (1, 2, 3) then null;                                                                 -- received
     elsif i in (4, 5) then update public.admission_applications set status = 'under_review' where id = app;
     elsif i in (6, 7) then update public.admission_applications set test_on = current_date + i, interview_on = current_date + i, status = 'test_scheduled' where id = app;
-    elsif i in (8, 9, 10) then
-      update public.admission_applications set test_on = current_date - 5, test_marks = 30 + i * 2, test_max = 50, fee_amount = 300, fee_paid_on = current_date - 6, fee_mode = 'cash' where id = app;
+    elsif i in (8, 9, 10, 17, 18) then
+      update public.admission_applications set test_on = current_date - 5, test_marks = 30 + i, test_max = 50, fee_amount = 300, fee_paid_on = current_date - 6, fee_mode = 'cash' where id = app;
+      perform public.waive_application_docs(app, 'Demo: certificates to be submitted within a week');
       update public.admission_applications set status = 'approved', decision_note = 'Good performance in the entrance test' where id = app;
       if i = 10 then update public.admission_applications set offer_valid_till = current_date + 1 where id = app; end if;      -- offer about to lapse
+      -- 8, 9 wait at "start admission"; 10 and 17 have started (10 unpaid, 17 half paid); 18 is fully paid and ready for class & section
+      if i in (10, 17, 18) then
+        stu := public.begin_admission(app, null, current_date - 2);
+        if i in (17, 18) then
+          perform public.apply_late_fines(sid, current_date);
+          select coalesce(array_agg(id), '{}'), coalesce(sum(greatest(amount - concession + fine - paid, 0)), 0) into due_ids, bal
+            from public.fee_dues where student_id = stu and kind = 'plan' and due_date <= current_date + 31;
+          if cardinality(due_ids) > 0 and bal > 0 then
+            perform public.collect_fee_v2(sid, stu, jsonb_build_array(jsonb_build_object('mode', 'upi', 'amount', case when i = 17 then round(bal / 2) else bal end, 'reference', 'ADM-UPI-' || i)),
+                                          due_ids, 0, current_date - 1, 'Demo: admission fee', collectors[1], 0);
+          end if;
+        end if;
+      end if;
     elsif i = 11 then
       update public.admission_applications set status = 'waitlisted', decision_note = 'Seats full — waitlisted' where id = app;
     elsif i = 12 then
@@ -289,7 +305,15 @@ begin
       update public.admission_applications set status = 'cancelled', decision_note = 'Parents withdrew the application' where id = app;
     elsif i in (15, 16) then
       update public.admission_applications set test_on = current_date - 10, test_marks = 42, test_max = 50 where id = app;
+      perform public.waive_application_docs(app, 'Demo: certificates to be submitted within a week');
       update public.admission_applications set status = 'approved', decision_note = 'Approved' where id = app;
+      stu := public.begin_admission(app, null, current_date - 6);
+      perform public.apply_late_fines(sid, current_date);
+      select coalesce(array_agg(id), '{}'), coalesce(sum(greatest(amount - concession + fine - paid, 0)), 0) into due_ids, bal
+        from public.fee_dues where student_id = stu and kind = 'plan' and due_date <= current_date + 31;
+      if cardinality(due_ids) > 0 and bal > 0 then
+        perform public.collect_fee_v2(sid, stu, jsonb_build_array(jsonb_build_object('mode', 'cash', 'amount', bal)), due_ids, 0, current_date - 5, 'Demo: admission fee', collectors[1], 0);
+      end if;
       perform public.admit_application(app, case when i = 15 then c9 else c6 end,
               (select id from public.sections where class_id = case when i = 15 then c9 else c6 end order by name limit 1), null, current_date - 4, null);
     end if;

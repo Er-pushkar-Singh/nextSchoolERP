@@ -81,7 +81,7 @@ begin
 
   -- ── Offer validity, tests, bulk status ──
   perform pg_temp.act_as(pr);
-  insert into public.admission_settings (school_id, offer_days) values (a, 5);
+  insert into public.admission_settings (school_id, offer_days, strict_workflow, fee_before_allotment) values (a, 5, false, false);
   insert into public.fee_settings (school_id, sibling_percent, sibling_head_id) values (a, 10, head)
     on conflict (school_id) do update set sibling_percent = 10, sibling_head_id = head;
   update public.admission_applications set status = 'approved' where id = app2;

@@ -44,6 +44,12 @@ Admissions pipeline dashboard, follow-ups, offer validity + lapse, waitlist prom
 ## Done in step 12
 Student and staff management at scale — database-side search / filters / sort / pagination, CSV export, block (ban) and unblock incl. real login shut-off, safe delete, bulk actions.
 
+## Done in step 13
+Admission as one guided flow: enquiry → details → documents → test → decision → admission fee → class & section, with gates, one file and one timeline.
+
+## Done in step 14
+Student / board 404 fix (ambiguous embed), fee templates (receipt, demand notice, statement), payment methods (cash, debit / credit card, others, gateway, payment links), payment-link register.
+
 ## Suggested order (updated)
 1. **Automatic SMS / WhatsApp** on events (fee reminders, receipts, absence)  2. Staff attendance → payroll  3. Timetable + calendar  4. Accounts  5. Hostel / inventory / health  6. Parent & student logins (PWA), admit cards (a template + exam data), UDISE+ export
 

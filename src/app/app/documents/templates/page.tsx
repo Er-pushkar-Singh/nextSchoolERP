@@ -7,7 +7,7 @@ import { seedTemplates } from "../../_actions/documents";
 export default async function Templates({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string }> }) {
   const { supabase, school, can } = await requirePerm("documents.templates.view");
   const sp = await searchParams;
-  const { data } = await supabase.from("document_templates").select("id,code,name,category,audience,page_size,card_width_mm,card_height_mm,active,is_system,version,numbering_prefix,updated_at").eq("school_id", school.id).order("category").order("name");
+  const { data } = await supabase.from("document_templates").select("id,code,name,category,audience,page_size,card_width_mm,card_height_mm,active,is_system,version,numbering_prefix,updated_at").eq("school_id", school.id).neq("category", "fees").order("category").order("name");
   const rows = data ?? [];
   const cat = new Map(CATEGORIES);
   return (

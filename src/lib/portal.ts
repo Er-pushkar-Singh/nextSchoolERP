@@ -9,7 +9,7 @@ export const portalStudent = cache(async (token: string) => {
   const db = supabaseAdmin();
   if (!db) throw new Error("SUPABASE_SECRET_KEY is not configured");
   const { data: s } = await db.from("students")
-    .select("id,school_id,admission_no,first_name,last_name,father_name,class_id,section_id,status,blocked_at,blocked_till,classes(name),sections(name), schools(id,name,address,city,phone,email,upi_id,bank_details,status,grade_scale,board,affiliation_no,principal_name,pincode)")
+    .select("id,school_id,admission_no,first_name,last_name,father_name,class_id,section_id,status,blocked_at,blocked_till,classes!class_id(name),sections(name), schools(id,name,address,city,phone,email,upi_id,bank_details,status,grade_scale,board,affiliation_no,principal_name,pincode)")
     .eq("portal_token", token).maybeSingle();
   if (!s) notFound();
   return { db, s: s as unknown as {

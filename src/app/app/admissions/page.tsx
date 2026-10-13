@@ -19,6 +19,8 @@ export default async function Admissions({ searchParams }: { searchParams: Promi
     supabase.from("enquiries").select("status").eq("school_id", school.id).gte("created_at", addDays(todayIST(), -365)),
   ]);
   const rows = (data ?? []) as Enq[];
+  const { data: linked } = rows.length ? await supabase.from("admission_applications").select("id,enquiry_id,status").in("enquiry_id", rows.map((r) => r.id)) : { data: [] };
+  const appOf = new Map((linked ?? []).map((x) => [x.enquiry_id as string, x as { id: string; status: string }]));
   const editing = sp.edit ? rows.find((r) => r.id === sp.edit) ?? (await supabase.from("enquiries").select("*").eq("id", sp.edit).eq("school_id", school.id).maybeSingle()).data as Enq | null : null;
   const counts = Object.fromEntries(STATUSES.map((s) => [s, (all ?? []).filter((r) => r.status === s).length]));
   const total = (all ?? []).length;
@@ -63,7 +65,8 @@ export default async function Admissions({ searchParams }: { searchParams: Promi
                 <td className={td}><Badge value={e.status} /></td>
                 <td className={`${td} whitespace-nowrap`}>
                   {wa && <a href={wa} target="_blank" rel="noopener" className="mr-3">WhatsApp</a>}
-                  {e.student_id ? <Link href={`/app/students/${e.student_id}`}>Student</Link> : e.status !== "lost" && can("students.profile.create") && <Link href={`/app/admissions/applications/new?enquiry=${e.id}`}>Admit →</Link>}
+                  {appOf.get(e.id) ? <Link href={`/app/admissions/applications/${appOf.get(e.id)!.id}`}>Open application →</Link>
+                    : e.status !== "lost" && can("frontdesk.admissions.create") && <Link href={`/app/admissions/applications/new?enquiry=${e.id}`}>Start application →</Link>}
                 </td>
               </tr>
             );

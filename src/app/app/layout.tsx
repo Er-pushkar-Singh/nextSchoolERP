@@ -51,6 +51,8 @@ const NAV: Entry[] = [
     { href: "/app/fees/charges", label: "Charges & fines", any: ["fees.dues.create"] },
     { href: "/app/fees/cheques", label: "Cheques", any: ["fees.collection.view"] },
     { href: "/app/fees/followups", label: "Promises to pay", any: ["fees.defaulters.view"] },
+    { href: "/app/fees/links", label: "Online payments & links", any: ["fees.online.view"] },
+    { href: "/app/fees/templates", label: "Fee templates", any: ["fees.structure.view", "documents.templates.view"] },
     { href: "/app/fees/refunds", label: "Refunds", any: ["fees.refunds.view"] },
     { href: "/app/fees/daybook", label: "Day book", any: ["fees.collection.view"] },
     { href: "/app/fees/reports", label: "Reports", any: ["fees.collection.view", "fees.receipts.view"] },

@@ -8,9 +8,14 @@ export async function GET(req: Request) {
   const status = u.searchParams.get("status");
   const cls = u.searchParams.get("class_id");
   let q = supabase.from("admission_applications")
-    .select("application_no,applicant_name,father_name,phone,status,rte_applicant,source,applied_on,test_on,test_marks,test_max,waitlist_no,decision_note,fee_amount,fee_paid_on,offer_valid_till,admitted_on,classes(name)")
+    .select("application_no,applicant_name,father_name,phone,status,rte_applicant,source,applied_on,test_on,test_marks,test_max,waitlist_no,decision_note,fee_amount,fee_paid_on,offer_valid_till,admitted_on,classes!class_id(name)")
     .eq("school_id", school.id);
   if (session) q = q.eq("session_id", session.id);
+  const stage = u.searchParams.get("stage");
+  if (stage && session) {
+    const { data: ids } = await supabase.rpc("application_board", { sid: school.id, sess: session.id, p_stage: stage, p_q: null, p_class: null, p_limit: 200, p_offset: 0 });
+    q = q.in("id", ((ids ?? []) as { id: string }[]).map((x) => x.id));
+  }
   if (status && Object.keys(APP_STATUS).includes(status)) q = q.eq("status", status);
   if (cls && /^[0-9a-f-]{36}$/.test(cls)) q = q.eq("class_id", cls);
   const rows: string[][] = [["Application", "Applicant", "Class", "Father", "Phone", "Status", "Waitlist", "RTE", "Source", "Applied on", "Test date", "Marks", "Out of", "Offer valid till", "Fee", "Fee paid on", "Admitted on", "Note"]];

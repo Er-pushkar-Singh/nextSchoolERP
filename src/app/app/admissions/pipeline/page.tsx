@@ -3,7 +3,9 @@ import { requirePerm } from "@/lib/school";
 import { Card, Empty, Flash, Input, PageHeader, Stat, Submit, Table, td } from "@/components/ui/ui";
 import { fmtDate, money, todayIST } from "@/lib/format";
 import { getClasses } from "@/lib/erp";
-import { APP_STATUS } from "@/lib/applications";
+import { APP_STATUS, STAGES as FLOW_STAGES } from "@/lib/applications";
+import { DOC_TYPES } from "@/lib/student-docs";
+import { saveAdmissionFlow } from "../../_actions/admission-flow";
 import { lapseOffers, promoteWaitlist, saveAdmissionSettings } from "../../_actions/admissions2";
 
 type Pipe = { by_status: Record<string, number>; by_source: { source: string; applications: number; admitted: number }[]; avg_days_to_decision: number | null;
@@ -17,7 +19,7 @@ export default async function Pipeline({ searchParams }: { searchParams: Promise
   const sp = await searchParams;
   if (!session) return <Empty>No current session. Set one in Settings.</Empty>;
   const today = todayIST();
-  const [pipeQ, seatsQ, classes, { data: settings }, { data: expiring }, { data: followups }, { count: enq }] = await Promise.all([
+  const [pipeQ, seatsQ, classes, { data: settings }, { data: expiring }, { data: followups }, { count: enq }, stageQ, cfgQ] = await Promise.all([
     supabase.rpc("admission_pipeline", { sid: school.id, sess: session.id }),
     supabase.rpc("admission_seats", { sid: school.id, sess: session.id }),
     getClasses(supabase, school.id),
@@ -25,7 +27,11 @@ export default async function Pipeline({ searchParams }: { searchParams: Promise
     supabase.from("admission_applications").select("id,application_no,applicant_name,class_id,offer_valid_till").eq("school_id", school.id).eq("session_id", session.id).eq("status", "approved").not("offer_valid_till", "is", null).order("offer_valid_till").limit(12),
     supabase.from("application_followups").select("id,due_on,channel,note,application_id,enquiry_id,admission_applications(id,applicant_name,application_no),enquiries(id,student_name)").eq("school_id", school.id).eq("done", false).lte("due_on", today).order("due_on").limit(10),
     supabase.from("enquiries").select("id", { count: "exact", head: true }).eq("school_id", school.id),
+    supabase.rpc("application_stage_counts", { sid: school.id, sess: session.id }),
+    supabase.from("admission_settings").select("required_docs,require_test,fee_before_allotment,strict_workflow,fee_window_days").eq("school_id", school.id).maybeSingle(),
   ]);
+  const stageCounts = new Map(((stageQ.data ?? []) as { stage: string; n: number }[]).map((c) => [c.stage, Number(c.n)]));
+  const cfg = cfgQ.data ?? { required_docs: ["birth_certificate", "photo"], require_test: false, fee_before_allotment: true, strict_workflow: true, fee_window_days: 31 };
   const p = (pipeQ.data ?? { by_status: {}, by_source: [] }) as Pipe;
   const n = (s: string) => p.by_status[s] ?? 0;
   const total = Object.values(p.by_status).reduce((t, v) => t + v, 0);
@@ -47,6 +53,20 @@ export default async function Pipeline({ searchParams }: { searchParams: Promise
         <Stat label="Avg. days to decision" value={p.avg_days_to_decision ?? "—"} hint={p.oldest_open_days !== null ? `oldest open: ${p.oldest_open_days} days` : undefined} icon="notifications" tone="amber" />
         <Stat label="Application fee received" value={money(p.fee_received)} hint={`${p.docs_pending} with documents pending`} icon="fees" tone="green" />
       </div>
+
+      <Card title="Where every application stands" icon="layers" description="The fixed order: details → documents → test → decision → admission fee → class & section.">
+        <ol className="m-0 grid list-none gap-3 p-0 sm:grid-cols-3 lg:grid-cols-6">
+          {FLOW_STAGES.filter(([k]) => !["closed", "waitlist"].includes(k)).map(([k, l], i) => (
+            <li key={k}>
+              <Link href={`/app/admissions/applications?stage=${k}`} className="block rounded-[12px] border border-line bg-white p-3 no-underline hover:border-blue">
+                <span className="text-[12px] text-muted">{i + 1}. {l}</span>
+                <b className="block text-[24px] text-ink">{stageCounts.get(k) ?? 0}</b>
+              </Link>
+            </li>
+          ))}
+        </ol>
+        <p className="mt-3 mb-0 text-[13px] text-muted">Waitlisted: {stageCounts.get("waitlist") ?? 0} · Closed (rejected / cancelled): {stageCounts.get("closed") ?? 0}</p>
+      </Card>
 
       <div className="grid gap-5 lg:grid-cols-2">
         <Card title="Funnel" icon="layers">
@@ -123,6 +143,29 @@ export default async function Pipeline({ searchParams }: { searchParams: Promise
           ) : <p className="m-0 text-[14px] text-muted">Nothing due. 🎉</p>}
         </Card>
       </div>
+
+      {canApprove && (
+        <Card title="Admission flow rules" icon="school" description="What must be complete before each step. Applies to every new approval.">
+          <form action={saveAdmissionFlow} className="grid gap-4">
+            <fieldset className="m-0 border-0 p-0">
+              <legend className="mb-1 text-[13px] font-semibold text-ink">Documents required before approval</legend>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-[14px]">
+                {DOC_TYPES.filter(([k]) => k !== "other").map(([k, l]) => (
+                  <label key={k} className="flex items-center gap-1"><input type="checkbox" name="required_docs" value={k} defaultChecked={(cfg.required_docs ?? []).includes(k)} /> {l}</label>
+                ))}
+              </div>
+            </fieldset>
+            <label className="flex items-start gap-2 text-[14px]"><input type="checkbox" name="strict_workflow" defaultChecked={cfg.strict_workflow} className="mt-1" />
+              <span><b className="text-ink">Check the file before approval</b><span className="block text-[13px] text-muted">An application cannot be approved while details, required documents (or test marks) are missing.</span></span></label>
+            <label className="flex items-start gap-2 text-[14px]"><input type="checkbox" name="require_test" defaultChecked={cfg.require_test} className="mt-1" />
+              <span><b className="text-ink">Entrance test / interview is required</b><span className="block text-[13px] text-muted">Approval waits for the test marks.</span></span></label>
+            <label className="flex items-start gap-2 text-[14px]"><input type="checkbox" name="fee_before_allotment" defaultChecked={cfg.fee_before_allotment} className="mt-1" />
+              <span><b className="text-ink">Admission fee before class &amp; section</b><span className="block text-[13px] text-muted">The student record is created without a class; the class and section are given only after the fee is paid (or waived by the principal).</span></span></label>
+            <div className="max-w-xs"><Input label="Admission fee = dues falling due within (days)" name="fee_window_days" type="number" min={0} max={365} defaultValue={cfg.fee_window_days} hint="Admission, annual and the first instalments are usually due within a month." /></div>
+            <div><Submit>Save flow rules</Submit></div>
+          </form>
+        </Card>
+      )}
 
       {canApprove && (
         <Card title="Admission settings" icon="school">

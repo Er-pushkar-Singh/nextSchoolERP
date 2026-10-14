@@ -327,7 +327,8 @@
             "create",
             "edit",
             "export"
-          ]
+          ],
+          "built": true
         }
       ]
     },

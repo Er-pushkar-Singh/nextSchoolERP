@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requirePerm } from "@/lib/school";
-import { Card, Empty, Flash, PageHeader, Submit } from "@/components/ui/ui";
+import { Card, Empty, Flash, PageHeader, Stat, Submit } from "@/components/ui/ui";
 import { ClassSection } from "@/components/ClassSection";
 import { AttendanceGrid } from "@/components/AttendanceGrid";
 import { WaQueue } from "@/components/WaQueue";
@@ -24,10 +24,23 @@ export default async function Attendance({ searchParams }: { searchParams: Promi
   const cls = uid(sp.class_id), sec = uid(sp.section_id);
   const canWrite = can("attendance.students.create");
 
-  const [{ data: summary }, { data: counts }] = await Promise.all([
+  const [{ data: summary }, { data: counts }, { data: dayRows }] = await Promise.all([
     supabase.rpc("attendance_summary", { sid: school.id, on_day: day }),
     supabase.rpc("class_counts", { sid: school.id }),
+    supabase.rpc("attendance_day", { sid: school.id, on_day: day }),
   ]);
+  const tot = ((dayRows ?? []) as { strength: number; present: number; late: number; absent: number; leave: number; not_marked: number; scanned: number }[])
+    .reduce((a, x) => ({ strength: a.strength + Number(x.strength), present: a.present + Number(x.present), late: a.late + Number(x.late), absent: a.absent + Number(x.absent),
+      leave: a.leave + Number(x.leave), not_marked: a.not_marked + Number(x.not_marked), scanned: a.scanned + Number(x.scanned) }),
+      { strength: 0, present: 0, late: 0, absent: 0, leave: 0, not_marked: 0, scanned: 0 });
+  const methods: { href: string; title: string; hint: string; show: boolean }[] = [
+    { href: "/app/attendance/scan", title: "Scan QR", hint: "ID card with the camera", show: can("attendance.students.create") || can("attendance.staff.create") },
+    { href: "/app/attendance/staff", title: "Staff", hint: "Day list & month summary", show: can("attendance.staff.view") },
+    { href: "/app/attendance/me", title: "My check-in", hint: "From my phone, at school", show: true },
+    { href: "/app/attendance/low", title: "Low attendance", hint: "Below 75% — call parents", show: true },
+    { href: "/app/attendance/qr", title: "QR cards", hint: "Print for students / staff", show: true },
+    { href: "/app/attendance/devices", title: "Devices & timings", hint: "Gate kiosk, biometric, late time", show: can("attendance.students.edit") },
+  ];
   const sum = (summary ?? []) as { section_id: string; marked: number; present: number; absent: number }[];
 
   let students: { id: string; first_name: string; last_name: string | null; roll_no: number | null; guardian_phone: string | null }[] = [];
@@ -47,8 +60,26 @@ export default async function Attendance({ searchParams }: { searchParams: Promi
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader icon="attendance" title="Attendance" subtitle={fmtDate(day)} actions={<Link href="/app/attendance/register" className="btn btn-sm btn-secondary">Monthly register</Link>} />
+      <PageHeader icon="attendance" title="Attendance" subtitle={`${fmtDate(day)} · mark by class, scan a QR or use a device`} actions={<Link href="/app/attendance/register" className="btn btn-sm btn-secondary">Monthly register</Link>} />
       <Flash ok={sp.ok} error={sp.error} />
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <Stat label="Students" value={tot.strength} />
+        <Stat label="Present" value={tot.present} hint={tot.late ? `${tot.late} late` : undefined} tone="green" />
+        <Stat label="Absent" value={tot.absent} hint={tot.leave ? `${tot.leave} on leave` : undefined} tone="rose" />
+        <Stat label="Not marked" value={tot.not_marked} tone="amber" />
+        <Stat label="By scan / device" value={tot.scanned} tone="violet" />
+      </div>
+      <ul className="m-0 grid list-none grid-cols-2 gap-2 p-0 sm:grid-cols-3 lg:grid-cols-6">
+        {methods.filter((m) => m.show).map((m) => (
+          <li key={m.href}>
+            <Link href={m.href} className="block h-full rounded-[12px] border border-line bg-white px-3 py-2.5 no-underline hover:border-blue">
+              <b className="block text-[14px] text-ink">{m.title}</b><span className="text-[12px] text-muted">{m.hint}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+
       <form className="grid items-end gap-2 sm:grid-cols-4">
         <ClassSection key={`${cls}-${sec}`} classes={classes} classId={cls} sectionId={sec} required />
         <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">Date<input type="date" name="date" max={today} defaultValue={day} className="input !min-h-10 !py-2" /></label>

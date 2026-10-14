@@ -23,7 +23,7 @@ The top-level [`README.md`](../README.md) is the product / setup guide; these do
 | 5 | Dashboard | [modules/dashboard.md](modules/dashboard.md) | `dashboard.overview` | Built |
 | 6 | Students | [modules/students.md](modules/students.md) | `students.*` | Built (identity, documents, contacts, history added in step 6; certificates in step 7) |
 | 7 | Admissions (enquiry → application → admit) | [modules/admissions.md](modules/admissions.md) | `frontdesk.enquiries`, `frontdesk.admissions` | Built (step 8; online form step 9; visitors: not yet) |
-| 8 | Attendance | [modules/attendance.md](modules/attendance.md) | `attendance.students` | Built (student leave, staff attendance: not yet) |
+| 8 | Attendance | [modules/attendance.md](modules/attendance.md) | `attendance.students` | Built (step 19: QR, kiosk, biometric/RFID, staff check-in; student leave: not yet) |
 | 9 | Exams & results | [modules/exams.md](modules/exams.md) | `exams.*` | Built (admit cards: not yet) |
 | 10 | Fees | [modules/fees.md](modules/fees.md) | `fees.*` | Built (Fees 2.0: split / advance / cheques / refunds / online, step 10) |
 | 11 | Notices | [modules/notices.md](modules/notices.md) | `comms.notices` | Built (templates, calendar, messages: not yet) |
@@ -59,4 +59,4 @@ Not built yet (permissions exist, no screens): Accounts, Hostel, Inventory & sal
 - Record surprises in [gotchas.md](gotchas.md) so nobody hits them twice.
 - Dates: write absolute dates (e.g. 12 Oct 2026), never "last week".
 
-_Last full review: 12 Oct 2026 (after step 18 — transport live tracking)._
+_Last full review: 12 Oct 2026 (after step 19 — modern attendance)._

@@ -10,6 +10,7 @@
 -- What it creates (all marked "DEMO"):
 --   • Settings: late fine, concession approval, sibling discount, seats per class, extra sections
 --   • Fee structure for Nursery–10 (tuition monthly, admission, annual, exam) → dues for every student
+--   • Attendance for 3 weeks (some students low), today partly scanned, a gate kiosk and a biometric device, staff attendance
 --   • 39 students (3 per class) incl. 3 sibling pairs and 2 RTE students
 --   • 6 enquiries and 18 admission applications in every state (received … admitted, waitlisted, rejected)
 --   • Concessions (approved / pending / rejected), receipts (cash, UPI, split, cheque), advance, bounced cheque,
@@ -380,6 +381,35 @@ begin
     insert into public.transport_position_log (school_id, trip_id, lat, lng, speed_kmh, at) values
       (sid, tr, 26.8960, 80.9390, 20, now() - interval '16 minutes'), (sid, tr, 26.8900, 80.9405, 26, now() - interval '12 minutes'),
       (sid, tr, 26.8820, 80.9421, 22, now() - interval '8 minutes'), (sid, tr, 26.8760, 80.9435, 24, now() - interval '1 minute');
+  end;
+
+  -- ── Attendance: 3 weeks of history (some students low), today partly scanned, devices, staff ──
+  declare dd date; td date := public.today_ist();
+  begin
+    insert into public.attendance (school_id, student_id, class_id, section_id, date, status, marked_by, source, in_time)
+    select sid, s.id, s.class_id, s.section_id, g::date,
+           case when abs(hashtext(s.id::text || g::text)) % 100 < case when s.rn % 7 = 0 then 45 else 8 end then 'A'
+                when abs(hashtext(s.id::text || g::text)) % 100 > 92 then 'L' else 'P' end,
+           'DEMO', 'manual', null
+      from (select id, class_id, section_id, row_number() over (order by admission_no) rn from public.students
+             where school_id = sid and admission_no like 'DEMO-%' and status = 'active' and class_id is not null and section_id is not null) s
+      cross join generate_series(td - 21, td - 1, interval '1 day') g
+     where extract(isodow from g) <> 7
+    on conflict (student_id, date) do nothing;
+    -- today: two thirds already scanned at the gate
+    insert into public.attendance (school_id, student_id, class_id, section_id, date, status, marked_by, source, in_time)
+    select sid, s.id, s.class_id, s.section_id, td, case when s.rn % 9 = 0 then 'L' else 'P' end, 'DEMO Main gate', 'qr',
+           case when s.rn % 9 = 0 then time '08:27' else ('07:' || lpad((40 + s.rn % 19)::text, 2, '0'))::time end
+      from (select id, class_id, section_id, row_number() over (order by admission_no) rn from public.students
+             where school_id = sid and admission_no like 'DEMO-%' and status = 'active' and class_id is not null and section_id is not null) s
+     where s.rn % 3 <> 0
+    on conflict (student_id, date) do nothing;
+    insert into public.attendance_devices (school_id, name, kind, location, last_seen_at) values
+      (sid, 'DEMO Main gate tablet', 'qr_kiosk', 'Gate 1', now()), (sid, 'DEMO Staff room machine', 'biometric', 'Staff room', now() - interval '2 hours');
+    insert into public.staff_attendance (school_id, staff_id, date, status, in_time, source, marked_by)
+    select sid, t.id, td, case when t.rn % 5 = 0 then 'L' else 'P' end, case when t.rn % 5 = 0 then time '08:32' else time '07:50' end, 'biometric', 'DEMO'
+      from (select id, row_number() over (order by emp_code) rn from public.staff where school_id = sid and emp_code like 'DEMO-E%' and status = 'active') t
+    on conflict (staff_id, date) do nothing;
   end;
 
   -- ── Summary ──

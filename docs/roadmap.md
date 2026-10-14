@@ -56,15 +56,18 @@ Template studio: Canva-style designer for ID cards, certificates, receipts and l
 ## Done in step 18
 Transport live tracking (driver page, parent map, office map, trips) and database-side lists for vehicles, riders, routes.
 
+## Done in step 19
+Modern attendance: QR scan (camera / USB), gate kiosk, biometric & RFID endpoint + CSV import, staff check-in by location, staff attendance day/month, low-attendance report, QR cards and a QR block for ID cards.
+
 ## Suggested order (updated)
-1. **Automatic SMS / WhatsApp** on events (fee reminders, receipts, absence)  2. Staff attendance → payroll  3. Timetable + calendar  4. Accounts  5. Hostel / inventory / health  6. Parent & student logins (PWA), admit cards (a template + exam data), UDISE+ export
+1. **Accounts** (next)  2. Automatic SMS / WhatsApp on events (fee reminders, receipts, absence)  3. Timetable + calendar  5. Hostel / inventory / health  6. Parent & student logins (PWA), admit cards (a template + exam data), UDISE+ export
 
 ## Earlier order (kept for reference) (highest value for Indian schools first)
 
 1. **Online fee payment** (`fees.online`) — parents pay on the parent page, receipt is created automatically. Biggest money impact; most pieces exist.
 2. **Automatic messages** — absent alert, fee receipt, fee reminder, result published by SMS / WhatsApp using the saved integrations and notification preferences.
 3. ~~Certificates~~ — done in step 7.
-4. **Staff attendance** → feeds payroll unpaid days.
+4. ~~Staff attendance~~ — done in step 19 (suggested unpaid days; auto-posting to payroll still manual).
 5. **Timetable** (+ substitution) and **School calendar / holidays**.
 6. **Accounts** (vouchers, day book, fee & salary auto-posting) — completes Premium.
 7. **Hostel**, **Inventory & sales**, **Health & discipline** — rest of Premium.

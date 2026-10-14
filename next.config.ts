@@ -30,7 +30,7 @@ const nextConfig: NextConfig = {
         { key: "X-Frame-Options", value: "DENY" },
         { key: "Referrer-Policy", value: "same-origin" },
         { key: "X-Robots-Tag", value: "noindex, nofollow" },   // private app: never in search results
-        { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(self)" },
+        { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=(self)" },
       ],
     }];
   },

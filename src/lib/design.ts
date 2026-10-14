@@ -6,7 +6,7 @@
  * placeholders its data builder supplies, and (optionally) starter designs in PRESETS.
  */
 
-export type ItemType = "text" | "rect" | "ellipse" | "line" | "image" | "photo" | "logo";
+export type ItemType = "text" | "rect" | "ellipse" | "line" | "image" | "photo" | "logo" | "qr";
 export type Item = {
   id: string; type: ItemType;
   x: number; y: number; w: number; h: number; rot: number;     // mm, mm, mm, mm, degrees
@@ -44,7 +44,7 @@ export function normalizeDesign(raw: unknown): Design {
   const items = (Array.isArray(d.items) ? d.items : []).slice(0, 200).flatMap((it): Item[] => {
     const o = (it && typeof it === "object" ? it : {}) as Record<string, unknown>;
     const type = o.type as ItemType;
-    if (!["text", "rect", "ellipse", "line", "image", "photo", "logo"].includes(type)) return [];
+    if (!["text", "rect", "ellipse", "line", "image", "photo", "logo", "qr"].includes(type)) return [];
     const base: Item = {
       id: typeof o.id === "string" && /^[a-z0-9_-]{1,24}$/i.test(o.id) ? o.id : `i${Math.random().toString(36).slice(2, 9)}`, type,
       x: r2(clamp(o.x, -300, 600)), y: r2(clamp(o.y, -300, 600)), w: r2(clamp(o.w, 0.5, 600, 20)), h: r2(clamp(o.h, 0.2, 600, 10)), rot: r2(clamp(o.rot, -360, 360)),
@@ -59,7 +59,7 @@ export function normalizeDesign(raw: unknown): Design {
         fill: colour(o.fill, "transparent"), radius: clamp(o.radius, 0, 100, 0) }];
     }
     if (type === "image") return [{ ...base, src: https(o.src), fit: o.fit === "contain" ? "contain" : "cover", radius: clamp(o.radius, 0, 100, 0) }];
-    if (type === "photo" || type === "logo") return [{ ...base, radius: clamp(o.radius, 0, 100, 0), stroke: colour(o.stroke, "transparent"), sw: clamp(o.sw, 0, 5, 0) }];
+    if (type === "photo" || type === "logo" || type === "qr") return [{ ...base, ...(type === "qr" ? { text: o.text === "staff.qr" ? "staff.qr" : "student.qr" } : {}), radius: clamp(o.radius, 0, 100, 0), stroke: colour(o.stroke, "transparent"), sw: clamp(o.sw, 0, 5, 0) }];
     return [{ ...base, fill: colour(o.fill, type === "line" ? "transparent" : "#e5e7eb"), stroke: colour(o.stroke, type === "line" ? "#111111" : "transparent"), sw: clamp(o.sw, 0, 20, type === "line" ? 0.4 : 0),
       radius: clamp(o.radius, 0, 100, 0) }];
   });
@@ -90,7 +90,7 @@ export function compileDesign(input: unknown): string {
       return `<div style="${pos}overflow:hidden;${i.radius ? `border-radius:${i.radius}mm;` : ""}">${i.src ? `<img src="${esc(i.src)}" alt="" style="width:100%;height:100%;object-fit:${i.fit}">` : ""}</div>`;
     }
     const border = i.sw ? `border:${i.sw}mm solid ${i.stroke};` : "";
-    return `<div style="${pos}overflow:hidden;${border}${i.radius ? `border-radius:${i.radius}mm;` : ""}">${i.type === "photo" ? "{{student.photo}}" : "{{school.logo}}"}</div>`;
+    return `<div style="${pos}overflow:hidden;${border}${i.radius ? `border-radius:${i.radius}mm;` : ""}">${i.type === "photo" ? "{{student.photo}}" : i.type === "qr" ? (i.text === "staff.qr" ? "{{staff.qr}}" : "{{student.qr}}") : "{{school.logo}}"}</div>`;
   });
   const bgi = d.bgImage ? `background-image:url('${esc(d.bgImage)}');background-size:cover;background-position:center;` : "";
   return `<div style="position:relative;width:${d.w}mm;height:${d.h}mm;background:${d.bg};${bgi}overflow:hidden;box-sizing:border-box;margin:0 auto">${parts.join("")}</div>`;
@@ -133,6 +133,7 @@ const human = (k: string) => k.split(".").pop()!.replace(/_/g, " ");
 export function withSample(html: string): string {
   return html.replace(/\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/g, (_, k: string) => {
     if (k === "student.photo") return `<div style="width:100%;height:100%;background:linear-gradient(135deg,#cbd5e1,#94a3b8);display:flex;align-items:flex-end;justify-content:center"><div style="width:44%;height:44%;border-radius:50%;background:#e2e8f0;margin-bottom:12%"></div></div>`;
+    if (k === "student.qr" || k === "staff.qr") return `<div style="width:100%;height:100%;background:repeating-conic-gradient(#111 0 25%,#fff 0 50%) 0 0/20% 20%;border:2px solid #111;box-sizing:border-box"></div>`;
     if (k === "school.logo") return `<div style="width:100%;height:100%;border-radius:50%;background:#1d4ed8;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:10px">SPS</div>`;
     if (k.endsWith("_html")) return SAMPLE[k] ?? "";
     const v = SAMPLE[k] ?? `‹${human(k)}›`;
@@ -148,6 +149,7 @@ const T = (x: number, y: number, w: number, h: number, text: string, o: Partial<
 const R = (x: number, y: number, w: number, h: number, fill: string, o: Partial<Item> = {}): Item => ({ id: uid(), type: "rect", x, y, w, h, rot: 0, fill, stroke: "transparent", sw: 0, radius: 0, ...o });
 const L = (x: number, y: number, w: number, o: Partial<Item> = {}): Item => ({ id: uid(), type: "line", x, y, w, h: 0.4, rot: 0, stroke: "#111111", sw: 0.4, ...o });
 const PH = (x: number, y: number, w: number, h: number, o: Partial<Item> = {}): Item => ({ id: uid(), type: "photo", x, y, w, h, rot: 0, radius: 2, stroke: "#ffffff", sw: 0.6, ...o });
+const QR = (x: number, y: number, w: number, o: Partial<Item> = {}): Item => ({ id: uid(), type: "qr", x, y, w, h: w, rot: 0, text: "student.qr", ...o });
 const LG = (x: number, y: number, w: number, h: number, o: Partial<Item> = {}): Item => ({ id: uid(), type: "logo", x, y, w, h, rot: 0, ...o });
 
 const letterhead = (w: number, brand = "#1d4ed8"): Item[] => [
@@ -187,7 +189,8 @@ export const PRESETS: Preset[] = [
       R(0, 0, 86, 13, "#0f766e"), LG(3, 1.5, 10, 10), T(15, 1.5, 68, 10, "{{school.name}}", { size: 10, weight: 800, color: "#ffffff", upper: true, valign: "middle" }),
       PH(4, 17, 22, 28, { radius: 1.5 }),
       T(30, 16, 54, 7, "{{student.name}}", { size: 12, weight: 800, valign: "middle" }),
-      T(30, 24, 54, 22, "Class: {{student.class_section}}   Roll: {{student.roll_no}}\nAdm. no.: {{student.admission_no}}\nFather: {{student.father_name}}\nDOB: {{student.dob}}   Blood: {{student.blood_group}}\nPhone: {{student.phone}}", { size: 7.5, lh: 1.55 }),
+      T(30, 24, 38, 22, "Class: {{student.class_section}}   Roll: {{student.roll_no}}\nAdm. no.: {{student.admission_no}}\nFather: {{student.father_name}}\nDOB: {{student.dob}}   Blood: {{student.blood_group}}\nPhone: {{student.phone}}", { size: 7.5, lh: 1.55 }),
+      QR(68, 26, 16),
       R(0, 48, 86, 6, "#0f766e"), T(0, 48, 86, 6, "{{school.address}}, {{school.city}} · {{school.phone}}", { size: 6, color: "#ffffff", align: "center", valign: "middle" }),
     ] }),
   },
@@ -200,7 +203,8 @@ export const PRESETS: Preset[] = [
       L(12, 19.5, 70, { stroke: "#7c3aed", sw: 0.4 }),
       T(12, 22, 70, 8, "{{staff.name}}", { size: 14, weight: 800, valign: "middle" }),
       T(12, 31, 70, 6, "{{staff.designation}} · {{staff.department}}", { size: 9, color: "#4c1d95", weight: 700 }),
-      T(12, 38, 70, 12, "Employee code: {{staff.emp_code}}\nPhone: {{staff.phone}}\nValid until: {{doc.valid_until}}", { size: 7.5, lh: 1.5 }),
+      T(12, 38, 52, 12, "Employee code: {{staff.emp_code}}\nPhone: {{staff.phone}}\nValid until: {{doc.valid_until}}", { size: 7.5, lh: 1.5 }),
+      QR(66, 30, 16, { text: "staff.qr" }),
     ] }),
   },
   {

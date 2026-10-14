@@ -104,7 +104,7 @@ export function Empty({ children }: { children: React.ReactNode }) {
 
 type FieldProps = { label: string; name: string; defaultValue?: string | number | null; required?: boolean; hint?: string; className?: string };
 
-export function Input({ label: l, name, defaultValue, required, hint, className = "", type = "text", ...rest }: FieldProps & { type?: string; placeholder?: string; step?: string; min?: number; max?: number; list?: string }) {
+export function Input({ label: l, name, defaultValue, required, hint, className = "", type = "text", ...rest }: FieldProps & { type?: string; placeholder?: string; step?: string; min?: number | string; max?: number | string; list?: string }) {
   return (
     <label className={`flex flex-col gap-1 text-[13px] font-semibold text-ink ${className}`}>
       {l}{required && <span className="sr-only"> (required)</span>}

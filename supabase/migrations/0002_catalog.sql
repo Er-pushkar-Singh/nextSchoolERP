@@ -70,7 +70,7 @@ insert into public.erp_submodules (code, module_code, name, built, sort) values
   ('homework.material', 'homework', 'Study material', true, 1),
   ('attendance.students', 'attendance', 'Student attendance', true, 0),
   ('attendance.leave', 'attendance', 'Student leave requests', false, 1),
-  ('attendance.staff', 'attendance', 'Staff attendance', false, 2),
+  ('attendance.staff', 'attendance', 'Staff attendance', true, 2),
   ('exams.setup', 'exams', 'Exams, subjects & grading', true, 0),
   ('exams.marks', 'exams', 'Marks entry', true, 1),
   ('exams.results', 'exams', 'Report cards & publishing', true, 2),

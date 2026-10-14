@@ -5,6 +5,7 @@ import { Flash, PageHeader, Submit } from "@/components/ui/ui";
 import { PrintButton } from "@/components/ui/PrintButton";
 import { fmtDate } from "@/lib/format";
 import { sanitizeHtml, withPhoto } from "@/lib/html-sanitize";
+import { withQr } from "@/lib/qr";
 import { signedPhotoUrls } from "@/lib/doc-photo";
 import { cancelDocument } from "../../_actions/documents";
 
@@ -16,7 +17,7 @@ export default async function IssuedDocument({ params, searchParams }: { params:
   const { data: d } = await supabase.from("issued_documents").select("*").eq("id", id).eq("school_id", school.id).maybeSingle();
   if (!d) notFound();
   const photos = d.student_id ? await signedPhotoUrls(school.id, [d.student_id]) : new Map<string, string>();
-  const html = withPhoto(sanitizeHtml(d.html), d.student_id ? photos.get(d.student_id) ?? null : null);
+  const html = withQr(withPhoto(sanitizeHtml(d.html), d.student_id ? photos.get(d.student_id) ?? null : null));
   const width = d.page_size === "card" ? `${d.card_width_mm ?? 86}mm` : d.page_size === "A5" ? "148mm" : "210mm";
   const cancelled = d.status === "cancelled";
 

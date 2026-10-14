@@ -33,4 +33,4 @@ One place to design and manage every printed thing the school produces — ID ca
 `scripts/test-rules.mjs` (design compile / escaping / clamping / page mapping, all presets), `supabase/tests/designer.test.sql` (storage, versions with design, sanitising, permissions).
 
 ## Gaps & ideas
-Upload images (today: https links), QR / barcode element, curved text, tables as an element, custom fonts, multi-page documents, copy / paste between templates, template sharing between branches of a group, admission offer letter and payslip data builders (listed as "coming" in the studio).
+Upload images (today: https links), barcode element (a QR block exists: attendance code), curved text, tables as an element, custom fonts, multi-page documents, copy / paste between templates, template sharing between branches of a group, admission offer letter and payslip data builders (listed as "coming" in the studio).

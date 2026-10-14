@@ -59,8 +59,14 @@ Transport live tracking (driver page, parent map, office map, trips) and databas
 ## Done in step 19
 Modern attendance: QR scan (camera / USB), gate kiosk, biometric & RFID endpoint + CSV import, staff check-in by location, staff attendance day/month, low-attendance report, QR cards and a QR block for ID cards.
 
+## Done in step 20
+Accounts: vouchers (receipt / payment / transfer) with approval limit, cash & bank books, one day book fed by fees, refunds and payroll, income / expense by head, CSV.
+
+## Done in step 21
+Timetable (bell schedule, class grid, teacher view, cover board with substitutes, workload) and the school calendar; holidays reduce payroll working days.
+
 ## Suggested order (updated)
-1. **Accounts** (next)  2. Automatic SMS / WhatsApp on events (fee reminders, receipts, absence)  3. Timetable + calendar  5. Hostel / inventory / health  6. Parent & student logins (PWA), admit cards (a template + exam data), UDISE+ export
+1. Automatic SMS / WhatsApp on events (fee reminders, receipts, absence, substitutions)  2. Parent & student logins (PWA) with timetable, attendance, fees  5. Hostel / inventory / health  6. Parent & student logins (PWA), admit cards (a template + exam data), UDISE+ export
 
 ## Earlier order (kept for reference) (highest value for Indian schools first)
 

@@ -247,7 +247,8 @@
             "edit",
             "delete",
             "print"
-          ]
+          ],
+          "built": true
         },
         {
           "code": "syllabus",
@@ -487,7 +488,8 @@
             "delete",
             "approve",
             "export"
-          ]
+          ],
+          "built": true
         },
         {
           "code": "books",
@@ -496,7 +498,8 @@
             "view",
             "export",
             "print"
-          ]
+          ],
+          "built": true
         }
       ]
     },
@@ -588,7 +591,8 @@
             "create",
             "edit",
             "delete"
-          ]
+          ],
+          "built": true
         },
         {
           "code": "messages",

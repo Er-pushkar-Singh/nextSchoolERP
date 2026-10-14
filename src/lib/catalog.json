@@ -82,7 +82,8 @@
             "create",
             "edit",
             "delete"
-          ]
+          ],
+          "built": true
         }
       ]
     },
@@ -259,7 +260,8 @@
             "edit",
             "delete",
             "approve"
-          ]
+          ],
+          "built": true
         }
       ]
     },

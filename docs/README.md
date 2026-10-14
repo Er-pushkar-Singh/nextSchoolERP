@@ -36,6 +36,8 @@ The top-level [`README.md`](../README.md) is the product / setup guide; these do
 | 18 | UP Board registration (Class 9-12) | [modules/board-registration.md](modules/board-registration.md) | `students.board_reg` | Built (step 6; no direct portal submission) |
 | 19 | Certificates (old fixed layouts) | [modules/certificates.md](modules/certificates.md) | `students.certificates` | Built (step 7) — superseded by 20 |
 | 20 | Documents & templates (TC, ID cards, letters) | [modules/documents.md](modules/documents.md) | `documents.templates`, `documents.issue` | Built (step 9) |
+| 25 | Front office (visitors, calls, post, gate pass) | [modules/front-office.md](modules/front-office.md) | `frontdesk.visitors` | Built (step 22) |
+| 26 | Academic setup (curriculum, allocation, syllabus) | [modules/academics.md](modules/academics.md) | `academics.*` | Built (step 23) |
 | 23 | Timetable & school calendar | [modules/timetable.md](modules/timetable.md) | `academics.timetable`, `comms.calendar` | Built (step 21) |
 | 22 | Accounts (day book & vouchers) | [modules/accounts.md](modules/accounts.md) | `accounts.*` | Built (step 20) |
 | 21 | Template studio (visual designer, gallery, module registry) | [modules/templates.md](modules/templates.md) | `documents.templates` | Built (step 16) |
@@ -61,4 +63,4 @@ Not built yet (permissions exist, no screens): Accounts, Hostel, Inventory & sal
 - Record surprises in [gotchas.md](gotchas.md) so nobody hits them twice.
 - Dates: write absolute dates (e.g. 12 Oct 2026), never "last week".
 
-_Last full review: 12 Oct 2026 (after step 21 — timetable & calendar)._
+_Last full review: 12 Oct 2026 (after step 24 — front office, academic setup, payroll v2)._

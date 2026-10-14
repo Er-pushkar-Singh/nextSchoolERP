@@ -65,6 +65,9 @@ Accounts: vouchers (receipt / payment / transfer) with approval limit, cash & ba
 ## Done in step 21
 Timetable (bell schedule, class grid, teacher view, cover board with substitutes, workload) and the school calendar; holidays reduce payroll working days.
 
+## Done in steps 22-24
+Front office (visitors, calls, postal, gate pass), academic setup (curriculum, allocation, syllabus), payroll v2 (attendance LOP, PF / ESI / PT, advances, salary history).
+
 ## Suggested order (updated)
 1. Automatic SMS / WhatsApp on events (fee reminders, receipts, absence, substitutions)  2. Parent & student logins (PWA) with timetable, attendance, fees  5. Hostel / inventory / health  6. Parent & student logins (PWA), admit cards (a template + exam data), UDISE+ export
 

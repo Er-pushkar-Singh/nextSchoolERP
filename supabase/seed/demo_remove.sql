@@ -23,6 +23,12 @@ begin
   delete from public.staff where school_id = sid and emp_code like 'DEMO-E%';
   delete from public.transport_routes where school_id = sid and name like 'DEMO Route%';
   delete from public.attendance_devices where school_id = sid and name like 'DEMO %';
+  delete from public.visitors where school_id = sid and pass_no like 'V-D-%';
+  delete from public.phone_calls where school_id = sid and handled_by_name = 'DEMO';
+  delete from public.postal_items where school_id = sid and created_by_name = 'DEMO';
+  delete from public.gate_passes where school_id = sid and pass_no like 'GP-D-%';
+  delete from public.staff_advances where school_id = sid and created_by_name = 'DEMO';
+  delete from public.payroll_settings where school_id = sid;
   delete from public.school_events where school_id = sid and created_by_name = 'DEMO';
   delete from public.timetable_slots where school_id = sid and room in ('Room 1', 'Room 2') and staff_id in (select id from public.staff where school_id = sid and emp_code like 'DEMO-E%');
   delete from public.vouchers where school_id = sid and no like '__-D____';

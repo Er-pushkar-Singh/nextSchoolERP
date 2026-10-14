@@ -57,3 +57,12 @@ Staff attendance / biometric import → LOP, PF / ESI / PT auto-calculation and 
 - **Block (ban)**: `hr.staff.block` (Principal, Office admin). Sets `staff.blocked_*` and, when the person has an ERP login, `school_members.blocked_at / blocked_till`. `perm_scope()` and `my_permissions()` return nothing for a blocked login and the app sends them to "Your access has been suspended" — it is enforced by the database, not only by the screens. You cannot block your own login. Logins without a staff record can be blocked from Settings → Staff & access (`set_member_blocked`).
 - **Delete**: `delete_staff()` — full name typed to confirm; refused when the person has payslips, leave records or issued documents (mark Left instead).
 - Platform admins are never blocked by this (they have no school login).
+
+## Payroll v2 (step 24, migration `0026_payroll_v2.sql`)
+- **Unpaid days from attendance**: with "use attendance" on, absent (A = 1) and half-day (H = 0.5) marks of the month become unpaid days (`payslips.att_lop`), except days already covered by approved leave without pay. Unmarked days count as present. When "working days" is left blank, the month's working days (school working weekdays minus holidays / vacations in the calendar) are used.
+- **Statutory lines** (`payroll_settings`, per school; `staff.pf_applicable / esi_applicable / pt_applicable`): PF = rate % of earned basic capped at the wage ceiling (employer share the same rate); ESI = employee % of gross when gross is within the ceiling (+ employer %); professional tax by slab on gross. Lines are marked `auto` in `payslips.deductions` and rebuilt by `payslip_compute` whenever unpaid days or the structure change; approved payslips keep their figures.
+- **Salary advances** (`/app/hr/advances`): amount, monthly recovery, balance. The instalment (never more than the balance or what is left of the pay) is a deduction line; **approving** the payroll reduces the balance (FIFO, recorded in `advance_recoveries`), **reopening** gives it back. An advance with recoveries cannot be cancelled.
+- **Salary history**: every change of a staff member's earnings is logged (`staff_salary_history`) and shown on the profile.
+- **Reports**: per-month `PF / ESI / PT` CSV with employee and employer shares and totals (`/app/hr/payroll/[id]/statutory`); the run page shows PF / ESI / PT / advance under deductions.
+- Tests: `supabase/tests/payroll_v2.test.sql` (19 checks).
+- Still open: Form 16 / TDS, ECR file format, arrears, leave encashment, loan with interest, bonus runs.

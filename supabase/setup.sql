@@ -1,4 +1,4 @@
--- School ERP: full database setup (migrations 0001–0023 combined).
+-- School ERP: full database setup (migrations 0001–0026 combined).
 -- Paste into Supabase SQL Editor and Run. Safe to run again; existing data and members are kept.
 -- Works in its own Supabase project or next to the CodersDuniya website/CRM tables (no name clashes).
 
@@ -683,7 +683,7 @@ insert into public.erp_submodules (code, module_code, name, built, sort) values
   ('frontdesk.enquiries', 'frontdesk', 'Admission enquiries', true, 0),
   ('frontdesk.admissions', 'frontdesk', 'Admission applications, decisions & admit', true, 1),
   ('frontdesk.online_form', 'frontdesk', 'Online admission form (public link)', true, 2),
-  ('frontdesk.visitors', 'frontdesk', 'Visitor & call log, gate pass', false, 3),
+  ('frontdesk.visitors', 'frontdesk', 'Visitor & call log, gate pass', true, 3),
   ('students.profile', 'students', 'Student profile & guardians', true, 0),
   ('students.sensitive', 'students', 'Identity (PEN, APAAR), health & internal notes', true, 1),
   ('students.import', 'students', 'Bulk import', true, 2),
@@ -697,7 +697,7 @@ insert into public.erp_submodules (code, module_code, name, built, sort) values
   ('academics.setup', 'academics', 'Sessions, classes, sections, subjects', true, 0),
   ('academics.allocation', 'academics', 'Class teacher & subject allocation', true, 1),
   ('academics.timetable', 'academics', 'Timetable', true, 2),
-  ('academics.syllabus', 'academics', 'Syllabus & lesson plans', false, 3),
+  ('academics.syllabus', 'academics', 'Syllabus & lesson plans', true, 3),
   ('homework.homework', 'homework', 'Homework & classwork', true, 0),
   ('homework.material', 'homework', 'Study material', true, 1),
   ('attendance.students', 'attendance', 'Student attendance', true, 0),
@@ -9499,7 +9499,8 @@ create table if not exists public.account_heads (
   school_id  uuid not null references public.schools(id) on delete cascade,
   name       text not null check (length(btrim(name)) between 1 and 60),
   kind       text not null check (kind in ('income', 'expense')),
-  active     boolean not null default true,
+  active
+       boolean not null default true,
   created_at timestamptz not null default now()
 );
 create unique index if not exists account_heads_name on public.account_heads (school_id, kind, lower(name));
@@ -10089,6 +10090,756 @@ do $$
 declare t text;
 begin
   foreach t in array array['periods', 'timetable_slots', 'substitutions', 'school_events'] loop
+    execute format('drop trigger if exists audit_%1$s on public.%1$I', t);
+    execute format('create trigger audit_%1$s after insert or update or delete on public.%1$I for each row execute function public.audit_row()', t);
+  end loop;
+end $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Step 22: Front office — visitor log with passes, phone call log with follow-ups, postal register, student gate pass
+--          (early leave with a named pick-up person), and one "today at the front desk" summary.
+-- Safe to run again.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+create table if not exists public.front_office_settings (
+  school_id uuid primary key references public.schools(id) on delete cascade,
+  next_visitor_no int not null default 1,
+  next_pass_no int not null default 1
+);
+alter table public.front_office_settings enable row level security;
+drop policy if exists "read" on public.front_office_settings;
+create policy "read" on public.front_office_settings for select to authenticated using (public.has_perm(school_id, 'frontdesk.visitors.view'));
+
+-- ───────────── Visitors ─────────────
+create table if not exists public.visitors (
+  id              uuid primary key default gen_random_uuid(),
+  school_id       uuid not null references public.schools(id) on delete cascade,
+  pass_no         text not null,
+  name            text not null check (length(btrim(name)) between 1 and 80),
+  phone           text,
+  purpose         text not null default 'meeting' check (purpose in ('meeting', 'admission', 'parent', 'vendor', 'official', 'interview', 'delivery', 'other')),
+  to_meet         text,
+  student_id      uuid references public.students(id) on delete set null,
+  organisation    text,
+  id_proof        text,
+  people          int not null default 1 check (people between 1 and 50),
+  vehicle_no      text,
+  note            text,
+  in_at           timestamptz not null default now(),
+  out_at          timestamptz,
+  created_by_name text,
+  unique (school_id, pass_no),
+  check (out_at is null or out_at >= in_at)
+);
+create index if not exists visitors_day on public.visitors (school_id, in_at desc);
+create index if not exists visitors_inside on public.visitors (school_id) where out_at is null;
+
+-- ───────────── Calls ─────────────
+create table if not exists public.phone_calls (
+  id              uuid primary key default gen_random_uuid(),
+  school_id       uuid not null references public.schools(id) on delete cascade,
+  direction       text not null default 'incoming' check (direction in ('incoming', 'outgoing')),
+  name            text,
+  phone           text,
+  purpose         text not null default 'enquiry' check (purpose in ('enquiry', 'complaint', 'fees', 'leave', 'transport', 'staff', 'other')),
+  summary         text,
+  student_id      uuid references public.students(id) on delete set null,
+  call_at         timestamptz not null default now(),
+  follow_up_on    date,
+  followed_up_at  timestamptz,
+  handled_by_name text,
+  created_at      timestamptz not null default now()
+);
+create index if not exists phone_calls_day on public.phone_calls (school_id, call_at desc);
+create index if not exists phone_calls_followup on public.phone_calls (school_id, follow_up_on) where follow_up_on is not null and followed_up_at is null;
+
+-- ───────────── Postal register ─────────────
+create table if not exists public.postal_items (
+  id              uuid primary key default gen_random_uuid(),
+  school_id       uuid not null references public.schools(id) on delete cascade,
+  direction       text not null check (direction in ('received', 'dispatched')),
+  on_date         date not null default (now() at time zone 'Asia/Kolkata')::date,
+  mode            text not null default 'post' check (mode in ('post', 'speed_post', 'courier', 'hand', 'other')),
+  party           text not null check (length(btrim(party)) > 0),
+  reference_no    text,
+  subject         text,
+  to_whom         text,
+  note            text,
+  created_by_name text,
+  created_at      timestamptz not null default now()
+);
+create index if not exists postal_day on public.postal_items (school_id, on_date desc);
+
+-- ───────────── Student gate pass (early leave) ─────────────
+create table if not exists public.gate_passes (
+  id               uuid primary key default gen_random_uuid(),
+  school_id        uuid not null references public.schools(id) on delete cascade,
+  pass_no          text not null,
+  student_id       uuid not null references public.students(id) on delete cascade,
+  reason           text not null check (length(btrim(reason)) > 0),
+  leave_on         date not null default (now() at time zone 'Asia/Kolkata')::date,
+  pickup_name      text not null,
+  pickup_relation  text,
+  pickup_phone     text,
+  status           text not null default 'requested' check (status in ('requested', 'approved', 'rejected', 'completed', 'cancelled')),
+  requested_by_name text,
+  decided_by_name  text,
+  decided_at       timestamptz,
+  decision_note    text,
+  out_at           timestamptz,
+  created_at       timestamptz not null default now(),
+  unique (school_id, pass_no)
+);
+create index if not exists gate_passes_day on public.gate_passes (school_id, leave_on desc, status);
+
+alter table public.visitors enable row level security;
+alter table public.phone_calls enable row level security;
+alter table public.postal_items enable row level security;
+alter table public.gate_passes enable row level security;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['visitors', 'phone_calls', 'postal_items'] loop
+    execute format('drop policy if exists "read" on public.%I', t);
+    execute format('create policy "read" on public.%I for select to authenticated using (public.has_perm_school(school_id, ''frontdesk.visitors.view''))', t);
+    execute format('drop policy if exists "create" on public.%I', t);
+    execute format('create policy "create" on public.%I for insert to authenticated with check (public.has_perm_school(school_id, ''frontdesk.visitors.create''))', t);
+    execute format('drop policy if exists "edit" on public.%I', t);
+    execute format('create policy "edit" on public.%I for update to authenticated using (public.has_perm_school(school_id, ''frontdesk.visitors.edit'')) with check (public.has_perm_school(school_id, ''frontdesk.visitors.edit''))', t);
+    execute format('drop policy if exists "delete" on public.%I', t);
+    execute format('create policy "delete" on public.%I for delete to authenticated using (public.has_perm_school(school_id, ''frontdesk.visitors.delete''))', t);
+  end loop;
+end $$;
+drop policy if exists "read" on public.gate_passes;
+create policy "read" on public.gate_passes for select to authenticated using (public.has_perm_school(school_id, 'frontdesk.visitors.view'));
+-- gate passes are written by the functions below
+
+-- ───────────── Numbers ─────────────
+create or replace function public._fo_number(sid uuid, what text) returns text
+language plpgsql security definer set search_path = public as $$
+declare n int;
+begin
+  insert into public.front_office_settings (school_id) values (sid) on conflict do nothing;
+  if what = 'visitor' then
+    update public.front_office_settings set next_visitor_no = next_visitor_no + 1 where school_id = sid returning next_visitor_no - 1 into n;
+    return 'V-' || to_char((now() at time zone 'Asia/Kolkata'), 'YYMM') || '-' || lpad(n::text, 4, '0');
+  end if;
+  update public.front_office_settings set next_pass_no = next_pass_no + 1 where school_id = sid returning next_pass_no - 1 into n;
+  return 'GP-' || to_char((now() at time zone 'Asia/Kolkata'), 'YYMM') || '-' || lpad(n::text, 4, '0');
+end $$;
+revoke execute on function public._fo_number(uuid, text) from public, anon, authenticated;
+
+-- ───────────── Visitors ─────────────
+create or replace function public.visitor_checkin(sid uuid, p_name text, p_phone text, p_purpose text, p_to_meet text, p_student uuid, p_org text,
+                                                  p_id_proof text, p_people int, p_vehicle text, p_note text) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare i uuid; me text;
+begin
+  if auth.uid() is null or not public.has_perm_school(sid, 'frontdesk.visitors.create') then raise exception 'not allowed'; end if;
+  if coalesce(btrim(p_name), '') = '' then raise exception 'Enter the visitor''s name.'; end if;
+  if p_phone is not null and btrim(p_phone) <> '' and btrim(p_phone) !~ '^[0-9+() -]{6,20}$' then raise exception 'That phone number does not look right.'; end if;
+  if p_student is not null and not exists (select 1 from public.students where id = p_student and school_id = sid) then raise exception 'Student not found.'; end if;
+  select name into me from public.school_members where school_id = sid and user_id = auth.uid();
+  insert into public.visitors (school_id, pass_no, name, phone, purpose, to_meet, student_id, organisation, id_proof, people, vehicle_no, note, created_by_name)
+  values (sid, public._fo_number(sid, 'visitor'), left(btrim(p_name), 80), nullif(btrim(coalesce(p_phone, '')), ''), coalesce(nullif(p_purpose, ''), 'meeting'),
+          nullif(left(btrim(coalesce(p_to_meet, '')), 80), ''), p_student, nullif(left(btrim(coalesce(p_org, '')), 80), ''), nullif(left(btrim(coalesce(p_id_proof, '')), 60), ''),
+          greatest(coalesce(p_people, 1), 1), nullif(left(btrim(coalesce(p_vehicle, '')), 20), ''), nullif(left(btrim(coalesce(p_note, '')), 300), ''), coalesce(me, 'User'))
+  returning id into i;
+  return i;
+end $$;
+
+create or replace function public.visitor_checkout(vid uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare v public.visitors;
+begin
+  select * into v from public.visitors where id = vid;
+  if v.id is null or auth.uid() is null or not public.has_perm_school(v.school_id, 'frontdesk.visitors.create') then raise exception 'not allowed'; end if;
+  if v.out_at is not null then raise exception 'This visitor has already left.'; end if;
+  update public.visitors set out_at = now() where id = vid;
+end $$;
+
+create or replace function public.visitor_list(sid uuid, d1 date, d2 date, p_q text default null, p_purpose text default null, p_inside boolean default null,
+                                               p_limit int default 25, p_offset int default 0)
+returns table (id uuid, pass_no text, name text, phone text, purpose text, to_meet text, student_name text, organisation text, id_proof text, people int, vehicle_no text, note text,
+               in_at timestamptz, out_at timestamptz, created_by_name text, total bigint)
+language sql stable security definer set search_path = public as $$
+  select v.id, v.pass_no, v.name, v.phone, v.purpose, v.to_meet, btrim(concat_ws(' ', s.first_name, s.last_name)), v.organisation, v.id_proof, v.people, v.vehicle_no, v.note,
+         v.in_at, v.out_at, v.created_by_name, count(*) over ()
+    from public.visitors v left join public.students s on s.id = v.student_id
+   where v.school_id = sid and public.has_perm_school(sid, 'frontdesk.visitors.view')
+     and (v.in_at at time zone 'Asia/Kolkata')::date between d1 and d2
+     and (p_purpose is null or v.purpose = p_purpose)
+     and (p_inside is null or (p_inside and v.out_at is null) or (not p_inside and v.out_at is not null))
+     and (nullif(btrim(coalesce(p_q, '')), '') is null or concat_ws(' ', v.name, v.phone, v.pass_no, v.to_meet, v.organisation, v.vehicle_no) ilike public.like_escape(btrim(p_q)))
+   order by v.in_at desc
+   limit least(greatest(coalesce(p_limit, 25), 1), 200) offset greatest(coalesce(p_offset, 0), 0);
+$$;
+
+-- ───────────── Gate pass ─────────────
+create or replace function public.gate_pass_request(sid uuid, p_student uuid, p_reason text, p_pickup text, p_relation text, p_phone text) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare st record; i uuid; me text; auto boolean;
+begin
+  if auth.uid() is null or not public.has_perm_school(sid, 'frontdesk.visitors.create') then raise exception 'not allowed'; end if;
+  select id, status into st from public.students where id = p_student and school_id = sid;
+  if st.id is null then raise exception 'Student not found.'; end if;
+  if st.status <> 'active' then raise exception 'This student is not on roll.'; end if;
+  if coalesce(btrim(p_reason), '') = '' then raise exception 'Give the reason for leaving early.'; end if;
+  if coalesce(btrim(p_pickup), '') = '' then raise exception 'Name the person who will take the child.'; end if;
+  if exists (select 1 from public.gate_passes where student_id = p_student and leave_on = public.today_ist() and status in ('requested', 'approved')) then
+    raise exception 'There is already an open gate pass for this student today.'; end if;
+  select name into me from public.school_members where school_id = sid and user_id = auth.uid();
+  auto := public.has_perm_school(sid, 'frontdesk.visitors.edit');
+  insert into public.gate_passes (school_id, pass_no, student_id, reason, pickup_name, pickup_relation, pickup_phone, status, requested_by_name, decided_by_name, decided_at)
+  values (sid, public._fo_number(sid, 'pass'), p_student, left(btrim(p_reason), 200), left(btrim(p_pickup), 80), nullif(left(btrim(coalesce(p_relation, '')), 40), ''),
+          nullif(left(btrim(coalesce(p_phone, '')), 20), ''), case when auto then 'approved' else 'requested' end, coalesce(me, 'User'),
+          case when auto then coalesce(me, 'User') end, case when auto then now() end)
+  returning id into i;
+  return i;
+end $$;
+
+create or replace function public.gate_pass_decide(gid uuid, p_approve boolean, p_note text default null) returns void
+language plpgsql security definer set search_path = public as $$
+declare g public.gate_passes; me text;
+begin
+  select * into g from public.gate_passes where id = gid;
+  if g.id is null or auth.uid() is null or not public.has_perm_school(g.school_id, 'frontdesk.visitors.edit') then raise exception 'not allowed'; end if;
+  if g.status <> 'requested' then raise exception 'This pass is already %.', g.status; end if;
+  if not p_approve and coalesce(btrim(p_note), '') = '' then raise exception 'Give a reason for refusing.'; end if;
+  select name into me from public.school_members where school_id = g.school_id and user_id = auth.uid();
+  update public.gate_passes set status = case when p_approve then 'approved' else 'rejected' end, decided_by_name = coalesce(me, 'User'), decided_at = now(),
+         decision_note = nullif(left(btrim(coalesce(p_note, '')), 200), '') where id = gid;
+end $$;
+
+-- the child actually leaves: records the out-time on today's attendance
+create or replace function public.gate_pass_complete(gid uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare g public.gate_passes; tm time := date_trunc('second', (now() at time zone 'Asia/Kolkata'))::time;
+begin
+  select * into g from public.gate_passes where id = gid;
+  if g.id is null or auth.uid() is null or not public.has_perm_school(g.school_id, 'frontdesk.visitors.create') then raise exception 'not allowed'; end if;
+  if g.status <> 'approved' then raise exception 'Only an approved pass can be used.'; end if;
+  if g.leave_on <> public.today_ist() then raise exception 'This pass was for %.', to_char(g.leave_on, 'DD Mon'); end if;
+  update public.gate_passes set status = 'completed', out_at = now() where id = gid;
+  update public.attendance set out_time = tm, note = coalesce(note || ' · ', '') || 'Left early (gate pass ' || g.pass_no || ')'
+   where student_id = g.student_id and date = g.leave_on;
+end $$;
+
+create or replace function public.gate_pass_cancel(gid uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare g public.gate_passes;
+begin
+  select * into g from public.gate_passes where id = gid;
+  if g.id is null or auth.uid() is null or not public.has_perm_school(g.school_id, 'frontdesk.visitors.create') then raise exception 'not allowed'; end if;
+  if g.status not in ('requested', 'approved') then raise exception 'This pass is already %.', g.status; end if;
+  update public.gate_passes set status = 'cancelled' where id = gid;
+end $$;
+
+-- ───────────── Calls ─────────────
+create or replace function public.call_followup_done(cid uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare c public.phone_calls;
+begin
+  select * into c from public.phone_calls where id = cid;
+  if c.id is null or auth.uid() is null or not public.has_perm_school(c.school_id, 'frontdesk.visitors.edit') then raise exception 'not allowed'; end if;
+  update public.phone_calls set followed_up_at = now() where id = cid and followed_up_at is null;
+end $$;
+
+-- ───────────── Today at the front desk ─────────────
+create or replace function public.frontdesk_today(sid uuid) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare d date := public.today_ist();
+begin
+  if not (public.has_perm_school(sid, 'frontdesk.visitors.view') or public.has_perm_school(sid, 'frontdesk.enquiries.view') or public.has_perm_school(sid, 'frontdesk.admissions.view')) then
+    raise exception 'not allowed'; end if;
+  return jsonb_build_object(
+    'visitors_today', (select count(*) from public.visitors where school_id = sid and (in_at at time zone 'Asia/Kolkata')::date = d),
+    'visitors_inside', (select count(*) from public.visitors where school_id = sid and out_at is null and (in_at at time zone 'Asia/Kolkata')::date >= d - 1),
+    'calls_today', (select count(*) from public.phone_calls where school_id = sid and (call_at at time zone 'Asia/Kolkata')::date = d),
+    'followups_due', (select count(*) from public.phone_calls where school_id = sid and follow_up_on <= d and followed_up_at is null),
+    'passes_waiting', (select count(*) from public.gate_passes where school_id = sid and status = 'requested'),
+    'passes_to_release', (select count(*) from public.gate_passes where school_id = sid and status = 'approved' and leave_on = d),
+    'postal_today', (select count(*) from public.postal_items where school_id = sid and on_date = d),
+    'enquiries_new', (select count(*) from public.enquiries where school_id = sid and status = 'new'),
+    'applications_open', (select count(*) from public.admission_applications where school_id = sid and status not in ('admitted', 'rejected', 'cancelled'))
+  );
+end $$;
+
+-- ───────────── Audit ─────────────
+do $$
+declare t text;
+begin
+  foreach t in array array['visitors', 'phone_calls', 'postal_items', 'gate_passes'] loop
+    execute format('drop trigger if exists audit_%1$s on public.%1$I', t);
+    execute format('create trigger audit_%1$s after insert or update or delete on public.%1$I for each row execute function public.audit_row()', t);
+  end loop;
+end $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Step 23: Academic setup — curriculum (which subjects each class studies, periods a week, optional), section capacity and room,
+--          class teacher / subject teacher allocation in one place, syllabus & lesson-plan tracking with coverage.
+-- Safe to run again.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+alter table public.sections add column if not exists capacity int check (capacity is null or capacity between 1 and 200);
+alter table public.sections add column if not exists room text;
+
+create table if not exists public.class_subjects (
+  id               uuid primary key default gen_random_uuid(),
+  school_id        uuid not null references public.schools(id) on delete cascade,
+  class_id         uuid not null references public.classes(id) on delete cascade,
+  subject_id       uuid not null references public.subjects(id) on delete cascade,
+  periods_per_week int not null default 5 check (periods_per_week between 0 and 20),
+  is_optional      boolean not null default false,
+  unique (class_id, subject_id)
+);
+create index if not exists class_subjects_school on public.class_subjects (school_id);
+
+create table if not exists public.syllabus_units (
+  id               uuid primary key default gen_random_uuid(),
+  school_id        uuid not null references public.schools(id) on delete cascade,
+  session_id       uuid not null references public.sessions(id) on delete cascade,
+  class_id         uuid not null references public.classes(id) on delete cascade,
+  subject_id       uuid not null references public.subjects(id) on delete cascade,
+  no               int not null default 1,
+  title            text not null check (length(btrim(title)) between 1 and 160),
+  term             text,
+  planned_on       date,
+  status           text not null default 'pending' check (status in ('pending', 'in_progress', 'done')),
+  completed_on     date,
+  note             text,
+  verified_by_name text,
+  verified_at      timestamptz,
+  updated_by_name  text,
+  created_at       timestamptz not null default now()
+);
+create index if not exists syllabus_units_idx on public.syllabus_units (school_id, session_id, class_id, subject_id, no);
+
+alter table public.class_subjects enable row level security;
+alter table public.syllabus_units enable row level security;
+
+drop policy if exists "read" on public.class_subjects;
+create policy "read" on public.class_subjects for select to authenticated using (public.is_member(school_id));
+drop policy if exists "write" on public.class_subjects;
+create policy "write" on public.class_subjects for all to authenticated
+  using (public.has_perm_school(school_id, 'academics.setup.edit')) with check (public.has_perm_school(school_id, 'academics.setup.edit'));
+
+-- may this user write syllabus rows of this class + subject?
+create or replace function public.can_syllabus(sid uuid, p_class uuid, p_subject uuid, pkey text) returns boolean
+language plpgsql stable security definer set search_path = public as $$
+declare s text := public.perm_scope(sid, pkey);
+begin
+  if s = 'school' then return true; end if;
+  if s = 'assigned' then
+    return exists (select 1 from public.staff_assignments a join public.sections sc on sc.id = a.section_id
+                    where a.school_id = sid and a.user_id = auth.uid() and sc.class_id = p_class and (a.subject_id is null or a.subject_id = p_subject));
+  end if;
+  return false;
+end $$;
+
+drop policy if exists "read" on public.syllabus_units;
+create policy "read" on public.syllabus_units for select to authenticated
+  using (public.has_perm_school(school_id, 'academics.syllabus.view') or public.can_syllabus(school_id, class_id, subject_id, 'academics.syllabus.view'));
+drop policy if exists "create" on public.syllabus_units;
+create policy "create" on public.syllabus_units for insert to authenticated with check (public.can_syllabus(school_id, class_id, subject_id, 'academics.syllabus.create'));
+drop policy if exists "edit" on public.syllabus_units;
+create policy "edit" on public.syllabus_units for update to authenticated
+  using (public.can_syllabus(school_id, class_id, subject_id, 'academics.syllabus.edit')) with check (public.can_syllabus(school_id, class_id, subject_id, 'academics.syllabus.edit'));
+drop policy if exists "delete" on public.syllabus_units;
+create policy "delete" on public.syllabus_units for delete to authenticated using (public.can_syllabus(school_id, class_id, subject_id, 'academics.syllabus.delete'));
+
+-- stamps who changed a unit; completion date follows status; a changed unit loses its verification
+create or replace function public.syllabus_unit_guard() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare me text;
+begin
+  select name into me from public.school_members where school_id = new.school_id and user_id = auth.uid();
+  new.updated_by_name := coalesce(me, new.updated_by_name);
+  if new.status = 'done' and new.completed_on is null then new.completed_on := public.today_ist(); end if;
+  if new.status <> 'done' then new.completed_on := null; end if;
+  if tg_op = 'UPDATE' and (new.status is distinct from old.status or new.title is distinct from old.title) and new.verified_at is not distinct from old.verified_at then
+    new.verified_by_name := null; new.verified_at := null;
+  end if;
+  return new;
+end $$;
+drop trigger if exists syllabus_unit_guard on public.syllabus_units;
+create trigger syllabus_unit_guard before insert or update on public.syllabus_units for each row execute function public.syllabus_unit_guard();
+
+create or replace function public.verify_syllabus_unit(uid2 uuid, p_ok boolean default true) returns void
+language plpgsql security definer set search_path = public as $$
+declare u public.syllabus_units; me text;
+begin
+  select * into u from public.syllabus_units where id = uid2;
+  if u.id is null or auth.uid() is null or not public.has_perm_school(u.school_id, 'academics.syllabus.approve') then raise exception 'not allowed'; end if;
+  if u.status <> 'done' then raise exception 'Only a completed unit can be verified.'; end if;
+  select name into me from public.school_members where school_id = u.school_id and user_id = auth.uid();
+  update public.syllabus_units set verified_by_name = case when p_ok then coalesce(me, 'User') end, verified_at = case when p_ok then now() end where id = uid2;
+end $$;
+
+-- ───────────── Overview, allocation, progress ─────────────
+create or replace function public.academic_overview(sid uuid)
+returns table (class_id uuid, class_name text, class_sort int, section_id uuid, section_name text, capacity int, room text, students bigint,
+               class_teacher_id uuid, class_teacher_name text, subjects_mapped bigint, subjects_staffed bigint)
+language sql stable security definer set search_path = public as $$
+  select c.id, c.name, c.sort, s.id, s.name, s.capacity, s.room,
+         (select count(*) from public.students st where st.section_id = s.id and st.status = 'active'),
+         ct.user_id, (select m.name from public.school_members m where m.school_id = sid and m.user_id = ct.user_id),
+         (select count(*) from public.class_subjects cs where cs.class_id = c.id),
+         (select count(distinct a.subject_id) from public.staff_assignments a join public.class_subjects cs on cs.subject_id = a.subject_id and cs.class_id = c.id where a.section_id = s.id)
+    from public.classes c
+    join public.sections s on s.class_id = c.id
+    left join lateral (select a.user_id from public.staff_assignments a where a.section_id = s.id and a.is_class_teacher limit 1) ct on true
+   where c.school_id = sid and public.is_member(sid)
+   order by c.sort, c.name, s.name;
+$$;
+
+create or replace function public.set_class_teacher(sid uuid, p_section uuid, p_user uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null or not (public.has_perm_school(sid, 'academics.allocation.edit') or public.has_perm_school(sid, 'academics.allocation.create')) then raise exception 'not allowed'; end if;
+  if not exists (select 1 from public.sections where id = p_section and school_id = sid) then raise exception 'Section not found.'; end if;
+  if p_user is not null and not exists (select 1 from public.school_members where school_id = sid and user_id = p_user) then raise exception 'That person does not have a login in this school.'; end if;
+  delete from public.staff_assignments where section_id = p_section and is_class_teacher;
+  update public.sections set class_teacher_id = p_user where id = p_section;
+  if p_user is not null then
+    delete from public.staff_assignments where section_id = p_section and user_id = p_user and subject_id is null;
+    insert into public.staff_assignments (school_id, user_id, section_id, subject_id, is_class_teacher) values (sid, p_user, p_section, null, true);
+  end if;
+end $$;
+
+create or replace function public.set_subject_teacher(sid uuid, p_section uuid, p_subject uuid, p_user uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null or not (public.has_perm_school(sid, 'academics.allocation.edit') or public.has_perm_school(sid, 'academics.allocation.create')) then raise exception 'not allowed'; end if;
+  if not exists (select 1 from public.sections where id = p_section and school_id = sid) then raise exception 'Section not found.'; end if;
+  if not exists (select 1 from public.subjects where id = p_subject and school_id = sid) then raise exception 'Subject not found.'; end if;
+  if p_user is not null and not exists (select 1 from public.school_members where school_id = sid and user_id = p_user) then raise exception 'That person does not have a login in this school.'; end if;
+  delete from public.staff_assignments where section_id = p_section and subject_id = p_subject and not is_class_teacher;
+  if p_user is not null then
+    insert into public.staff_assignments (school_id, user_id, section_id, subject_id, is_class_teacher) values (sid, p_user, p_section, p_subject, false)
+    on conflict do nothing;
+  end if;
+end $$;
+
+create or replace function public.syllabus_progress(sid uuid, p_session uuid, p_class uuid default null)
+returns table (class_id uuid, class_name text, class_sort int, subject_id uuid, subject_name text, units bigint, in_progress bigint, done bigint, verified bigint, pct numeric)
+language sql stable security definer set search_path = public as $$
+  select c.id, c.name, c.sort, s.id, s.name, count(u.id), count(u.id) filter (where u.status = 'in_progress'), count(u.id) filter (where u.status = 'done'),
+         count(u.id) filter (where u.verified_at is not null), round(100.0 * count(u.id) filter (where u.status = 'done') / nullif(count(u.id), 0), 0)
+    from public.class_subjects cs
+    join public.classes c on c.id = cs.class_id
+    join public.subjects s on s.id = cs.subject_id
+    left join public.syllabus_units u on u.class_id = c.id and u.subject_id = s.id and u.session_id = p_session
+   where cs.school_id = sid and (p_class is null or c.id = p_class)
+     and (public.has_perm(sid, 'academics.syllabus.view') or public.has_perm(sid, 'academics.setup.view'))
+   group by c.id, c.name, c.sort, s.id, s.name
+   order by c.sort, s.name;
+$$;
+
+-- copies the syllabus of one session into the next (titles and order, everything pending)
+create or replace function public.copy_syllabus(sid uuid, from_session uuid, to_session uuid) returns int
+language plpgsql security definer set search_path = public as $$
+declare n int;
+begin
+  if auth.uid() is null or not public.has_perm_school(sid, 'academics.syllabus.create') then raise exception 'not allowed'; end if;
+  if from_session = to_session then raise exception 'Choose two different sessions.'; end if;
+  if not exists (select 1 from public.sessions where id in (from_session, to_session) and school_id = sid having count(*) = 2) then raise exception 'Session not found.'; end if;
+  insert into public.syllabus_units (school_id, session_id, class_id, subject_id, no, title, term)
+  select sid, to_session, u.class_id, u.subject_id, u.no, u.title, u.term from public.syllabus_units u
+   where u.school_id = sid and u.session_id = from_session
+     and not exists (select 1 from public.syllabus_units x where x.session_id = to_session and x.class_id = u.class_id and x.subject_id = u.subject_id and x.title = u.title);
+  get diagnostics n = row_count;
+  return n;
+end $$;
+
+-- ───────────── Audit ─────────────
+do $$
+declare t text;
+begin
+  foreach t in array array['class_subjects', 'syllabus_units'] loop
+    execute format('drop trigger if exists audit_%1$s on public.%1$I', t);
+    execute format('create trigger audit_%1$s after insert or update or delete on public.%1$I for each row execute function public.audit_row()', t);
+  end loop;
+end $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Step 24: Payroll v2 — unpaid days from staff attendance (holidays excluded), PF / ESI / professional tax,
+--          salary advances with monthly recovery, salary revision history, statutory columns for reports.
+-- Safe to run again. Replaces payslip_compute() and generate_payroll() from 0007.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- ───────────── Settings ─────────────
+create table if not exists public.payroll_settings (
+  school_id        uuid primary key references public.schools(id) on delete cascade,
+  use_attendance   boolean not null default true,
+  pf_on            boolean not null default false,
+  pf_rate          numeric(5,2) not null default 12 check (pf_rate between 0 and 30),
+  pf_ceiling       numeric(10,2) not null default 15000 check (pf_ceiling >= 0),
+  esi_on           boolean not null default false,
+  esi_rate         numeric(5,2) not null default 0.75 check (esi_rate between 0 and 10),
+  esi_employer_rate numeric(5,2) not null default 3.25 check (esi_employer_rate between 0 and 10),
+  esi_ceiling      numeric(10,2) not null default 21000 check (esi_ceiling >= 0),
+  pt_on            boolean not null default false,
+  pt_slabs         jsonb not null default '[{"upto": 15000, "amount": 0}, {"upto": null, "amount": 200}]'
+);
+alter table public.payroll_settings enable row level security;
+drop policy if exists "read" on public.payroll_settings;
+create policy "read" on public.payroll_settings for select to authenticated using (public.has_perm_school(school_id, 'hr.payroll.view'));
+drop policy if exists "write" on public.payroll_settings;
+create policy "write" on public.payroll_settings for all to authenticated
+  using (public.has_perm_school(school_id, 'hr.payroll.edit')) with check (public.has_perm_school(school_id, 'hr.payroll.edit'));
+
+alter table public.staff add column if not exists pf_applicable boolean not null default true;
+alter table public.staff add column if not exists esi_applicable boolean not null default true;
+alter table public.staff add column if not exists pt_applicable boolean not null default true;
+
+alter table public.payslips add column if not exists att_lop numeric(5,1) not null default 0;
+alter table public.payslips add column if not exists advance_recovery numeric(12,2) not null default 0 check (advance_recovery >= 0);
+alter table public.payslips add column if not exists pf_employee numeric(12,2) not null default 0;
+alter table public.payslips add column if not exists esi_employee numeric(12,2) not null default 0;
+alter table public.payslips add column if not exists prof_tax numeric(12,2) not null default 0;
+alter table public.payslips add column if not exists employer_pf numeric(12,2) not null default 0;
+alter table public.payslips add column if not exists employer_esi numeric(12,2) not null default 0;
+
+-- ───────────── Advances ─────────────
+create table if not exists public.staff_advances (
+  id              uuid primary key default gen_random_uuid(),
+  school_id       uuid not null references public.schools(id) on delete cascade,
+  staff_id        uuid not null references public.staff(id) on delete cascade,
+  amount          numeric(12,2) not null check (amount > 0),
+  monthly_emi     numeric(12,2) not null check (monthly_emi > 0),
+  balance         numeric(12,2) not null check (balance >= 0),
+  taken_on        date not null default (now() at time zone 'Asia/Kolkata')::date,
+  reason          text,
+  status          text not null default 'active' check (status in ('active', 'closed', 'cancelled')),
+  created_by_name text,
+  created_at      timestamptz not null default now(),
+  check (monthly_emi <= amount)
+);
+create index if not exists staff_advances_idx on public.staff_advances (school_id, staff_id, status);
+create table if not exists public.advance_recoveries (
+  id         uuid primary key default gen_random_uuid(),
+  advance_id uuid not null references public.staff_advances(id) on delete cascade,
+  payslip_id uuid not null references public.payslips(id) on delete cascade,
+  amount     numeric(12,2) not null check (amount > 0),
+  unique (advance_id, payslip_id)
+);
+
+create table if not exists public.staff_salary_history (
+  id              uuid primary key default gen_random_uuid(),
+  school_id       uuid not null references public.schools(id) on delete cascade,
+  staff_id        uuid not null references public.staff(id) on delete cascade,
+  changed_on      date not null default (now() at time zone 'Asia/Kolkata')::date,
+  old_gross       numeric(12,2) not null default 0,
+  new_gross       numeric(12,2) not null default 0,
+  old_earnings    jsonb,
+  new_earnings    jsonb,
+  changed_by_name text,
+  created_at      timestamptz not null default now()
+);
+create index if not exists staff_salary_history_idx on public.staff_salary_history (staff_id, created_at desc);
+
+alter table public.staff_advances enable row level security;
+alter table public.advance_recoveries enable row level security;
+alter table public.staff_salary_history enable row level security;
+drop policy if exists "read" on public.staff_advances;
+create policy "read" on public.staff_advances for select to authenticated using (public.has_perm_school(school_id, 'hr.payroll.view'));
+drop policy if exists "read" on public.advance_recoveries;
+create policy "read" on public.advance_recoveries for select to authenticated
+  using (exists (select 1 from public.staff_advances a where a.id = advance_id and public.has_perm_school(a.school_id, 'hr.payroll.view')));
+drop policy if exists "read" on public.staff_salary_history;
+create policy "read" on public.staff_salary_history for select to authenticated using (public.has_perm_school(school_id, 'hr.payroll.view'));
+
+create or replace function public.add_advance(sid uuid, p_staff uuid, p_amount numeric, p_emi numeric, p_on date, p_reason text) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare i uuid; me text;
+begin
+  if auth.uid() is null or not public.has_perm_school(sid, 'hr.payroll.create') then raise exception 'not allowed'; end if;
+  if not exists (select 1 from public.staff where id = p_staff and school_id = sid and status = 'active') then raise exception 'Choose a working staff member.'; end if;
+  if p_amount is null or p_amount <= 0 then raise exception 'Enter the advance amount.'; end if;
+  if p_emi is null or p_emi <= 0 or p_emi > p_amount then raise exception 'The monthly recovery must be above zero and not more than the advance.'; end if;
+  select name into me from public.school_members where school_id = sid and user_id = auth.uid();
+  insert into public.staff_advances (school_id, staff_id, amount, monthly_emi, balance, taken_on, reason, created_by_name)
+  values (sid, p_staff, round(p_amount, 2), round(p_emi, 2), round(p_amount, 2), coalesce(p_on, public.today_ist()), nullif(left(btrim(coalesce(p_reason, '')), 200), ''), coalesce(me, 'User'))
+  returning id into i;
+  return i;
+end $$;
+
+create or replace function public.cancel_advance(aid uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare a public.staff_advances;
+begin
+  select * into a from public.staff_advances where id = aid;
+  if a.id is null or auth.uid() is null or not public.has_perm_school(a.school_id, 'hr.payroll.edit') then raise exception 'not allowed'; end if;
+  if a.status <> 'active' then raise exception 'This advance is already %.', a.status; end if;
+  if exists (select 1 from public.advance_recoveries where advance_id = aid) then raise exception 'Part of it has already been recovered; it cannot be cancelled.'; end if;
+  update public.staff_advances set status = 'cancelled', balance = 0 where id = aid;
+end $$;
+
+-- ───────────── Payslip computation (replaces 0007) ─────────────
+create or replace function public.payslip_compute() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare f numeric; st text; cfg public.payroll_settings; stf public.staff; basic numeric := 0; slab jsonb; pf numeric := 0; esi numeric := 0; pt numeric := 0;
+        fixed jsonb; lines jsonb := '[]'; wage numeric; e jsonb;
+begin
+  select status into st from public.payroll_runs where id = new.run_id;
+  if tg_op = 'UPDATE' and st = 'approved' then
+    if new.lop_days is distinct from old.lop_days or new.base_earnings is distinct from old.base_earnings or new.deductions is distinct from old.deductions
+       or new.adjustment is distinct from old.adjustment or new.working_days is distinct from old.working_days or new.advance_recovery is distinct from old.advance_recovery then
+      raise exception 'Payroll for this month is approved and locked. Reopen it to make changes.';
+    end if;
+    -- an approved slip keeps its figures even if settings changed afterwards
+    new.earnings := old.earnings; new.gross := old.gross; new.total_deductions := old.total_deductions;
+    new.pf_employee := old.pf_employee; new.esi_employee := old.esi_employee; new.prof_tax := old.prof_tax; new.employer_pf := old.employer_pf; new.employer_esi := old.employer_esi;
+    return new;
+  end if;
+  if tg_op = 'UPDATE' and st = 'draft' and new.paid_on is not null and old.paid_on is null then
+    raise exception 'Approve the payroll before marking salaries paid.';
+  end if;
+  f := greatest(new.working_days - new.lop_days, 0) / new.working_days;
+  select coalesce(jsonb_agg(jsonb_build_object('name', x ->> 'name', 'amount', round(coalesce((x ->> 'amount')::numeric, 0) * f))), '[]'::jsonb)
+    into new.earnings from jsonb_array_elements(new.base_earnings) x;
+  select coalesce(sum((x ->> 'amount')::numeric), 0) into new.gross from jsonb_array_elements(new.earnings) x;
+
+  -- fixed deductions typed by HR stay; automatic lines are rebuilt every time
+  select coalesce(jsonb_agg(x), '[]'::jsonb) into fixed from jsonb_array_elements(new.deductions) x where coalesce((x ->> 'auto')::boolean, false) = false;
+  select * into cfg from public.payroll_settings where school_id = new.school_id;
+  select * into stf from public.staff where id = new.staff_id;
+  new.pf_employee := 0; new.esi_employee := 0; new.prof_tax := 0; new.employer_pf := 0; new.employer_esi := 0;
+  if cfg.school_id is not null then
+    select coalesce(sum((x ->> 'amount')::numeric), 0) into basic from jsonb_array_elements(new.earnings) x where lower(x ->> 'name') like 'basic%';
+    if basic = 0 then basic := new.gross; end if;
+    if cfg.pf_on and coalesce(stf.pf_applicable, true) then
+      wage := least(basic, cfg.pf_ceiling);
+      new.pf_employee := round(wage * cfg.pf_rate / 100);
+      new.employer_pf := round(wage * cfg.pf_rate / 100);
+    end if;
+    if cfg.esi_on and coalesce(stf.esi_applicable, true) and new.gross > 0 and new.gross <= cfg.esi_ceiling then
+      new.esi_employee := ceil(new.gross * cfg.esi_rate / 100);
+      new.employer_esi := ceil(new.gross * cfg.esi_employer_rate / 100);
+    end if;
+    if cfg.pt_on and coalesce(stf.pt_applicable, true) and new.gross > 0 then
+      for slab in select * from jsonb_array_elements(cfg.pt_slabs) loop
+        if (slab ->> 'upto') is null or new.gross <= (slab ->> 'upto')::numeric then pt := coalesce((slab ->> 'amount')::numeric, 0); exit; end if;
+      end loop;
+      new.prof_tax := pt;
+    end if;
+  end if;
+  -- an advance is never recovered beyond what is left of the month's pay
+  select coalesce(sum(coalesce((x ->> 'amount')::numeric, 0)), 0) into wage from jsonb_array_elements(fixed) x;
+  new.advance_recovery := least(coalesce(new.advance_recovery, 0), greatest(new.gross - wage - new.pf_employee - new.esi_employee - new.prof_tax, 0));
+  if new.pf_employee > 0 then lines := lines || jsonb_build_array(jsonb_build_object('name', 'PF (employee)', 'amount', new.pf_employee, 'auto', true)); end if;
+  if new.esi_employee > 0 then lines := lines || jsonb_build_array(jsonb_build_object('name', 'ESI (employee)', 'amount', new.esi_employee, 'auto', true)); end if;
+  if new.prof_tax > 0 then lines := lines || jsonb_build_array(jsonb_build_object('name', 'Professional tax', 'amount', new.prof_tax, 'auto', true)); end if;
+  if coalesce(new.advance_recovery, 0) > 0 then lines := lines || jsonb_build_array(jsonb_build_object('name', 'Advance recovery', 'amount', new.advance_recovery, 'auto', true)); end if;
+  new.deductions := fixed || lines;
+  select coalesce(sum(coalesce((x ->> 'amount')::numeric, 0)), 0) into new.total_deductions from jsonb_array_elements(new.deductions) x;
+  return new;
+end $$;
+
+-- ───────────── Advances follow the payroll status ─────────────
+create or replace function public.payroll_run_advances() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare ps record; adv record; rest numeric; take numeric;
+begin
+  if new.status = 'approved' and old.status = 'draft' then
+    for ps in select id, staff_id, advance_recovery from public.payslips where run_id = new.id and advance_recovery > 0 loop
+      rest := ps.advance_recovery;
+      for adv in select * from public.staff_advances where staff_id = ps.staff_id and status = 'active' and balance > 0 order by taken_on, created_at loop
+        exit when rest <= 0;
+        take := least(adv.balance, rest);
+        insert into public.advance_recoveries (advance_id, payslip_id, amount) values (adv.id, ps.id, take) on conflict do nothing;
+        update public.staff_advances set balance = balance - take, status = case when balance - take <= 0 then 'closed' else status end where id = adv.id;
+        rest := rest - take;
+      end loop;
+    end loop;
+  elsif new.status = 'draft' and old.status = 'approved' then
+    update public.staff_advances a set balance = a.balance + r.amt, status = 'active'
+      from (select rc.advance_id, sum(rc.amount) amt from public.advance_recoveries rc join public.payslips p on p.id = rc.payslip_id where p.run_id = new.id group by rc.advance_id) r
+     where a.id = r.advance_id;
+    delete from public.advance_recoveries rc using public.payslips p where rc.payslip_id = p.id and p.run_id = new.id;
+  end if;
+  return new;
+end $$;
+drop trigger if exists payroll_runs_advances on public.payroll_runs;
+create trigger payroll_runs_advances after update on public.payroll_runs for each row execute function public.payroll_run_advances();
+
+-- ───────────── Salary history ─────────────
+create or replace function public.staff_salary_log() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare og numeric; ng numeric; me text;
+begin
+  if new.earnings is not distinct from old.earnings then return new; end if;
+  select coalesce(sum((x ->> 'amount')::numeric), 0) into og from jsonb_array_elements(coalesce(old.earnings, '[]')) x;
+  select coalesce(sum((x ->> 'amount')::numeric), 0) into ng from jsonb_array_elements(coalesce(new.earnings, '[]')) x;
+  select name into me from public.school_members where school_id = new.school_id and user_id = auth.uid();
+  insert into public.staff_salary_history (school_id, staff_id, old_gross, new_gross, old_earnings, new_earnings, changed_by_name)
+  values (new.school_id, new.id, og, ng, old.earnings, new.earnings, me);
+  return new;
+end $$;
+drop trigger if exists staff_salary_log on public.staff;
+create trigger staff_salary_log after update of earnings on public.staff for each row execute function public.staff_salary_log();
+
+-- ───────────── Attendance → unpaid days ─────────────
+-- explicit absences (A = 1, H = 0.5) in the month that are not already approved leave without pay
+create or replace function public.attendance_lop(stf uuid, d1 date, d2 date) returns numeric
+language sql stable security definer set search_path = public as $$
+  select coalesce(sum(case a.status when 'A' then 1 when 'H' then 0.5 else 0 end), 0)
+    from public.staff_attendance a
+   where a.staff_id = stf and a.date between d1 and d2 and a.status in ('A', 'H')
+     and not exists (select 1 from public.staff_leaves l where l.staff_id = stf and l.status = 'approved' and l.kind = 'LWP' and a.date between l.from_date and l.to_date);
+$$;
+
+-- working days of a month: school working weekdays minus holidays and vacations
+create or replace function public.month_working_days(sid uuid, p_month date) returns int
+language plpgsql stable security definer set search_path = public as $$
+declare m1 date := date_trunc('month', p_month)::date; m2 date := (date_trunc('month', p_month) + interval '1 month - 1 day')::date; days int[]; n int;
+begin
+  select coalesce(array(select jsonb_array_elements_text(prefs -> 'working_days')::int), array[1,2,3,4,5,6]) into days from public.schools where id = sid;
+  if days is null or cardinality(days) = 0 then days := array[1,2,3,4,5,6]; end if;
+  select count(*) into n from generate_series(m1, m2, interval '1 day') g
+   where extract(isodow from g)::int = any(days)
+     and not exists (select 1 from public.school_events e where e.school_id = sid and e.kind in ('holiday', 'vacation') and g::date between e.start_date and e.end_date);
+  return greatest(n, 1);
+end $$;
+
+-- ───────────── Generation (replaces 0007) ─────────────
+create or replace function public.generate_payroll(sid uuid, p_month date, p_days int default null) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare m1 date := date_trunc('month', p_month)::date; m2 date; d int; rid uuid; st text; cfg public.payroll_settings;
+begin
+  if not public.has_perm_school(sid, 'hr.payroll.create') then raise exception 'not allowed'; end if;
+  m2 := (m1 + interval '1 month - 1 day')::date;
+  select * into cfg from public.payroll_settings where school_id = sid;
+  d := coalesce(p_days, case when coalesce(cfg.use_attendance, false) then public.month_working_days(sid, m1) else extract(day from m2)::int end);
+  if d < 1 or d > 31 then raise exception 'Working days must be between 1 and 31.'; end if;
+  insert into public.payroll_runs (school_id, month) values (sid, m1) on conflict (school_id, month) do nothing;
+  select id, status into rid, st from public.payroll_runs where school_id = sid and month = m1;
+  if st <> 'draft' then raise exception 'Payroll for this month is already approved.'; end if;
+  delete from public.payslips where run_id = rid and paid_on is null;
+  insert into public.payslips (school_id, run_id, staff_id, working_days, lop_days, att_lop, advance_recovery, base_earnings, deductions)
+  select sid, rid, s.id, d,
+         least(d, public.lwp_days(s.id, m1, m2)
+                  + case when coalesce(cfg.use_attendance, false) then public.attendance_lop(s.id, m1, m2) else 0 end
+                  + case when s.joining_date > m1 then least(d, s.joining_date - m1) else 0 end
+                  + case when s.leaving_date < m2 then least(d, m2 - s.leaving_date) else 0 end),
+         case when coalesce(cfg.use_attendance, false) then public.attendance_lop(s.id, m1, m2) else 0 end,
+         coalesce((select least(sum(a.monthly_emi), sum(a.balance)) from public.staff_advances a where a.staff_id = s.id and a.status = 'active' and a.balance > 0 and a.taken_on <= m2), 0),
+         s.earnings, s.deductions
+    from public.staff s
+   where s.school_id = sid and jsonb_array_length(s.earnings) > 0
+     and (s.joining_date is null or s.joining_date <= m2)
+     and (s.status = 'active' or s.leaving_date >= m1)
+  on conflict (run_id, staff_id) do nothing;
+  return rid;
+end $$;
+
+-- ───────────── Audit ─────────────
+do $$
+declare t text;
+begin
+  foreach t in array array['payroll_settings', 'staff_advances'] loop
     execute format('drop trigger if exists audit_%1$s on public.%1$I', t);
     execute format('create trigger audit_%1$s after insert or update or delete on public.%1$I for each row execute function public.audit_row()', t);
   end loop;

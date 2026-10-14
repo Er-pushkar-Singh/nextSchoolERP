@@ -39,6 +39,7 @@ export async function saveStaff(f: FormData) {
   if (row.gender && !["M", "F", "O"].includes(row.gender as string)) row.gender = null;
   if (f.has("earn_name_0")) { row.earnings = lines(f, "earn"); row.deductions = lines(f, "ded"); }
   if (f.has("quota_CL")) row.leave_quota = quota;
+  if (f.has("earn_name_0")) { row.pf_applicable = f.get("pf_applicable") === "1"; row.esi_applicable = f.get("esi_applicable") === "1"; row.pt_applicable = f.get("pt_applicable") === "1"; }
   const { data, error } = id
     ? await supabase.from("staff").update(row).eq("id", id).eq("school_id", school.id).select("id").single()
     : await supabase.from("staff").insert({ ...row, school_id: school.id }).select("id").single();

@@ -23,6 +23,10 @@ begin
   delete from public.staff where school_id = sid and emp_code like 'DEMO-E%';
   delete from public.transport_routes where school_id = sid and name like 'DEMO Route%';
   delete from public.attendance_devices where school_id = sid and name like 'DEMO %';
+  delete from public.school_events where school_id = sid and created_by_name = 'DEMO';
+  delete from public.timetable_slots where school_id = sid and room in ('Room 1', 'Room 2') and staff_id in (select id from public.staff where school_id = sid and emp_code like 'DEMO-E%');
+  delete from public.vouchers where school_id = sid and no like '__-D____';
+  delete from public.account_books b where b.school_id = sid and b.name like 'DEMO %' and not exists (select 1 from public.vouchers v where v.book_id = b.id or v.to_book_id = b.id);
   delete from public.transport_vehicles where school_id = sid and reg_no like 'DEMO %';
   delete from public.fee_day_close where school_id = sid and not exists (select 1 from public.fee_receipts r where r.school_id = sid);
   -- charges and fee dues of removed students are gone with them (cascade); leftover guardians of demo students

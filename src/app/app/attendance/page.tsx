@@ -24,6 +24,7 @@ export default async function Attendance({ searchParams }: { searchParams: Promi
   const cls = uid(sp.class_id), sec = uid(sp.section_id);
   const canWrite = can("attendance.students.create");
 
+  const { data: holiday } = await supabase.rpc("holiday_on", { sid: school.id, on_day: day });
   const [{ data: summary }, { data: counts }, { data: dayRows }] = await Promise.all([
     supabase.rpc("attendance_summary", { sid: school.id, on_day: day }),
     supabase.rpc("class_counts", { sid: school.id }),
@@ -62,6 +63,7 @@ export default async function Attendance({ searchParams }: { searchParams: Promi
     <div className="flex flex-col gap-5">
       <PageHeader icon="attendance" title="Attendance" subtitle={`${fmtDate(day)} · mark by class, scan a QR or use a device`} actions={<Link href="/app/attendance/register" className="btn btn-sm btn-secondary">Monthly register</Link>} />
       <Flash ok={sp.ok} error={sp.error} />
+      {holiday && <p className="m-0 rounded-[12px] border border-[#e0b44a] bg-[#fff8e6] px-4 py-3 text-[14px]">{fmtDate(day)} is marked as <b>{String(holiday)}</b> in the school calendar. You can still mark attendance if classes were held.</p>}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         <Stat label="Students" value={tot.strength} />

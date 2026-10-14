@@ -35,6 +35,17 @@ const NAV: Entry[] = [
   { key: "attendance", label: "Attendance", icon: "attendance", items: [
     { href: "/app/attendance", label: "Mark attendance", any: ["attendance.students.view"] },
     { href: "/app/attendance/register", label: "Monthly register", any: ["attendance.students.view"] },
+    { href: "/app/attendance/scan", label: "Scan QR", any: ["attendance.students.create", "attendance.staff.create"] },
+    { href: "/app/attendance/staff", label: "Staff attendance", any: ["attendance.staff.view"] },
+    { href: "/app/attendance/low", label: "Low attendance", any: ["attendance.students.view"] },
+    { href: "/app/attendance/devices", label: "Devices & timings", any: ["attendance.students.edit"] },
+  ] },
+  { key: "timetable", label: "Timetable", icon: "academics", items: [
+    { href: "/app/timetable", label: "Class timetable", any: ["academics.timetable.view"] },
+    { href: "/app/timetable/teacher", label: "Teacher timetable", any: ["academics.timetable.view"] },
+    { href: "/app/timetable/cover", label: "Cover & substitutes", any: ["academics.timetable.view"] },
+    { href: "/app/timetable/load", label: "Teacher workload", any: ["academics.timetable.edit"] },
+    { href: "/app/timetable/periods", label: "Bell schedule", any: ["academics.timetable.edit"] },
   ] },
   { key: "exams", label: "Exams & results", icon: "exams", href: "/app/exams", any: ["exams.setup.view", "exams.marks.view"] },
   { key: "homework", label: "Homework & material", icon: "homework", href: "/app/homework", any: ["homework.homework.view", "homework.material.view"] },
@@ -59,6 +70,12 @@ const NAV: Entry[] = [
     { href: "/app/fees/reports", label: "Reports", any: ["fees.collection.view", "fees.receipts.view"] },
     { href: "/app/fees/settings", label: "Fee settings", any: ["fees.structure.view"] },
   ] },
+  { key: "accounts", label: "Accounts", icon: "revenue", items: [
+    { href: "/app/accounts", label: "Overview", any: ["accounts.vouchers.view", "accounts.books.view"] },
+    { href: "/app/accounts/vouchers", label: "Vouchers", any: ["accounts.vouchers.view"] },
+    { href: "/app/accounts/daybook", label: "Day book", any: ["accounts.books.view", "accounts.vouchers.view"] },
+    { href: "/app/accounts/setup", label: "Books & heads", any: ["accounts.vouchers.view", "accounts.books.view"] },
+  ] },
   { key: "transport", label: "Transport", icon: "transport", section: "Operations", items: [
     { href: "/app/transport", label: "Routes & stops", any: ["transport.routes.view"] },
     { href: "/app/transport/live", label: "Live bus map", any: ["transport.tracking.view"] },
@@ -71,6 +88,7 @@ const NAV: Entry[] = [
     { href: "/app/hr/payroll", label: "Payroll", any: ["hr.payroll.view"] },
   ] },
   { key: "notices", label: "Notices", icon: "notices", href: "/app/notices", any: ["comms.notices.view"], section: "Communication" },
+  { key: "calendar", label: "School calendar", icon: "notices", href: "/app/calendar", any: ["comms.calendar.view"] },
   { key: "settings", label: "Settings", icon: "settings", section: "Administration", items: [
     { href: "/app/settings", label: "Settings centre", any: ["settings.school.view", "settings.users.view", "settings.roles.view", "academics.setup.create", "settings.billing.view", "settings.integrations.view", "settings.audit.view"] },
     { href: "/app/settings/school", label: "School profile", any: ["settings.school.view"] },

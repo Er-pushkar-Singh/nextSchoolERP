@@ -11,6 +11,7 @@
 --   • Settings: late fine, concession approval, sibling discount, seats per class, extra sections
 --   • Fee structure for Nursery–10 (tuition monthly, admission, annual, exam) → dues for every student
 --   • Attendance for 3 weeks (some students low), today partly scanned, a gate kiosk and a biometric device, staff attendance
+--   • Accounts: a bank book, 10 vouchers (one waiting approval, one cancelled) beside fee receipts / refunds in the day book
 --   • 39 students (3 per class) incl. 3 sibling pairs and 2 RTE students
 --   • 6 enquiries and 18 admission applications in every state (received … admitted, waitlisted, rejected)
 --   • Concessions (approved / pending / rejected), receipts (cash, UPI, split, cheque), advance, bounced cheque,
@@ -410,6 +411,69 @@ begin
     select sid, t.id, td, case when t.rn % 5 = 0 then 'L' else 'P' end, case when t.rn % 5 = 0 then time '08:32' else time '07:50' end, 'biometric', 'DEMO'
       from (select id, row_number() over (order by emp_code) rn from public.staff where school_id = sid and emp_code like 'DEMO-E%' and status = 'active') t
     on conflict (staff_id, date) do nothing;
+  end;
+
+  -- ── Accounts: a few vouchers over the last month (fees, refunds and payroll appear by themselves) ──
+  declare cashb uuid; bankb uuid; hd record; td2 date := public.today_ist();
+  begin
+    perform public._account_defaults(sid);
+    select id into cashb from public.account_books where school_id = sid and kind = 'cash' order by created_at limit 1;
+    select id into bankb from public.account_books where school_id = sid and kind = 'bank' order by created_at limit 1;
+    if bankb is null then
+      insert into public.account_books (school_id, name, kind, opening_balance, opening_date) values (sid, 'DEMO SBI current account', 'bank', 250000, td2 - 40) returning id into bankb;
+    end if;
+    update public.account_books set opening_balance = 25000, opening_date = td2 - 40 where id = cashb and opening_balance = 0;
+    insert into public.vouchers (school_id, no, date, kind, head_id, book_id, to_book_id, amount, party, mode, ref_no, narration, status, created_by_name)
+    select sid, x.no, td2 - x.ago, x.kind, (select id from public.account_heads where school_id = sid and name = x.head limit 1),
+           case when x.bank then bankb else cashb end, case when x.kind = 'transfer' then bankb end, x.amt, x.party, x.mode, x.ref, x.note, x.st, 'DEMO'
+      from (values
+        ('RV-D0001', 25, 'receipt',  'Donations',                false, 15000, 'Mr R. K. Gupta',     'cash',          null,        'Donation for library',          'posted'),
+        ('PV-D0001', 22, 'payment',  'Electricity & water',      true,  18450, 'UPPCL',              'bank_transfer', 'UTR88231',  'Electricity bill — September',  'posted'),
+        ('PV-D0002', 18, 'payment',  'Stationery & printing',    false,  6240, 'Aggarwal Stationers','cash',          'INV-412',   'Registers and chalk',           'posted'),
+        ('RV-D0002', 15, 'receipt',  'Sale of books & uniform',  false,  9800, 'Uniform counter',    'cash',          null,        'Uniform sales this week',       'posted'),
+        ('TV-D0001', 12, 'transfer', null,                       false, 20000, null,                 'cash',          null,        'Cash deposited to bank',        'posted'),
+        ('PV-D0003',  9, 'payment',  'Repairs & maintenance',    true,  38000, 'Shree Ram Builders', 'cheque',        '004512',    'Roof repair, science lab',      'pending'),
+        ('PV-D0004',  6, 'payment',  'Fuel & vehicle running',   false,  7200, 'Indian Oil pump',    'cash',          'SLIP-99',   'Bus diesel',                    'posted'),
+        ('RV-D0003',  4, 'receipt',  'Event & function income',  false, 12500, 'Annual day stalls',  'cash',          null,        'Stall rent from vendors',       'posted'),
+        ('PV-D0005',  2, 'payment',  'Events & functions',       false,  4800, 'Sound & tent',       'cash',          null,        'Sports day arrangements',       'posted'),
+        ('PV-D0006',  1, 'payment',  'Other expense',            false,   950, 'Local shop',         'cash',          null,        'Cancelled — wrong party',       'cancelled')
+      ) x(no, ago, kind, head, bank, amt, party, mode, ref, note, st)
+    on conflict (school_id, no) do nothing;
+  end;
+
+  -- ── Timetable and calendar: bell schedule, two sections filled, a holiday and events ──
+  declare tt_t uuid[]; tt_s uuid[]; tt_sub uuid[]; tt_p uuid[]; tt_i int; tt_d int; mo date := date_trunc('month', public.today_ist())::date;
+  begin
+    if not exists (select 1 from public.periods where school_id = sid) then
+      insert into public.periods (school_id, no, name, start_time, end_time, is_break) values
+        (sid, 1, 'Period 1', '08:00', '08:40', false), (sid, 2, 'Period 2', '08:40', '09:20', false), (sid, 3, 'Period 3', '09:20', '10:00', false),
+        (sid, 4, 'Period 4', '10:00', '10:40', false), (sid, 5, 'Lunch', '10:40', '11:10', true), (sid, 6, 'Period 5', '11:10', '11:50', false),
+        (sid, 7, 'Period 6', '11:50', '12:30', false), (sid, 8, 'Period 7', '12:30', '13:10', false);
+    end if;
+    select array_agg(id order by emp_code) into tt_t from public.staff where school_id = sid and emp_code like 'DEMO-E%' and status = 'active' and kind = 'teaching';
+    select array_agg(x.id order by x.rn) into tt_s from (select s.id, row_number() over (order by c.sort, s.name) rn from public.sections s join public.classes c on c.id = s.class_id where s.school_id = sid limit 2) x;
+    select array_agg(id order by name) into tt_sub from public.subjects where school_id = sid;
+    select array_agg(id order by no) into tt_p from public.periods where school_id = sid and not is_break;
+    if coalesce(cardinality(tt_t), 0) >= 2 and coalesce(cardinality(tt_s), 0) = 2 and coalesce(cardinality(tt_sub), 0) >= 2 and not exists (select 1 from public.timetable_slots where school_id = sid) then
+      for tt_d in 1..6 loop
+        for tt_i in 1..least(7, cardinality(tt_p)) loop
+          insert into public.timetable_slots (school_id, section_id, day, period_id, subject_id, staff_id, room)
+          values (sid, tt_s[1], tt_d, tt_p[tt_i], tt_sub[1 + (tt_i + tt_d) % cardinality(tt_sub)], tt_t[1 + (tt_i + tt_d) % least(2, cardinality(tt_t))], 'Room 1')
+          on conflict do nothing;
+          insert into public.timetable_slots (school_id, section_id, day, period_id, subject_id, staff_id, room)
+          values (sid, tt_s[2], tt_d, tt_p[tt_i], tt_sub[1 + (tt_i + tt_d + 1) % cardinality(tt_sub)], tt_t[1 + (tt_i + tt_d + 1) % least(2, cardinality(tt_t))], 'Room 2')
+          on conflict do nothing;
+        end loop;
+      end loop;
+    end if;
+    insert into public.school_events (school_id, title, kind, start_date, end_date, description, created_by_name)
+    select sid, x.t, x.k, mo + x.a, mo + x.b, x.d, 'DEMO' from (values
+      ('Gandhi Jayanti', 'holiday', 1, 1, 'School closed'),
+      ('Diwali vacation', 'vacation', 17, 21, 'Reopens after Bhai Dooj'),
+      ('Half-yearly examination', 'exam', 7, 13, 'Classes 1 to 10'),
+      ('Parent-teacher meeting', 'ptm', 24, 24, 'Report cards will be given'),
+      ('Annual sports day', 'event', 27, 27, 'Ground, 8 am')) x(t, k, a, b, d)
+    where not exists (select 1 from public.school_events where school_id = sid and created_by_name = 'DEMO');
   end;
 
   -- ── Summary ──

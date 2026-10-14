@@ -1,4 +1,4 @@
--- School ERP: full database setup (migrations 0001–0021 combined).
+-- School ERP: full database setup (migrations 0001–0023 combined).
 -- Paste into Supabase SQL Editor and Run. Safe to run again; existing data and members are kept.
 -- Works in its own Supabase project or next to the CodersDuniya website/CRM tables (no name clashes).
 
@@ -696,7 +696,7 @@ insert into public.erp_submodules (code, module_code, name, built, sort) values
   ('documents.issue', 'documents', 'Issue, print & cancel documents', true, 1),
   ('academics.setup', 'academics', 'Sessions, classes, sections, subjects', true, 0),
   ('academics.allocation', 'academics', 'Class teacher & subject allocation', true, 1),
-  ('academics.timetable', 'academics', 'Timetable', false, 2),
+  ('academics.timetable', 'academics', 'Timetable', true, 2),
   ('academics.syllabus', 'academics', 'Syllabus & lesson plans', false, 3),
   ('homework.homework', 'homework', 'Homework & classwork', true, 0),
   ('homework.material', 'homework', 'Study material', true, 1),
@@ -715,15 +715,15 @@ insert into public.erp_submodules (code, module_code, name, built, sort) values
   ('fees.defaulters', 'fees', 'Defaulters & reminders', true, 5),
   ('fees.online', 'fees', 'Online payment', true, 6),
   ('fees.refunds', 'fees', 'Refunds', true, 7),
-  ('accounts.vouchers', 'accounts', 'Income & expense vouchers', false, 0),
-  ('accounts.books', 'accounts', 'Cash, bank & day book', false, 1),
+  ('accounts.vouchers', 'accounts', 'Income & expense vouchers', true, 0),
+  ('accounts.books', 'accounts', 'Cash, bank & day book', true, 1),
   ('hr.staff', 'hr', 'Staff profiles & documents', true, 0),
   ('hr.leave', 'hr', 'Staff leave', true, 1),
   ('hr.payroll', 'hr', 'Salary & payslips', true, 2),
   ('comms.notices', 'comms', 'Notices & circulars', true, 0),
   ('comms.broadcast', 'comms', 'WhatsApp / SMS messages', true, 1),
   ('comms.templates', 'comms', 'Message templates', false, 2),
-  ('comms.calendar', 'comms', 'Events calendar', false, 3),
+  ('comms.calendar', 'comms', 'Events calendar', true, 3),
   ('comms.messages', 'comms', 'Parent–teacher messages', false, 4),
   ('transport.routes', 'transport', 'Routes, stops & vehicles', true, 0),
   ('transport.allocation', 'transport', 'Student allocation', true, 1),
@@ -9481,6 +9481,614 @@ do $$
 declare t text;
 begin
   foreach t in array array['attendance_settings', 'attendance_devices'] loop
+    execute format('drop trigger if exists audit_%1$s on public.%1$I', t);
+    execute format('create trigger audit_%1$s after insert or update or delete on public.%1$I for each row execute function public.audit_row()', t);
+  end loop;
+end $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Step 20: Accounts — income & expense vouchers, cash / bank books, one day book.
+--   Fee receipts, paid refunds and approved payroll flow into the day book by themselves (no double entry).
+--   Manual vouchers (donation, electricity bill, repairs …) go through an optional approval threshold.
+-- Safe to run again.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- ───────────── Heads, books, settings ─────────────
+create table if not exists public.account_heads (
+  id         uuid primary key default gen_random_uuid(),
+  school_id  uuid not null references public.schools(id) on delete cascade,
+  name       text not null check (length(btrim(name)) between 1 and 60),
+  kind       text not null check (kind in ('income', 'expense')),
+  active     boolean not null default true,
+  created_at timestamptz not null default now()
+);
+create unique index if not exists account_heads_name on public.account_heads (school_id, kind, lower(name));
+
+create table if not exists public.account_books (
+  id              uuid primary key default gen_random_uuid(),
+  school_id       uuid not null references public.schools(id) on delete cascade,
+  name            text not null check (length(btrim(name)) between 1 and 60),
+  kind            text not null check (kind in ('cash', 'bank')),
+  opening_balance numeric(14,2) not null default 0,
+  opening_date    date not null default (now() at time zone 'Asia/Kolkata')::date,
+  account_no      text,
+  active          boolean not null default true,
+  created_at      timestamptz not null default now()
+);
+create unique index if not exists account_books_name on public.account_books (school_id, lower(name));
+
+create table if not exists public.account_settings (
+  school_id       uuid primary key references public.schools(id) on delete cascade,
+  approval_above  numeric(14,2) not null default 0 check (approval_above >= 0),   -- 0 = no approval needed
+  next_no         int not null default 1
+);
+
+-- ───────────── Vouchers ─────────────
+create table if not exists public.vouchers (
+  id              uuid primary key default gen_random_uuid(),
+  school_id       uuid not null references public.schools(id) on delete cascade,
+  no              text not null,
+  date            date not null,
+  kind            text not null check (kind in ('receipt', 'payment', 'transfer')),
+  head_id         uuid references public.account_heads(id) on delete restrict,
+  book_id         uuid not null references public.account_books(id) on delete restrict,
+  to_book_id      uuid references public.account_books(id) on delete restrict,
+  amount          numeric(14,2) not null check (amount > 0),
+  party           text,
+  mode            text,
+  ref_no          text,
+  narration       text,
+  status          text not null default 'posted' check (status in ('posted', 'pending', 'rejected', 'cancelled')),
+  created_by      uuid default auth.uid() references auth.users(id) on delete set null,
+  created_by_name text,
+  decided_by_name text,
+  decided_at      timestamptz,
+  decision_note   text,
+  created_at      timestamptz not null default now(),
+  unique (school_id, no),
+  check ((kind = 'transfer' and to_book_id is not null and to_book_id <> book_id and head_id is null) or (kind <> 'transfer' and head_id is not null and to_book_id is null))
+);
+create index if not exists vouchers_day_idx on public.vouchers (school_id, date, status);
+
+alter table public.account_heads enable row level security;
+alter table public.account_books enable row level security;
+alter table public.account_settings enable row level security;
+alter table public.vouchers enable row level security;
+
+drop policy if exists "read" on public.account_heads;
+create policy "read" on public.account_heads for select to authenticated using (public.has_module_perm(school_id, 'accounts'));
+drop policy if exists "write" on public.account_heads;
+create policy "write" on public.account_heads for all to authenticated
+  using (public.has_perm_school(school_id, 'accounts.vouchers.edit')) with check (public.has_perm_school(school_id, 'accounts.vouchers.edit'));
+drop policy if exists "read" on public.account_books;
+create policy "read" on public.account_books for select to authenticated using (public.has_module_perm(school_id, 'accounts'));
+drop policy if exists "write" on public.account_books;
+create policy "write" on public.account_books for all to authenticated
+  using (public.has_perm_school(school_id, 'accounts.vouchers.edit')) with check (public.has_perm_school(school_id, 'accounts.vouchers.edit'));
+drop policy if exists "read" on public.account_settings;
+create policy "read" on public.account_settings for select to authenticated using (public.has_module_perm(school_id, 'accounts'));
+drop policy if exists "write" on public.account_settings;
+create policy "write" on public.account_settings for all to authenticated
+  using (public.has_perm_school(school_id, 'accounts.vouchers.edit')) with check (public.has_perm_school(school_id, 'accounts.vouchers.edit'));
+drop policy if exists "read" on public.vouchers;
+create policy "read" on public.vouchers for select to authenticated
+  using (public.has_perm_school(school_id, 'accounts.vouchers.view') or public.has_perm_school(school_id, 'accounts.books.view'));
+-- vouchers are written only by the functions below
+
+-- ───────────── Defaults ─────────────
+create or replace function public._account_defaults(sid uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  insert into public.account_settings (school_id) values (sid) on conflict do nothing;
+  if not exists (select 1 from public.account_books where school_id = sid) then
+    insert into public.account_books (school_id, name, kind) values (sid, 'Cash in hand', 'cash');
+  end if;
+  if not exists (select 1 from public.account_heads where school_id = sid) then
+    insert into public.account_heads (school_id, name, kind)
+    select sid, x.n, x.k from (values
+      ('Donations', 'income'), ('Sale of books & uniform', 'income'), ('Canteen / stationery sales', 'income'), ('Rent received', 'income'),
+      ('Event & function income', 'income'), ('Interest received', 'income'), ('Other income', 'income'),
+      ('Electricity & water', 'expense'), ('Repairs & maintenance', 'expense'), ('Stationery & printing', 'expense'), ('Fuel & vehicle running', 'expense'),
+      ('Teaching aids & books', 'expense'), ('Events & functions', 'expense'), ('Telephone & internet', 'expense'), ('Rent paid', 'expense'),
+      ('Cleaning & security', 'expense'), ('Bank charges', 'expense'), ('Other expense', 'expense')
+    ) x(n, k);
+  end if;
+end $$;
+revoke execute on function public._account_defaults(uuid) from public, anon, authenticated;
+
+create or replace function public.ensure_account_defaults(sid uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not (public.has_perm_school(sid, 'accounts.vouchers.view') or public.has_perm_school(sid, 'accounts.books.view')) then raise exception 'not allowed'; end if;
+  perform public._account_defaults(sid);
+end $$;
+
+-- existing schools get the defaults at once; new ones on first visit
+do $$ declare s record; begin for s in select id from public.schools loop perform public._account_defaults(s.id); end loop; end $$;
+
+-- ───────────── The unified ledger (internal) ─────────────
+-- Every posted money movement of the school between two dates, whatever created it.
+create or replace function public._ledger(sid uuid, d1 date, d2 date)
+returns table (entry_key text, on_date date, at timestamptz, dir text, head text, book_id uuid, amount numeric, party text, mode text, ref text, narration text,
+               source text, source_id uuid, voucher_no text, by_name text)
+language sql stable security definer set search_path = public as $$
+  with cb as (select id from public.account_books where school_id = sid and kind = 'cash' and active order by created_at limit 1),
+       bb as (select id from public.account_books where school_id = sid and kind = 'bank' and active order by created_at limit 1)
+  select 'v:' || v.id, v.date, v.created_at,
+         case when v.kind = 'receipt' then 'in' else 'out' end, coalesce(h.name, 'Transfer'), v.book_id, v.amount, v.party, v.mode, v.ref_no, v.narration, 'voucher', v.id, v.no, v.created_by_name
+    from public.vouchers v left join public.account_heads h on h.id = v.head_id
+   where v.school_id = sid and v.status = 'posted' and v.date between d1 and d2
+  union all
+  select 'vt:' || v.id, v.date, v.created_at, 'in', 'Transfer in', v.to_book_id, v.amount, v.party, v.mode, v.ref_no, v.narration, 'voucher', v.id, v.no, v.created_by_name
+    from public.vouchers v where v.school_id = sid and v.status = 'posted' and v.kind = 'transfer' and v.date between d1 and d2
+  union all
+  select 'fee:' || p.id, r.paid_on, r.created_at, 'in', 'Fee collection',
+         case when p.mode = 'cash' then (select id from cb) else coalesce((select id from bb), (select id from cb)) end,
+         p.amount, btrim(concat_ws(' ', s.first_name, s.last_name)), p.mode, r.receipt_no, null, 'fee', r.id, r.receipt_no, r.collected_by
+    from public.fee_receipt_payments p
+    join public.fee_receipts r on r.id = p.receipt_id
+    join public.students s on s.id = r.student_id
+   where r.school_id = sid and not r.cancelled and r.paid_on between d1 and d2
+  union all
+  select 'ref:' || f.id, f.paid_on, f.decided_at, 'out', 'Fee refunds',
+         case when coalesce(f.mode, 'cash') = 'cash' then (select id from cb) else coalesce((select id from bb), (select id from cb)) end,
+         f.amount, btrim(concat_ws(' ', s.first_name, s.last_name)), coalesce(f.mode, 'cash'), f.reference, f.reason, 'refund', f.id, null, f.requested_by_name
+    from public.fee_refunds f join public.students s on s.id = f.student_id
+   where f.school_id = sid and f.status = 'paid' and f.paid_on between d1 and d2
+  union all
+  select 'pay:' || r.id, (r.approved_at at time zone 'Asia/Kolkata')::date, r.approved_at, 'out', 'Salaries', (select id from bb),
+         (select coalesce(sum(p.net), 0) from public.payslips p where p.run_id = r.id), 'Staff', 'bank_transfer', to_char(r.month, 'Mon YYYY'), 'Salary for ' || to_char(r.month, 'Mon YYYY'),
+         'payroll', r.id, null, null
+    from public.payroll_runs r
+   where r.school_id = sid and r.status = 'approved' and r.approved_at is not null and (r.approved_at at time zone 'Asia/Kolkata')::date between d1 and d2;
+$$;
+revoke execute on function public._ledger(uuid, date, date) from public, anon, authenticated;
+
+-- the payroll row above has no book when the school has no bank book: fall back to cash
+create or replace function public._ledger_fixed(sid uuid, d1 date, d2 date)
+returns table (entry_key text, on_date date, at timestamptz, dir text, head text, book_id uuid, amount numeric, party text, mode text, ref text, narration text,
+               source text, source_id uuid, voucher_no text, by_name text)
+language sql stable security definer set search_path = public as $$
+  select l.entry_key, l.on_date, l.at, l.dir, l.head,
+         coalesce(l.book_id, (select id from public.account_books where school_id = sid and active order by (kind = 'cash') desc, created_at limit 1)),
+         l.amount, l.party, l.mode, l.ref, l.narration, l.source, l.source_id, l.voucher_no, l.by_name
+    from public._ledger(sid, d1, d2) l where l.amount > 0;
+$$;
+revoke execute on function public._ledger_fixed(uuid, date, date) from public, anon, authenticated;
+
+-- ───────────── Reports ─────────────
+create or replace function public.account_daybook(sid uuid, d1 date, d2 date, p_book uuid default null, p_dir text default null, p_head text default null,
+                                                  p_source text default null, p_q text default null, p_limit int default 50, p_offset int default 0)
+returns table (entry_key text, on_date date, at timestamptz, dir text, head text, book_id uuid, book_name text, amount numeric, party text, mode text, ref text, narration text,
+               source text, source_id uuid, voucher_no text, by_name text, total bigint, sum_in numeric, sum_out numeric)
+language sql stable security definer set search_path = public as $$
+  with l as (
+    select x.*, b.name as bname from public._ledger_fixed(sid, d1, d2) x left join public.account_books b on b.id = x.book_id
+     where (public.has_perm_school(sid, 'accounts.books.view') or public.has_perm_school(sid, 'accounts.vouchers.view'))
+       and (p_book is null or x.book_id = p_book) and (p_dir is null or x.dir = p_dir) and (p_head is null or x.head = p_head) and (p_source is null or x.source = p_source)
+       and (nullif(btrim(coalesce(p_q, '')), '') is null
+            or concat_ws(' ', x.party, x.ref, x.narration, x.voucher_no, x.head) ilike public.like_escape(btrim(p_q)))
+  )
+  select l.entry_key, l.on_date, l.at, l.dir, l.head, l.book_id, l.bname, l.amount, l.party, l.mode, l.ref, l.narration, l.source, l.source_id, l.voucher_no, l.by_name,
+         count(*) over (), sum(l.amount) filter (where l.dir = 'in') over (), sum(l.amount) filter (where l.dir = 'out') over ()
+    from l order by l.on_date, l.at, l.entry_key
+   limit least(greatest(coalesce(p_limit, 50), 1), 500) offset greatest(coalesce(p_offset, 0), 0);
+$$;
+
+-- opening, receipts, payments and closing of every book for a period
+create or replace function public.account_books_summary(sid uuid, d1 date, d2 date)
+returns table (book_id uuid, name text, kind text, active boolean, opening numeric, receipts numeric, payments numeric, closing numeric)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not (public.has_perm_school(sid, 'accounts.books.view') or public.has_perm_school(sid, 'accounts.vouchers.view')) then return; end if;
+  return query
+    with l as (select x.book_id, x.on_date, x.dir, x.amount from public._ledger_fixed(sid, date '2000-01-01', d2) x)
+    select b.id, b.name, b.kind, b.active,
+           b.opening_balance + coalesce(sum(case when l.on_date >= b.opening_date and l.on_date < d1 then (case when l.dir = 'in' then l.amount else -l.amount end) end), 0),
+           coalesce(sum(l.amount) filter (where l.dir = 'in' and l.on_date >= greatest(d1, b.opening_date)), 0),
+           coalesce(sum(l.amount) filter (where l.dir = 'out' and l.on_date >= greatest(d1, b.opening_date)), 0),
+           b.opening_balance + coalesce(sum(case when l.on_date >= b.opening_date then (case when l.dir = 'in' then l.amount else -l.amount end) end), 0)
+      from public.account_books b left join l on l.book_id = b.id
+     where b.school_id = sid
+     group by b.id, b.name, b.kind, b.active, b.opening_balance, b.opening_date, b.created_at
+     order by (b.kind = 'cash') desc, b.created_at;
+end $$;
+
+-- income and expense by head for a period
+create or replace function public.account_head_summary(sid uuid, d1 date, d2 date)
+returns table (dir text, head text, entries bigint, total numeric)
+language sql stable security definer set search_path = public as $$
+  select x.dir, x.head, count(*), sum(x.amount)
+    from public._ledger_fixed(sid, d1, d2) x
+   where (public.has_perm_school(sid, 'accounts.books.view') or public.has_perm_school(sid, 'accounts.vouchers.view'))
+     and x.head not in ('Transfer', 'Transfer in')
+   group by x.dir, x.head order by x.dir desc, sum(x.amount) desc;
+$$;
+
+-- ───────────── Voucher list (paged) ─────────────
+create or replace function public.voucher_list(sid uuid, d1 date, d2 date, p_kind text default null, p_status text default null, p_head uuid default null,
+                                               p_book uuid default null, p_q text default null, p_limit int default 25, p_offset int default 0)
+returns table (id uuid, no text, date date, kind text, head_name text, book_name text, to_book_name text, amount numeric, party text, mode text, ref_no text, narration text,
+               status text, created_by_name text, decided_by_name text, decision_note text, created_at timestamptz, total bigint)
+language sql stable security definer set search_path = public as $$
+  select v.id, v.no, v.date, v.kind, h.name, b.name, tb.name, v.amount, v.party, v.mode, v.ref_no, v.narration, v.status, v.created_by_name, v.decided_by_name, v.decision_note,
+         v.created_at, count(*) over ()
+    from public.vouchers v
+    join public.account_books b on b.id = v.book_id
+    left join public.account_books tb on tb.id = v.to_book_id
+    left join public.account_heads h on h.id = v.head_id
+   where v.school_id = sid and v.date between d1 and d2
+     and (public.has_perm_school(sid, 'accounts.vouchers.view') or public.has_perm_school(sid, 'accounts.books.view'))
+     and (p_kind is null or v.kind = p_kind) and (p_status is null or v.status = p_status) and (p_head is null or v.head_id = p_head) and (p_book is null or v.book_id = p_book or v.to_book_id = p_book)
+     and (nullif(btrim(coalesce(p_q, '')), '') is null or concat_ws(' ', v.party, v.ref_no, v.narration, v.no, h.name) ilike public.like_escape(btrim(p_q)))
+   order by v.date desc, v.created_at desc
+   limit least(greatest(coalesce(p_limit, 25), 1), 200) offset greatest(coalesce(p_offset, 0), 0);
+$$;
+
+-- ───────────── Writing vouchers ─────────────
+create or replace function public.save_voucher(sid uuid, p_id uuid, p_kind text, p_date date, p_head uuid, p_book uuid, p_to_book uuid, p_amount numeric,
+                                               p_party text, p_mode text, p_ref text, p_narration text) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare cfg public.account_settings; old public.vouchers; hk text; st text; n int; nm text; i uuid; me text;
+begin
+  if auth.uid() is null then raise exception 'not allowed'; end if;
+  if p_id is null then
+    if not public.has_perm_school(sid, 'accounts.vouchers.create') then raise exception 'not allowed'; end if;
+  else
+    select * into old from public.vouchers where id = p_id and school_id = sid;
+    if old.id is null then raise exception 'Voucher not found.'; end if;
+    if not public.has_perm_school(sid, 'accounts.vouchers.edit') then raise exception 'not allowed'; end if;
+    if old.status in ('cancelled', 'rejected') then raise exception 'A % voucher cannot be changed.', old.status; end if;
+  end if;
+  if p_kind not in ('receipt', 'payment', 'transfer') then raise exception 'Choose receipt, payment or transfer.'; end if;
+  if p_amount is null or p_amount <= 0 or p_amount > 99999999 then raise exception 'Enter an amount greater than zero.'; end if;
+  if p_date is null or p_date > public.today_ist() then raise exception 'The voucher date cannot be in the future.'; end if;
+  if p_date < public.today_ist() - 400 then raise exception 'That date is too far in the past.'; end if;
+  if not exists (select 1 from public.account_books where id = p_book and school_id = sid and active) then raise exception 'Choose a cash or bank book.'; end if;
+  if p_kind = 'transfer' then
+    if p_to_book is null or p_to_book = p_book or not exists (select 1 from public.account_books where id = p_to_book and school_id = sid and active) then
+      raise exception 'A transfer needs two different books.'; end if;
+    p_head := null;
+  else
+    select kind into hk from public.account_heads where id = p_head and school_id = sid and active;
+    if hk is null then raise exception 'Choose a head.'; end if;
+    if (p_kind = 'receipt' and hk <> 'income') or (p_kind = 'payment' and hk <> 'expense') then raise exception 'That head does not belong to a %.', p_kind; end if;
+    p_to_book := null;
+  end if;
+  if p_mode is not null and p_mode not in ('cash', 'upi', 'cheque', 'bank_transfer', 'card', 'other') then raise exception 'Unknown payment mode.'; end if;
+
+  perform public._account_defaults(sid);
+  select * into cfg from public.account_settings where school_id = sid;
+  st := case when cfg.approval_above > 0 and p_amount > cfg.approval_above and p_kind <> 'transfer' and not public.has_perm_school(sid, 'accounts.vouchers.approve') then 'pending' else 'posted' end;
+  select coalesce(m.name, 'User') into me from (select (select name from public.school_members where school_id = sid and user_id = auth.uid()) as name) m;
+
+  if p_id is null then
+    update public.account_settings set next_no = next_no + 1 where school_id = sid returning next_no - 1 into n;
+    nm := (case p_kind when 'receipt' then 'RV' when 'payment' then 'PV' else 'TV' end) || '-' || lpad(n::text, 5, '0');
+    insert into public.vouchers (school_id, no, date, kind, head_id, book_id, to_book_id, amount, party, mode, ref_no, narration, status, created_by_name)
+    values (sid, nm, p_date, p_kind, p_head, p_book, p_to_book, p_amount, nullif(btrim(coalesce(p_party, '')), ''), p_mode, nullif(btrim(coalesce(p_ref, '')), ''),
+            nullif(left(btrim(coalesce(p_narration, '')), 500), ''), st, me) returning id into i;
+    return i;
+  end if;
+  update public.vouchers set date = p_date, kind = p_kind, head_id = p_head, book_id = p_book, to_book_id = p_to_book, amount = p_amount,
+         party = nullif(btrim(coalesce(p_party, '')), ''), mode = p_mode, ref_no = nullif(btrim(coalesce(p_ref, '')), ''),
+         narration = nullif(left(btrim(coalesce(p_narration, '')), 500), ''), status = st, decided_by_name = null, decided_at = null, decision_note = null
+   where id = p_id;
+  return p_id;
+end $$;
+
+create or replace function public.decide_voucher(vid uuid, p_approve boolean, p_note text default null) returns void
+language plpgsql security definer set search_path = public as $$
+declare v public.vouchers; me text;
+begin
+  select * into v from public.vouchers where id = vid;
+  if v.id is null or auth.uid() is null or not public.has_perm_school(v.school_id, 'accounts.vouchers.approve') then raise exception 'not allowed'; end if;
+  if v.status <> 'pending' then raise exception 'This voucher is not waiting for approval.'; end if;
+  if not p_approve and coalesce(btrim(p_note), '') = '' then raise exception 'Give a reason for rejecting.'; end if;
+  select name into me from public.school_members where school_id = v.school_id and user_id = auth.uid();
+  update public.vouchers set status = case when p_approve then 'posted' else 'rejected' end, decided_by_name = coalesce(me, 'User'), decided_at = now(),
+         decision_note = nullif(left(btrim(coalesce(p_note, '')), 300), '') where id = vid;
+end $$;
+
+create or replace function public.cancel_voucher(vid uuid, p_reason text) returns void
+language plpgsql security definer set search_path = public as $$
+declare v public.vouchers; me text;
+begin
+  select * into v from public.vouchers where id = vid;
+  if v.id is null or auth.uid() is null or not public.has_perm_school(v.school_id, 'accounts.vouchers.edit') then raise exception 'not allowed'; end if;
+  if v.status in ('cancelled', 'rejected') then raise exception 'This voucher is already %.', v.status; end if;
+  if coalesce(btrim(p_reason), '') = '' then raise exception 'Give a reason for cancelling.'; end if;
+  select name into me from public.school_members where school_id = v.school_id and user_id = auth.uid();
+  update public.vouchers set status = 'cancelled', decided_by_name = coalesce(me, 'User'), decided_at = now(), decision_note = left(btrim(p_reason), 300) where id = vid;
+end $$;
+
+-- ───────────── Audit ─────────────
+do $$
+declare t text;
+begin
+  foreach t in array array['account_heads', 'account_books', 'account_settings', 'vouchers'] loop
+    execute format('drop trigger if exists audit_%1$s on public.%1$I', t);
+    execute format('create trigger audit_%1$s after insert or update or delete on public.%1$I for each row execute function public.audit_row()', t);
+  end loop;
+end $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Step 21: Timetable (bell schedule, class grid, teacher view, substitutions) and the school calendar (holidays, exams, events).
+--   A teacher can never be in two sections in the same period (database-enforced).
+--   Holidays reduce the working days used by staff attendance → payroll suggestion.
+-- Safe to run again.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+create table if not exists public.periods (
+  id         uuid primary key default gen_random_uuid(),
+  school_id  uuid not null references public.schools(id) on delete cascade,
+  no         int  not null check (no between 1 and 20),
+  name       text not null check (length(btrim(name)) between 1 and 30),
+  start_time time not null,
+  end_time   time not null,
+  is_break   boolean not null default false,
+  unique (school_id, no),
+  check (end_time > start_time)
+);
+
+create table if not exists public.timetable_slots (
+  id         uuid primary key default gen_random_uuid(),
+  school_id  uuid not null references public.schools(id) on delete cascade,
+  section_id uuid not null references public.sections(id) on delete cascade,
+  day        int  not null check (day between 1 and 7),          -- 1 = Monday … 7 = Sunday
+  period_id  uuid not null references public.periods(id) on delete cascade,
+  subject_id uuid references public.subjects(id) on delete set null,
+  staff_id   uuid references public.staff(id) on delete set null,
+  room       text,
+  unique (section_id, day, period_id)
+);
+create unique index if not exists timetable_teacher_once on public.timetable_slots (staff_id, day, period_id) where staff_id is not null;
+create index if not exists timetable_slots_school on public.timetable_slots (school_id, day);
+
+create table if not exists public.substitutions (
+  id                  uuid primary key default gen_random_uuid(),
+  school_id           uuid not null references public.schools(id) on delete cascade,
+  slot_id             uuid not null references public.timetable_slots(id) on delete cascade,
+  on_date             date not null,
+  substitute_staff_id uuid not null references public.staff(id) on delete cascade,
+  reason              text,
+  created_by_name     text,
+  created_at          timestamptz not null default now(),
+  unique (slot_id, on_date)
+);
+create index if not exists substitutions_day on public.substitutions (school_id, on_date);
+
+create table if not exists public.school_events (
+  id              uuid primary key default gen_random_uuid(),
+  school_id       uuid not null references public.schools(id) on delete cascade,
+  title           text not null check (length(btrim(title)) between 1 and 120),
+  kind            text not null default 'event' check (kind in ('holiday', 'vacation', 'exam', 'ptm', 'event', 'other')),
+  start_date      date not null,
+  end_date        date not null,
+  description     text,
+  created_by_name text,
+  created_at      timestamptz not null default now(),
+  check (end_date >= start_date and end_date - start_date <= 120)
+);
+create index if not exists school_events_range on public.school_events (school_id, start_date, end_date);
+
+alter table public.periods enable row level security;
+alter table public.timetable_slots enable row level security;
+alter table public.substitutions enable row level security;
+alter table public.school_events enable row level security;
+
+drop policy if exists "read" on public.periods;
+create policy "read" on public.periods for select to authenticated using (public.is_member(school_id));
+drop policy if exists "write" on public.periods;
+create policy "write" on public.periods for all to authenticated
+  using (public.has_perm_school(school_id, 'academics.timetable.edit')) with check (public.has_perm_school(school_id, 'academics.timetable.edit'));
+
+drop policy if exists "read" on public.timetable_slots;
+create policy "read" on public.timetable_slots for select to authenticated
+  using (public.can_section(school_id, 'academics.timetable.view', section_id)
+         or exists (select 1 from public.staff s where s.id = staff_id and s.user_id = auth.uid()));
+-- slots are written by set_slot / clear_slot / copy_slots only
+
+drop policy if exists "read" on public.substitutions;
+create policy "read" on public.substitutions for select to authenticated
+  using (public.has_perm_school(school_id, 'academics.timetable.view')
+         or exists (select 1 from public.staff s where s.id = substitute_staff_id and s.user_id = auth.uid()));
+
+drop policy if exists "read" on public.school_events;
+create policy "read" on public.school_events for select to authenticated using (public.has_perm(school_id, 'comms.calendar.view'));
+drop policy if exists "create" on public.school_events;
+create policy "create" on public.school_events for insert to authenticated with check (public.has_perm_school(school_id, 'comms.calendar.create'));
+drop policy if exists "edit" on public.school_events;
+create policy "edit" on public.school_events for update to authenticated
+  using (public.has_perm_school(school_id, 'comms.calendar.edit')) with check (public.has_perm_school(school_id, 'comms.calendar.edit'));
+drop policy if exists "delete" on public.school_events;
+create policy "delete" on public.school_events for delete to authenticated using (public.has_perm_school(school_id, 'comms.calendar.delete'));
+
+-- ───────────── Bell schedule defaults ─────────────
+create or replace function public.ensure_timetable_defaults(sid uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not (public.has_perm(sid, 'academics.timetable.view') or public.has_perm(sid, 'comms.calendar.view')) then raise exception 'not allowed'; end if;
+  if exists (select 1 from public.periods where school_id = sid) then return; end if;
+  insert into public.periods (school_id, no, name, start_time, end_time, is_break) values
+    (sid, 1, 'Period 1', '08:00', '08:40', false), (sid, 2, 'Period 2', '08:40', '09:20', false), (sid, 3, 'Period 3', '09:20', '10:00', false),
+    (sid, 4, 'Period 4', '10:00', '10:40', false), (sid, 5, 'Lunch', '10:40', '11:10', true), (sid, 6, 'Period 5', '11:10', '11:50', false),
+    (sid, 7, 'Period 6', '11:50', '12:30', false), (sid, 8, 'Period 7', '12:30', '13:10', false), (sid, 9, 'Period 8', '13:10', '13:50', false);
+end $$;
+
+-- ───────────── Timetable editing ─────────────
+create or replace function public.set_slot(sid uuid, p_section uuid, p_day int, p_period uuid, p_subject uuid, p_staff uuid, p_room text) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare clash record; i uuid; rm text := nullif(left(btrim(coalesce(p_room, '')), 30), '');
+begin
+  if auth.uid() is null or not public.has_perm_school(sid, 'academics.timetable.edit') then raise exception 'not allowed'; end if;
+  if p_day not between 1 and 7 then raise exception 'Unknown day.'; end if;
+  if not exists (select 1 from public.sections where id = p_section and school_id = sid) then raise exception 'Section not found.'; end if;
+  if not exists (select 1 from public.periods where id = p_period and school_id = sid and not is_break) then raise exception 'Choose a teaching period (not a break).'; end if;
+  if p_subject is not null and not exists (select 1 from public.subjects where id = p_subject and school_id = sid) then raise exception 'Subject not found.'; end if;
+  if p_staff is not null then
+    if not exists (select 1 from public.staff where id = p_staff and school_id = sid and status = 'active') then raise exception 'Teacher not found or no longer working here.'; end if;
+    select st.name as tname, c.name as cname, sc.name as sname into clash
+      from public.timetable_slots t join public.staff st on st.id = t.staff_id join public.sections sc on sc.id = t.section_id join public.classes c on c.id = sc.class_id
+     where t.staff_id = p_staff and t.day = p_day and t.period_id = p_period and t.section_id <> p_section limit 1;
+    if clash.tname is not null then raise exception '% already teaches %-% in this period.', clash.tname, clash.cname, clash.sname; end if;
+  end if;
+  if p_subject is null and p_staff is null and rm is null then
+    delete from public.timetable_slots where section_id = p_section and day = p_day and period_id = p_period;
+    return null;
+  end if;
+  insert into public.timetable_slots (school_id, section_id, day, period_id, subject_id, staff_id, room) values (sid, p_section, p_day, p_period, p_subject, p_staff, rm)
+  on conflict (section_id, day, period_id) do update set subject_id = excluded.subject_id, staff_id = excluded.staff_id, room = excluded.room
+  returning id into i;
+  return i;
+end $$;
+
+-- copy one day of a section to other days; teacher clashes are skipped (their slot is copied without the teacher)
+create or replace function public.copy_day(sid uuid, p_section uuid, p_from int, p_to int[]) returns int
+language plpgsql security definer set search_path = public as $$
+declare s record; d int; n int := 0;
+begin
+  if auth.uid() is null or not public.has_perm_school(sid, 'academics.timetable.edit') then raise exception 'not allowed'; end if;
+  if not exists (select 1 from public.sections where id = p_section and school_id = sid) then raise exception 'Section not found.'; end if;
+  foreach d in array p_to loop
+    continue when d = p_from or d not between 1 and 7;
+    for s in select * from public.timetable_slots where section_id = p_section and day = p_from loop
+      insert into public.timetable_slots (school_id, section_id, day, period_id, subject_id, staff_id, room)
+      values (sid, p_section, d, s.period_id, s.subject_id,
+              case when s.staff_id is not null and not exists (select 1 from public.timetable_slots t where t.staff_id = s.staff_id and t.day = d and t.period_id = s.period_id) then s.staff_id end, s.room)
+      on conflict (section_id, day, period_id) do nothing;
+      n := n + 1;
+    end loop;
+  end loop;
+  return n;
+end $$;
+
+-- ───────────── Substitutions ─────────────
+-- who is free in a period on a date: teaching staff with no slot that weekday/period, no cover already, not on approved leave, not marked absent
+create or replace function public.free_staff(sid uuid, on_day date, p_period uuid)
+returns table (staff_id uuid, name text, designation text, periods_that_day bigint)
+language sql stable security definer set search_path = public as $$
+  select s.id, s.name, s.designation,
+         (select count(*) from public.timetable_slots t where t.staff_id = s.id and t.day = extract(isodow from on_day)::int)
+    from public.staff s
+   where s.school_id = sid and s.status = 'active' and s.kind = 'teaching'
+     and public.has_perm_school(sid, 'academics.timetable.view')
+     and not exists (select 1 from public.timetable_slots t where t.staff_id = s.id and t.day = extract(isodow from on_day)::int and t.period_id = p_period)
+     and not exists (select 1 from public.substitutions u join public.timetable_slots t on t.id = u.slot_id
+                      where u.substitute_staff_id = s.id and u.on_date = on_day and t.period_id = p_period)
+     and not exists (select 1 from public.staff_leaves l where l.staff_id = s.id and l.status = 'approved' and on_day between l.from_date and l.to_date)
+     and not exists (select 1 from public.staff_attendance a where a.staff_id = s.id and a.date = on_day and a.status in ('A', 'LV'))
+   order by 4, s.name;
+$$;
+
+-- periods that need cover on a date (the teacher is on leave or marked absent)
+create or replace function public.cover_needed(sid uuid, on_day date)
+returns table (slot_id uuid, class_name text, section_name text, period_id uuid, period_name text, start_time time, end_time time, subject_name text,
+               teacher_id uuid, teacher_name text, why text, substitution_id uuid, substitute_id uuid, substitute_name text)
+language sql stable security definer set search_path = public as $$
+  select t.id, c.name, sc.name, p.id, p.name, p.start_time, p.end_time, sj.name, st.id, st.name,
+         coalesce((select 'On ' || l.kind || ' leave' from public.staff_leaves l where l.staff_id = st.id and l.status = 'approved' and on_day between l.from_date and l.to_date limit 1), 'Marked absent'),
+         u.id, u.substitute_staff_id, ss.name
+    from public.timetable_slots t
+    join public.periods p on p.id = t.period_id
+    join public.sections sc on sc.id = t.section_id
+    join public.classes c on c.id = sc.class_id
+    join public.staff st on st.id = t.staff_id
+    left join public.subjects sj on sj.id = t.subject_id
+    left join public.substitutions u on u.slot_id = t.id and u.on_date = on_day
+    left join public.staff ss on ss.id = u.substitute_staff_id
+   where t.school_id = sid and t.day = extract(isodow from on_day)::int
+     and public.has_perm_school(sid, 'academics.timetable.view')
+     and (exists (select 1 from public.staff_leaves l where l.staff_id = st.id and l.status = 'approved' and on_day between l.from_date and l.to_date and not l.half_day)
+          or exists (select 1 from public.staff_attendance a where a.staff_id = st.id and a.date = on_day and a.status in ('A', 'LV')))
+   order by p.no, c.sort, sc.name;
+$$;
+
+create or replace function public.save_substitution(sid uuid, p_slot uuid, p_date date, p_staff uuid, p_reason text) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare t public.timetable_slots; me text; i uuid;
+begin
+  if auth.uid() is null or not public.has_perm_school(sid, 'academics.timetable.edit') then raise exception 'not allowed'; end if;
+  select * into t from public.timetable_slots where id = p_slot and school_id = sid;
+  if t.id is null then raise exception 'That period was not found.'; end if;
+  if p_date is null or p_date < public.today_ist() - 7 or p_date > public.today_ist() + 60 then raise exception 'Choose a date within the next 60 days.'; end if;
+  if extract(isodow from p_date)::int <> t.day then raise exception 'That date is not a %.', trim(to_char(date '2024-01-01' + (t.day - 1), 'Day')); end if;
+  if p_staff = t.staff_id then raise exception 'The substitute is the same teacher.'; end if;
+  if not exists (select 1 from public.free_staff(sid, p_date, t.period_id) f where f.staff_id = p_staff) then raise exception 'That teacher is not free in this period.'; end if;
+  select name into me from public.school_members where school_id = sid and user_id = auth.uid();
+  insert into public.substitutions (school_id, slot_id, on_date, substitute_staff_id, reason, created_by_name)
+  values (sid, p_slot, p_date, p_staff, nullif(left(btrim(coalesce(p_reason, '')), 200), ''), coalesce(me, 'User'))
+  on conflict (slot_id, on_date) do update set substitute_staff_id = excluded.substitute_staff_id, reason = excluded.reason, created_by_name = excluded.created_by_name
+  returning id into i;
+  return i;
+end $$;
+
+create or replace function public.remove_substitution(sub uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare s public.substitutions;
+begin
+  select * into s from public.substitutions where id = sub;
+  if s.id is null or not public.has_perm_school(s.school_id, 'academics.timetable.edit') then raise exception 'not allowed'; end if;
+  delete from public.substitutions where id = sub;
+end $$;
+
+-- weekly load per teacher
+create or replace function public.teacher_load(sid uuid)
+returns table (staff_id uuid, name text, designation text, periods bigint, sections bigint, subjects bigint, busiest_day int, busiest_count bigint)
+language sql stable security definer set search_path = public as $$
+  with per as (select t.staff_id, t.day, count(*) c from public.timetable_slots t where t.school_id = sid and t.staff_id is not null group by 1, 2),
+       top as (select distinct on (staff_id) staff_id, day, c from per order by staff_id, c desc, day)
+  select s.id, s.name, s.designation,
+         coalesce((select count(*) from public.timetable_slots t where t.staff_id = s.id), 0),
+         coalesce((select count(distinct t.section_id) from public.timetable_slots t where t.staff_id = s.id), 0),
+         coalesce((select count(distinct t.subject_id) from public.timetable_slots t where t.staff_id = s.id), 0),
+         top.day, top.c
+    from public.staff s left join top on top.staff_id = s.id
+   where s.school_id = sid and s.status = 'active' and s.kind = 'teaching' and public.has_perm_school(sid, 'academics.timetable.view')
+   order by 4 desc, s.name;
+$$;
+
+-- ───────────── Calendar helpers ─────────────
+-- the holiday or vacation covering a date, if any
+create or replace function public.holiday_on(sid uuid, on_day date) returns text
+language sql stable security definer set search_path = public as $$
+  select e.title from public.school_events e
+   where e.school_id = sid and e.kind in ('holiday', 'vacation') and on_day between e.start_date and e.end_date
+     and (public.has_perm(sid, 'comms.calendar.view') or public.has_perm(sid, 'attendance.students.view') or public.has_perm(sid, 'attendance.staff.view'))
+   order by e.start_date limit 1;
+$$;
+
+-- staff attendance month summary: working days now exclude holidays and vacations
+create or replace function public.staff_attendance_month(sid uuid, p_month date)
+returns table (staff_id uuid, name text, emp_code text, present numeric, late bigint, half bigint, absent bigint, leave_days numeric, on_duty bigint, marked bigint, working_days int, suggested_lop numeric)
+language plpgsql stable security definer set search_path = public as $$
+declare m1 date := date_trunc('month', p_month)::date; m2 date := (date_trunc('month', p_month) + interval '1 month - 1 day')::date; wd int; days int[];
+begin
+  if not public.has_perm_school(sid, 'attendance.staff.view') then return; end if;
+  select coalesce(array(select jsonb_array_elements_text(prefs -> 'working_days')::int), array[1,2,3,4,5,6]) into days from public.schools where id = sid;
+  if days is null or cardinality(days) = 0 then days := array[1,2,3,4,5,6]; end if;
+  select count(*) into wd from generate_series(m1, m2, interval '1 day') g
+   where extract(isodow from g)::int = any(days)
+     and not exists (select 1 from public.school_events e where e.school_id = sid and e.kind in ('holiday', 'vacation') and g::date between e.start_date and e.end_date);
+  return query
+    select s.id, s.name, s.emp_code,
+           coalesce(sum(case when a.status in ('P', 'L', 'OD') then 1 when a.status = 'H' then 0.5 else 0 end), 0),
+           count(*) filter (where a.status = 'L'), count(*) filter (where a.status = 'H'), count(*) filter (where a.status = 'A'),
+           coalesce((select sum(l.days) from public.staff_leaves l where l.staff_id = s.id and l.status = 'approved' and l.kind <> 'LWP' and l.from_date <= m2 and l.to_date >= m1), 0)::numeric,
+           count(*) filter (where a.status = 'OD'), count(a.id), wd,
+           greatest(wd - coalesce(sum(case when a.status in ('P', 'L', 'OD') then 1 when a.status = 'H' then 0.5 else 0 end), 0)
+                       - coalesce((select sum(l.days) from public.staff_leaves l where l.staff_id = s.id and l.status = 'approved' and l.kind <> 'LWP' and l.from_date <= m2 and l.to_date >= m1), 0), 0)::numeric
+      from public.staff s left join public.staff_attendance a on a.staff_id = s.id and a.date between m1 and m2
+     where s.school_id = sid and s.status = 'active'
+     group by s.id, s.name, s.emp_code
+     order by s.name;
+end $$;
+
+-- ───────────── Audit ─────────────
+do $$
+declare t text;
+begin
+  foreach t in array array['periods', 'timetable_slots', 'substitutions', 'school_events'] loop
     execute format('drop trigger if exists audit_%1$s on public.%1$I', t);
     execute format('create trigger audit_%1$s after insert or update or delete on public.%1$I for each row execute function public.audit_row()', t);
   end loop;

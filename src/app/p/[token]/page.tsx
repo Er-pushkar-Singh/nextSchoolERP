@@ -199,7 +199,9 @@ export default async function Parent({ params, searchParams }: { params: Promise
 
       {R && (
         <section className="rounded-[12px] border border-line bg-white p-4">
-          <h2 className="m-0 mb-2 text-[17px] font-bold text-ink">School transport</h2>
+          <h2 className="m-0 mb-2 flex items-center justify-between gap-2 text-[17px] font-bold text-ink">School transport
+            <Link href={`/p/${token}/bus`} className="rounded-full bg-[#2563eb] px-3 py-1.5 text-[13px] font-bold text-white no-underline">📍 Track bus live</Link>
+          </h2>
           <p className="m-0 text-[15px]"><b className="text-ink">{R.transport_routes?.name}</b> · stop <b className="text-ink">{R.transport_stops?.name}</b></p>
           <p className="m-0 text-[14px] text-muted">
             {R.trip !== "drop" && R.transport_stops?.pickup_time ? `Pickup ${fmtTime(R.transport_stops.pickup_time)}` : ""}

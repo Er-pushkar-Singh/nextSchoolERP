@@ -10,6 +10,7 @@
 -- What it creates (all marked "DEMO"):
 --   • Settings: late fine, concession approval, sibling discount, seats per class, extra sections
 --   • Fee structure for Nursery–10 (tuition monthly, admission, annual, exam) → dues for every student
+--   • Attendance for 3 weeks (some students low), today partly scanned, a gate kiosk and a biometric device, staff attendance
 --   • 39 students (3 per class) incl. 3 sibling pairs and 2 RTE students
 --   • 6 enquiries and 18 admission applications in every state (received … admitted, waitlisted, rejected)
 --   • Concessions (approved / pending / rejected), receipts (cash, UPI, split, cheque), advance, bounced cheque,
@@ -347,6 +348,69 @@ begin
    where school_id = sid and emp_code = 'DEMO-E07';
   update public.students set blocked_at = now() - interval '1 day', block_reason = 'Fee default — meeting with parents called', blocked_till = current_date + 7, blocked_by_name = 'demo-seed@school.local'
    where id = student_ids[26];
+
+  -- ═════════════════ Transport: vehicles, routes with map stops, riders, one live trip ═════════════════
+  declare v1 uuid; v2 uuid; r1 uuid; r2 uuid; tr uuid; stp uuid[] := '{}'; sx uuid; lat0 numeric := 26.8467; lng0 numeric := 80.9462;
+  begin
+    update public.schools set lat = 26.8467, lng = 80.9462 where id = sid and lat is null;
+    insert into public.transport_vehicles (school_id, reg_no, kind, capacity, driver_name, driver_phone, attendant_name, insurance_upto, fitness_upto)
+      values (sid, 'DEMO UP32 AB 1234', 'bus', 40, 'Ramesh Kumar', '9811100001', 'Sita Devi', current_date + 200, current_date + 15) returning id into v1;
+    insert into public.transport_vehicles (school_id, reg_no, kind, capacity, driver_name, driver_phone, insurance_upto)
+      values (sid, 'DEMO UP32 CD 5678', 'van', 14, 'Suresh Yadav', '9811100002', current_date + 20) returning id into v2;
+    insert into public.transport_routes (school_id, name, vehicle_id) values (sid, 'DEMO Route 1 — Aliganj', v1) returning id into r1;
+    insert into public.transport_routes (school_id, name, vehicle_id) values (sid, 'DEMO Route 2 — Gomti Nagar', v2) returning id into r2;
+    insert into public.transport_stops (school_id, route_id, name, sort, pickup_time, drop_time, monthly_fee, lat, lng) values
+      (sid, r1, 'Aliganj Crossing', 1, '07:00', '14:40', 900, 26.8960, 80.9390),
+      (sid, r1, 'Kapoorthala', 2, '07:12', '14:28', 900, 26.8820, 80.9420),
+      (sid, r1, 'Nirala Nagar', 3, '07:22', '14:18', 800, 26.8690, 80.9450),
+      (sid, r1, 'Hazratganj', 4, '07:35', '14:05', 800, 26.8530, 80.9480),
+      (sid, r2, 'Patrakarpuram', 1, '07:05', '14:45', 1100, 26.8560, 81.0120),
+      (sid, r2, 'Vibhuti Khand', 2, '07:20', '14:30', 1100, 26.8650, 81.0030),
+      (sid, r2, 'Gomti Nagar Extn.', 3, '07:35', '14:15', 1000, 26.8700, 80.9900);
+    -- riders: every 3rd demo student on the two routes
+    insert into public.transport_allocations (school_id, session_id, student_id, route_id, stop_id, trip, start_date)
+    select sid, sess, s.id, st.route_id, st.id, 'both', sess_start
+      from (select id, row_number() over (order by admission_no) rn from public.students where school_id = sid and admission_no like 'DEMO-%' and status = 'active') s
+      join lateral (select * from public.transport_stops t where t.school_id = sid and t.route_id in (r1, r2) order by t.id limit 1 offset (s.rn % 7)) st on true
+     where s.rn % 3 = 0
+    on conflict do nothing;
+    -- a trip of route 1 that is running now, bus between Kapoorthala and Nirala Nagar
+    insert into public.transport_trips (school_id, vehicle_id, route_id, kind, started_at) values (sid, v1, r1, 'pickup', now() - interval '18 minutes') returning id into tr;
+    insert into public.transport_vehicle_position (vehicle_id, school_id, trip_id, lat, lng, speed_kmh, heading, accuracy_m, updated_at)
+      values (v1, sid, tr, 26.8760, 80.9435, 24, 190, 6, now());
+    insert into public.transport_position_log (school_id, trip_id, lat, lng, speed_kmh, at) values
+      (sid, tr, 26.8960, 80.9390, 20, now() - interval '16 minutes'), (sid, tr, 26.8900, 80.9405, 26, now() - interval '12 minutes'),
+      (sid, tr, 26.8820, 80.9421, 22, now() - interval '8 minutes'), (sid, tr, 26.8760, 80.9435, 24, now() - interval '1 minute');
+  end;
+
+  -- ── Attendance: 3 weeks of history (some students low), today partly scanned, devices, staff ──
+  declare dd date; td date := public.today_ist();
+  begin
+    insert into public.attendance (school_id, student_id, class_id, section_id, date, status, marked_by, source, in_time)
+    select sid, s.id, s.class_id, s.section_id, g::date,
+           case when abs(hashtext(s.id::text || g::text)) % 100 < case when s.rn % 7 = 0 then 45 else 8 end then 'A'
+                when abs(hashtext(s.id::text || g::text)) % 100 > 92 then 'L' else 'P' end,
+           'DEMO', 'manual', null
+      from (select id, class_id, section_id, row_number() over (order by admission_no) rn from public.students
+             where school_id = sid and admission_no like 'DEMO-%' and status = 'active' and class_id is not null and section_id is not null) s
+      cross join generate_series(td - 21, td - 1, interval '1 day') g
+     where extract(isodow from g) <> 7
+    on conflict (student_id, date) do nothing;
+    -- today: two thirds already scanned at the gate
+    insert into public.attendance (school_id, student_id, class_id, section_id, date, status, marked_by, source, in_time)
+    select sid, s.id, s.class_id, s.section_id, td, case when s.rn % 9 = 0 then 'L' else 'P' end, 'DEMO Main gate', 'qr',
+           case when s.rn % 9 = 0 then time '08:27' else ('07:' || lpad((40 + s.rn % 19)::text, 2, '0'))::time end
+      from (select id, class_id, section_id, row_number() over (order by admission_no) rn from public.students
+             where school_id = sid and admission_no like 'DEMO-%' and status = 'active' and class_id is not null and section_id is not null) s
+     where s.rn % 3 <> 0
+    on conflict (student_id, date) do nothing;
+    insert into public.attendance_devices (school_id, name, kind, location, last_seen_at) values
+      (sid, 'DEMO Main gate tablet', 'qr_kiosk', 'Gate 1', now()), (sid, 'DEMO Staff room machine', 'biometric', 'Staff room', now() - interval '2 hours');
+    insert into public.staff_attendance (school_id, staff_id, date, status, in_time, source, marked_by)
+    select sid, t.id, td, case when t.rn % 5 = 0 then 'L' else 'P' end, case when t.rn % 5 = 0 then time '08:32' else time '07:50' end, 'biometric', 'DEMO'
+      from (select id, row_number() over (order by emp_code) rn from public.staff where school_id = sid and emp_code like 'DEMO-E%' and status = 'active') t
+    on conflict (staff_id, date) do nothing;
+  end;
 
   -- ── Summary ──
   select count(*) into cnt_students from public.students where school_id = sid and (admission_no like 'DEMO-%' or application_id is not null);

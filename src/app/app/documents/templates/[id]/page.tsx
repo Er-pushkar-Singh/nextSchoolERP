@@ -5,6 +5,7 @@ import { Card, Flash, PageHeader, Table, td } from "@/components/ui/ui";
 import { TemplateEditor, type Tpl } from "@/components/TemplateEditor";
 import { fmtDate } from "@/lib/format";
 import { sanitizeHtml, withPhoto } from "@/lib/html-sanitize";
+import { withQr } from "@/lib/qr";
 import { cleanSearch, fullName } from "@/lib/format";
 import { restoreVersion } from "../../../_actions/documents";
 
@@ -37,14 +38,17 @@ export default async function TemplatePage({ params, searchParams }: { params: P
     if (!preview && !error) previewError = "Preview appears once the school has a receipt (receipt template) or a student with dues (demand / statement).";
   } else if (stu || stf) {
     const { data, error } = await supabase.rpc("preview_document", { tpl: id, stu, stf });
-    if (error) previewError = error.message; else preview = withPhoto(sanitizeHtml(String(data ?? "")), null);
+    if (error) previewError = error.message; else preview = withQr(withPhoto(sanitizeHtml(String(data ?? "")), null));
   }
   const w = t.page_size === "card" ? `${t.card_width_mm}mm` : t.page_size === "A5" ? "148mm" : "210mm";
 
   return (
     <div className="flex flex-col gap-5">
       <PageHeader icon="academics" title={t.name} subtitle={<>Version {t.version} · <span className="font-mono">{t.code}</span>{t.is_system ? " · standard template" : ""}</>} back={t.category === "fees" ? { href: "/app/fees/templates", label: "Fee templates" } : { href: "/app/documents/templates", label: "Templates" }}
-        actions={can("documents.issue.create") && t.active ? <Link href={`/app/documents/bulk?template=${id}`} className="btn btn-sm btn-secondary">Issue in bulk</Link> : undefined} />
+        actions={<>
+          {can("documents.templates.edit") && <Link href={`/app/documents/templates/${id}/design${t.design ? "" : "?start=1"}`} className="btn btn-sm btn-primary">Visual designer</Link>}
+          {can("documents.issue.create") && t.active && t.category !== "fees" && <Link href={`/app/documents/bulk?template=${id}`} className="btn btn-sm btn-secondary">Issue in bulk</Link>}
+        </>} />
       <Flash ok={sp.ok} error={sp.error} />
       <TemplateEditor t={t as unknown as Tpl} canEdit={can("documents.templates.edit")} canDelete={can("documents.templates.delete")} />
 

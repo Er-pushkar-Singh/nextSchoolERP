@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { checkHs, checkInter, optionsForHs } from "../src/lib/board-rules.ts";
 import { validAadhaar } from "../src/lib/aadhaar.ts";
 import { sanitizeHtml, withPhoto } from "../src/lib/html-sanitize.ts";
+import { compileDesign, normalizeDesign, PRESETS, pageOf, withSample } from "../src/lib/design.ts";
 
 let n = 0;
 const ok = (name, fn) => { fn(); n++; console.log("ok ", name); };
@@ -63,5 +64,40 @@ ok("HTML: placeholders and tables survive", () => assert.equal(sanitizeHtml('<ta
 ok("HTML: dangerous css is dropped", () => assert.ok(!/expression/i.test(sanitizeHtml('<div style="width:expression(alert(1))">x</div>'))));
 ok("HTML: photo slot gets the signed url", () => assert.ok(withPhoto('<img class="doc-photo" data-photo="1" src="" alt="p">', "https://s/p.jpg").includes('src="https://s/p.jpg"')));
 ok("HTML: photo slot falls back to a placeholder", () => assert.ok(!withPhoto('<img data-photo="1" src="">', null).includes("<img")));
+
+
+// ── Template designer ──
+ok("Design: every starter design compiles and survives the sanitiser", () => {
+  for (const p of PRESETS) {
+    const d = normalizeDesign(p.build());
+    const html = sanitizeHtml(compileDesign(d));
+    assert.ok(html.length > 100, p.key);
+    assert.ok(/position:absolute/.test(html), p.key);
+  }
+});
+ok("Design: text is escaped but {{placeholders}} stay", () => {
+  const html = compileDesign({ v: 1, w: 54, h: 86, bg: "#fff", items: [{ id: "a", type: "text", x: 1, y: 1, w: 40, h: 8, rot: 0, text: "<script>alert(1)</script> {{student.name}}" }] });
+  assert.ok(!/<script/i.test(html));
+  assert.ok(html.includes("{{student.name}}"));
+});
+ok("Design: only https image links are kept", () => {
+  const d = normalizeDesign({ v: 1, w: 54, h: 86, bg: "#fff", items: [{ id: "a", type: "image", x: 0, y: 0, w: 10, h: 10, rot: 0, src: "javascript:alert(1)" }, { id: "b", type: "image", x: 0, y: 0, w: 10, h: 10, rot: 0, src: "https://x.example/a.png" }] });
+  assert.equal(d.items[0].src, undefined);
+  assert.equal(d.items[1].src, "https://x.example/a.png");
+});
+ok("Design: sizes, positions and colours are clamped", () => {
+  const d = normalizeDesign({ v: 1, w: 99999, h: -5, bg: "red; background:url(x)", items: [{ id: "a", type: "rect", x: 99999, y: -99999, w: 0, h: 0, rot: 9999 }] });
+  assert.ok(d.w <= 600 && d.h >= 30);
+  assert.equal(d.bg, "#ffffff");
+  assert.ok(d.items[0].x <= 600 && d.items[0].y >= -300 && d.items[0].rot <= 360);
+});
+ok("Design: page size maps to A4 / A5 / card", () => {
+  assert.equal(pageOf({ v: 1, w: 210, h: 297, bg: "#fff", items: [] }).page_size, "A4");
+  assert.equal(pageOf({ v: 1, w: 86, h: 54, bg: "#fff", items: [] }).page_size, "card");
+  assert.equal(pageOf({ v: 1, w: 148, h: 210, bg: "#fff", items: [] }).page_size, "A5");
+});
+ok("Design: sample data fills fields for previews", () => {
+  assert.ok(withSample("{{student.name}}").includes("Aarav"));
+});
 
 console.log(`\n${n} checks passed`);

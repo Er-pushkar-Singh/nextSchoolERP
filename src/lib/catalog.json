@@ -327,7 +327,8 @@
             "create",
             "edit",
             "export"
-          ]
+          ],
+          "built": true
         }
       ]
     },
@@ -632,7 +633,8 @@
           "name": "GPS tracking",
           "actions": [
             "view"
-          ]
+          ],
+          "built": true
         }
       ]
     },

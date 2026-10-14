@@ -72,3 +72,9 @@ Things that have already bitten this project. Check here before debugging someth
 - **One foreign key per pair of tables** is the safest design for PostgREST embeds. Two FKs (e.g. `students.class_id` and `students.admission_class_id` → `classes`) make `classes(name)` ambiguous and the whole page returns "not found" (the code treated the error as "no row"). Either use one FK (the rest plain uuid columns) or write `classes!class_id(name)`.
 - Pages that do `if (!row) notFound()` also swallow query errors. When a page 404s for a record that exists, check the select string first.
 - Do not name a plpgsql parameter `kind` when the query touches a table that has a column `kind` (`fee_dues.kind`): use `p_kind`.
+
+## `not` on a nullable permission helper (step 19)
+`public.can_section()` / `can_student()` can return **null** (no role in that school). `if not public.can_section(...) then raise …` then silently *passes*, because `not null` is null. Always `if not coalesce(public.can_section(...), false)` (the attendance QR scan had exactly this hole; the cross-school test caught it).
+
+## Device endpoints are service-role only
+`device_scan` / `device_info` are granted to `service_role` only and checked with `is_service()`; the browser never calls them. The kiosk page and machines go through `/api/attendance/punch` with the device token.

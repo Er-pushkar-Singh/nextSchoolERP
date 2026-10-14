@@ -9,3 +9,6 @@
 - Add or adjust a SQL test in `supabase/tests/` for every permission or business rule; also run `npx tsc --noEmit` and `npm run build`.
 - Never run experiments against the database in `.env.local` — it is the real project.
 - **Update the module's doc in `docs/` in the same change** (routes, tables, rules, gaps).
+
+- **Anything a module prints** (cards, receipts, letters) goes through the template studio: register it in `TEMPLATE_MODULES` / `PRESETS` (`src/lib/design.ts`) and follow `docs/modules/templates.md` → "Adding templates for a new module".
+- Migrations must be self-sufficient: if a function uses a column or constraint, the migration that defines the function must also add it (`add column if not exists`).

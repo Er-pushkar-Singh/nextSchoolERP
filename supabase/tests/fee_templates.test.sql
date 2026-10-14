@@ -84,6 +84,20 @@ begin
   update public.document_templates set active = true where id = tpl;
   perform pg_temp.check((public.preview_fee_template(tpl) ->> 'html') is not null, 'the editor can preview a fee template with real data');
 
+  -- a template made from the gallery under another code, and a blank custom one, are applied once chosen
+  insert into public.document_templates (school_id, code, name, category, audience, body_html, preset, fee_kind)
+  values (a, 'fee_receipt_design', 'My designed receipt', 'fees', 'student', '<p>DESIGNED {{fee.receipt_no}}</p>', 'fee_receipt_design', null);
+  perform pg_temp.check(public.render_fee_document('receipt', rid) ->> 'html' like '%DESIGNED%' or public.render_fee_document('receipt', rid) ->> 'html' like '%<table%', 'a receipt template made from the gallery is found by its preset');
+  insert into public.document_templates (school_id, code, name, category, audience, body_html)
+  values (a, 'fee_receipt_custom_1', 'Custom receipt', 'fees', 'student', '<p>CUSTOM {{fee.receipt_no}} {{student.name}}</p>');
+  perform public.set_fee_template((select id from public.document_templates where school_id = a and code = 'fee_receipt_custom_1'), 'receipt');
+  perform pg_temp.check(public.render_fee_document('receipt', rid) ->> 'html' like '%CUSTOM%', 'the template chosen for receipts is the one printed');
+  perform pg_temp.check((select count(*) = 1 from public.document_templates where school_id = a and fee_kind = 'receipt'), 'only one template is bound to receipts');
+  perform public.set_fee_template((select id from public.document_templates where school_id = a and code = 'fee_receipt_custom_1'), null);
+  perform pg_temp.check(public.render_fee_document('receipt', rid) ->> 'html' not like '%CUSTOM%', 'unbinding falls back to the standard template');
+  begin perform public.set_fee_template((select id from public.document_templates where school_id = a and code = 'fee_receipt'), 'invoice'); perform pg_temp.check(false, 'bad kind');
+  exception when others then perform pg_temp.check(sqlerrm like '%Unknown document type%', 'an unknown document type is refused'); end;
+
   perform pg_temp.act_as(ot);
   perform pg_temp.check(public.render_fee_document('receipt', rid) is null, 'another school cannot render our receipt');
   perform pg_temp.check(public.render_fee_document('demand', s1) is null, 'another school cannot render our demand notice');

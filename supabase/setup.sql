@@ -1,4 +1,4 @@
--- School ERP: full database setup (migrations 0001–0016 combined).
+-- School ERP: full database setup (migrations 0001–0021 combined).
 -- Paste into Supabase SQL Editor and Run. Safe to run again; existing data and members are kept.
 -- Works in its own Supabase project or next to the CodersDuniya website/CRM tables (no name clashes).
 
@@ -702,7 +702,7 @@ insert into public.erp_submodules (code, module_code, name, built, sort) values
   ('homework.material', 'homework', 'Study material', true, 1),
   ('attendance.students', 'attendance', 'Student attendance', true, 0),
   ('attendance.leave', 'attendance', 'Student leave requests', false, 1),
-  ('attendance.staff', 'attendance', 'Staff attendance', false, 2),
+  ('attendance.staff', 'attendance', 'Staff attendance', true, 2),
   ('exams.setup', 'exams', 'Exams, subjects & grading', true, 0),
   ('exams.marks', 'exams', 'Marks entry', true, 1),
   ('exams.results', 'exams', 'Report cards & publishing', true, 2),
@@ -727,7 +727,7 @@ insert into public.erp_submodules (code, module_code, name, built, sort) values
   ('comms.messages', 'comms', 'Parent–teacher messages', false, 4),
   ('transport.routes', 'transport', 'Routes, stops & vehicles', true, 0),
   ('transport.allocation', 'transport', 'Student allocation', true, 1),
-  ('transport.tracking', 'transport', 'GPS tracking', false, 2),
+  ('transport.tracking', 'transport', 'GPS tracking', true, 2),
   ('library.catalogue', 'library', 'Book catalogue', true, 0),
   ('library.circulation', 'library', 'Issue & return', true, 1),
   ('hostel.rooms', 'hostel', 'Rooms & beds', false, 0),
@@ -8474,3 +8474,1014 @@ drop trigger if exists schools_seed_fee_templates on public.schools;
 create trigger schools_seed_fee_templates after insert on public.schools for each row execute function public.seed_fee_templates_on_school();
 
 select public.seed_fee_templates_internal(id) from public.schools;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Step 15: collect fees structure-wise (each instalment / fee head with its own amount) and fetch the fine automatically.
+-- Safe to run again.
+-- ═══════════════════════════════════════════════════════════════════════════
+-- (also in 0016; repeated so this migration works on its own)
+alter table public.fee_receipts drop constraint if exists fee_receipts_mode_check;
+alter table public.fee_receipts add constraint fee_receipts_mode_check
+  check (mode in ('cash','upi','cheque','bank_transfer','card','online','dd','other','mixed','wallet'));
+alter table public.fee_receipt_payments drop constraint if exists fee_receipt_payments_mode_check;
+alter table public.fee_receipt_payments add constraint fee_receipt_payments_mode_check
+  check (mode in ('cash','upi','cheque','bank_transfer','card','online','dd','other'));
+alter table public.fee_receipt_payments add column if not exists sub_type text;     -- debit / credit, or the label of "other"
+
+drop function if exists public.collect_fee_core(uuid, uuid, jsonb, uuid[], numeric, date, text, text, numeric, boolean, uuid);
+drop function if exists public.collect_fee_v2(uuid, uuid, jsonb, uuid[], numeric, date, text, text, numeric);
+
+create or replace function public.collect_fee_core(sid uuid, stu uuid, p_splits jsonb, p_due_ids uuid[], p_wallet_use numeric, p_paid_on date, p_note text, p_by text,
+                                                   p_fine numeric, p_force_advance boolean, p_online_order uuid default null, p_alloc jsonb default null)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare st record; sp jsonb; rid uuid; rno text; money numeric := 0; wuse numeric := coalesce(p_wallet_use, 0); bal numeric; wallet numeric; alloc numeric; excess numeric;
+        d record; take numeric; left_amt numeric; modes text[] := '{}'; m text; first_ref text; first_due uuid; pid uuid; any_line boolean := false;
+        use_alloc boolean := false; al jsonb; a_ids uuid[] := '{}'; a_amt numeric[] := '{}'; i int; bal_d numeric; lbl text;
+begin
+  if not exists (select 1 from public.students where id = stu and school_id = sid) then raise exception 'Student not found'; end if;
+  select * into st from public.fee_settings where school_id = sid;
+  for sp in select * from jsonb_array_elements(coalesce(p_splits, '[]'::jsonb)) loop
+    if (sp ->> 'mode') not in ('cash','upi','cheque','bank_transfer','card','online','dd','other') then raise exception 'Unknown payment mode "%".', sp ->> 'mode'; end if;
+    if coalesce((sp ->> 'amount')::numeric, 0) <= 0 then raise exception 'Every payment line needs an amount.'; end if;
+    money := money + (sp ->> 'amount')::numeric;
+    if not ((sp ->> 'mode') = any(modes)) then modes := modes || (sp ->> 'mode'); end if;
+  end loop;
+  if money + wuse <= 0 then raise exception 'Amount must be more than zero'; end if;
+  if wuse < 0 then raise exception 'Wallet amount cannot be negative.'; end if;
+  select coalesce(sum(amount), 0) into wallet from public.fee_wallet_entries where student_id = stu;
+  if wuse > wallet then raise exception 'The wallet has only % — use less.', wallet; end if;
+
+  -- structure-wise collection: [{"due_id": "...", "amount": 500}, …]
+  use_alloc := p_alloc is not null and jsonb_typeof(p_alloc) = 'array' and jsonb_array_length(p_alloc) > 0;
+  if use_alloc then
+    for al in select * from jsonb_array_elements(p_alloc) loop
+      a_ids := a_ids || (al ->> 'due_id')::uuid;
+      a_amt := a_amt || round((al ->> 'amount')::numeric, 2);
+    end loop;
+    if exists (select 1 from unnest(a_amt) x where x is null or x <= 0) then raise exception 'Every instalment you pay needs an amount above zero.'; end if;
+    if (select count(distinct x) from unnest(a_ids) x) <> cardinality(a_ids) then raise exception 'An instalment appears twice.'; end if;
+    if (select count(*) from public.fee_dues where id = any(a_ids) and student_id = stu and school_id = sid and status <> 'paid') <> cardinality(a_ids) then
+      raise exception 'One of the chosen instalments is not open for this student.';
+    end if;
+    p_due_ids := a_ids;
+  end if;
+
+  -- automatic late fine up to the payment date, then an optional manual fine
+  perform public.apply_late_fines_core(sid, stu, coalesce(p_paid_on, public.today_ist()));
+  if coalesce(p_fine, 0) > 0 then
+    if use_alloc then first_due := a_ids[1];
+    else select id into first_due from public.fee_dues where student_id = stu and school_id = sid and status <> 'paid' and (p_due_ids is null or id = any(p_due_ids)) order by due_date, label limit 1;
+    end if;
+    if first_due is null then raise exception 'No unpaid instalment to add the fine to'; end if;
+    update public.fee_dues set fine = fine + p_fine where id = first_due;
+    if use_alloc then a_amt[1] := a_amt[1] + p_fine; end if;
+  end if;
+
+  if use_alloc then
+    for i in 1..cardinality(a_ids) loop
+      select greatest(amount - concession + fine - paid, 0), label into bal_d, lbl from public.fee_dues where id = a_ids[i];
+      if a_amt[i] > bal_d then raise exception 'The amount for "%" is more than its balance (%).', lbl, bal_d; end if;
+    end loop;
+    bal := (select coalesce(sum(x), 0) from unnest(a_amt) x);
+    if money + wuse < bal then raise exception 'The payment (%) is less than the fees chosen (%).', money + wuse, bal; end if;
+  else
+    select coalesce(sum(greatest(amount - concession + fine - paid, 0)), 0) into bal from public.fee_dues
+     where student_id = stu and school_id = sid and status <> 'paid' and (p_due_ids is null or cardinality(p_due_ids) = 0 or id = any(p_due_ids));
+  end if;
+  excess := greatest(money + wuse - bal, 0);
+  if excess > 0 then
+    if wuse > 0 and excess > money then raise exception 'The wallet use is more than what is due. Use less.'; end if;
+    if not coalesce(st.advance_allowed, true) and not p_force_advance then raise exception 'Amount is more than the total due'; end if;
+  end if;
+  alloc := money + wuse - excess;
+
+  rno := public.next_school_number_core(sid, 'receipt');
+  insert into public.fee_receipts (school_id, receipt_no, student_id, paid_on, mode, reference, amount, note, collected_by, advance_amount, wallet_used, online_order_id)
+  values (sid, rno, stu, coalesce(p_paid_on, public.today_ist()),
+          case when cardinality(modes) > 1 then 'mixed' when cardinality(modes) = 1 then modes[1] else 'wallet' end,
+          nullif(p_splits -> 0 ->> 'reference', ''), alloc, p_note, p_by, excess, wuse, p_online_order)
+  returning id into rid;
+
+  for sp in select * from jsonb_array_elements(coalesce(p_splits, '[]'::jsonb)) loop
+    insert into public.fee_receipt_payments (school_id, receipt_id, mode, amount, reference, sub_type)
+    values (sid, rid, sp ->> 'mode', (sp ->> 'amount')::numeric, nullif(btrim(coalesce(sp ->> 'reference', sp ->> 'cheque_no', '')), ''), nullif(btrim(coalesce(sp ->> 'sub_type', '')), '')) returning id into pid;
+    if (sp ->> 'mode') = 'cheque' then
+      insert into public.fee_cheques (school_id, receipt_id, student_id, cheque_no, bank, cheque_date, amount)
+      values (sid, rid, stu, coalesce(nullif(btrim(coalesce(sp ->> 'cheque_no', sp ->> 'reference', '')), ''), 'N/A'), nullif(sp ->> 'bank', ''), nullif(sp ->> 'cheque_date', '')::date, (sp ->> 'amount')::numeric);
+    end if;
+  end loop;
+
+  left_amt := alloc;
+  if use_alloc then
+    for i in 1..cardinality(a_ids) loop
+      insert into public.fee_receipt_lines (school_id, receipt_id, due_id, amount) values (sid, rid, a_ids[i], a_amt[i]);
+    end loop;
+  else
+    for d in select id, greatest(amount - concession + fine - paid, 0) as b from public.fee_dues
+              where student_id = stu and school_id = sid and status <> 'paid' and (p_due_ids is null or cardinality(p_due_ids) = 0 or id = any(p_due_ids))
+              order by due_date, label for update loop
+      exit when left_amt <= 0;
+      take := least(d.b, left_amt);
+      if take > 0 then
+        insert into public.fee_receipt_lines (school_id, receipt_id, due_id, amount) values (sid, rid, d.id, take);
+        left_amt := left_amt - take; any_line := true;
+      end if;
+    end loop;
+  end if;
+  if wuse > 0 then insert into public.fee_wallet_entries (school_id, student_id, kind, amount, receipt_id, note, created_by) values (sid, stu, 'applied', -wuse, rid, 'Used against receipt ' || rno, p_by); end if;
+  if excess > 0 then insert into public.fee_wallet_entries (school_id, student_id, kind, amount, receipt_id, note, created_by) values (sid, stu, 'advance', excess, rid, 'Advance with receipt ' || rno, p_by); end if;
+  return rid;
+end $$;
+
+
+revoke execute on function public.collect_fee_core(uuid, uuid, jsonb, uuid[], numeric, date, text, text, numeric, boolean, uuid, jsonb) from public, anon, authenticated;
+
+create or replace function public.collect_fee_v2(sid uuid, stu uuid, p_splits jsonb, p_due_ids uuid[] default null, p_wallet_use numeric default 0,
+                                                 p_paid_on date default null, p_note text default null, p_by text default null, p_fine numeric default 0,
+                                                 p_alloc jsonb default null)
+returns uuid language plpgsql security definer set search_path = public as $$
+begin
+  if not public.has_perm_school(sid, 'fees.collection.create') then raise exception 'not allowed'; end if;
+  return public.collect_fee_core(sid, stu, p_splits, p_due_ids, p_wallet_use, p_paid_on, p_note, p_by, p_fine, false, null, p_alloc);
+end $$;
+
+-- brings the late fine of one student up to date (the fee desk calls it when a student is opened)
+create or replace function public.refresh_student_fines(sid uuid, stu uuid) returns int
+language plpgsql security definer set search_path = public as $$
+begin
+  if not (public.has_perm_school(sid, 'fees.collection.create') or public.has_perm_school(sid, 'fees.collection.view')) then raise exception 'not allowed'; end if;
+  if not exists (select 1 from public.students where id = stu and school_id = sid) then return 0; end if;
+  return public.apply_late_fines_core(sid, stu, public.today_ist());
+end $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Step 16: template studio — templates can carry a visual design (drag-and-drop canvas, like Canva).
+--   design  : the canvas as JSON (items with position, size, style) — the editable source
+--   body_html : the HTML compiled from it (what the database renders and sanitises, unchanged)
+--   module  : which module the template belongs to (students, staff, fees, admissions, library, transport …)
+-- Safe to run again.
+-- ═══════════════════════════════════════════════════════════════════════════
+-- (also in 0016; repeated so this migration works on its own) the "fees" category of fee receipts / notices / statements
+alter table public.document_templates drop constraint if exists document_templates_category_check;
+alter table public.document_templates add constraint document_templates_category_check
+  check (category in ('certificate','id_card','letter','fees','other'));
+
+alter table public.document_templates add column if not exists design jsonb;
+alter table public.document_templates add column if not exists module text;
+alter table public.document_templates add column if not exists preset text;          -- the gallery design it was made from
+
+-- design is kept with the version history, so a restore brings the canvas back too
+alter table public.document_template_versions add column if not exists design jsonb;
+
+create or replace function public.template_version_log() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if tg_op = 'INSERT' or new.version is distinct from old.version then
+    insert into public.document_template_versions (template_id, school_id, version, name, body_html, fields, design, changed_by)
+    values (new.id, new.school_id, new.version, new.name, new.body_html, new.fields, new.design, auth.uid()) on conflict (template_id, version) do nothing;
+  end if;
+  return null;
+end $$;
+
+-- a new design counts as a new version even if the compiled html happened to be identical
+create or replace function public.template_guard() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  new.body_html := public.sanitize_template_html(new.body_html);
+  if tg_op = 'UPDATE' then
+    if new.body_html is distinct from old.body_html or new.fields is distinct from old.fields or new.design is distinct from old.design then new.version := old.version + 1; else new.version := old.version; end if;
+    new.updated_at := now();
+    new.code := old.code; new.school_id := old.school_id;
+  end if;
+  return new;
+end $$;
+
+-- module of the standard templates
+update public.document_templates set module = case
+  when category = 'fees' then 'fees'
+  when audience = 'staff' then 'staff'
+  else 'students' end
+ where module is null;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Step 17: bind a fee template to what it is used for.
+-- Before: the receipt looked for a template with the code "fee_receipt" only, so a template made from the
+-- gallery (or a blank design) under another code was never applied.
+-- Now: document_templates.fee_kind says "this one is THE receipt / demand notice / statement"; one per school.
+-- Safe to run again.
+-- ═══════════════════════════════════════════════════════════════════════════
+alter table public.document_templates drop constraint if exists document_templates_category_check;
+alter table public.document_templates add constraint document_templates_category_check
+  check (category in ('certificate','id_card','letter','fees','other'));
+alter table public.document_templates add column if not exists design jsonb;
+alter table public.document_templates add column if not exists module text;
+alter table public.document_templates add column if not exists preset text;
+
+alter table public.document_templates add column if not exists fee_kind text;
+alter table public.document_templates drop constraint if exists document_templates_fee_kind_check;
+alter table public.document_templates add constraint document_templates_fee_kind_check check (fee_kind is null or fee_kind in ('receipt', 'demand', 'statement'));
+drop index if exists public.document_templates_fee_kind;
+
+-- templates that already exist: the standard code wins, else the gallery design, else the newest one of the category
+update public.document_templates set fee_kind = null where fee_kind is not null;
+with ranked as (
+  select id, school_id,
+         case when code = 'fee_receipt' or preset = 'fee_receipt_design' or code like 'fee_receipt%' then 'receipt'
+              when code = 'fee_demand' or preset = 'fee_demand_design' or code like 'fee_demand%' then 'demand'
+              when code = 'fee_statement' or preset = 'fee_statement_design' or code like 'fee_statement%' then 'statement' end as k,
+         row_number() over (partition by school_id,
+              case when code = 'fee_receipt' or preset = 'fee_receipt_design' or code like 'fee_receipt%' then 'receipt'
+                   when code = 'fee_demand' or preset = 'fee_demand_design' or code like 'fee_demand%' then 'demand'
+                   when code = 'fee_statement' or preset = 'fee_statement_design' or code like 'fee_statement%' then 'statement' end
+              order by (code like 'fee\_%' and code in ('fee_receipt', 'fee_demand', 'fee_statement')) asc, updated_at desc) as rn
+    from public.document_templates where category = 'fees' and active
+)
+update public.document_templates t set fee_kind = r.k from ranked r where t.id = r.id and r.k is not null and r.rn = 1;
+
+create unique index if not exists document_templates_fee_kind on public.document_templates (school_id, fee_kind) where fee_kind is not null;
+
+-- the template to use for a document: the bound one, else the standard code, else any active fee template of that name
+create or replace function public.render_fee_document(p_kind text, subject uuid) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare d jsonb; t record; sid uuid;
+begin
+  if p_kind not in ('receipt', 'demand', 'statement') then raise exception 'Unknown document.'; end if;
+  d := public.fee_template_data(p_kind, subject);
+  if d is null then return null; end if;
+  select school_id into sid from public.students where id = (case when p_kind = 'receipt' then (select student_id from public.fee_receipts where id = subject) else subject end);
+  select * into t from public.document_templates
+   where school_id = sid and category = 'fees' and active
+     and (fee_kind = p_kind or code = 'fee_' || p_kind or preset = 'fee_' || p_kind || '_design')
+   order by (fee_kind = p_kind) desc nulls last, (code = 'fee_' || p_kind) desc, updated_at desc limit 1;
+  if t.id is null then return null; end if;
+  return jsonb_build_object('html', public.sanitize_template_html(public.render_document(t.body_html, d)), 'template_id', t.id, 'name', t.name,
+                            'page_size', t.page_size, 'orientation', t.orientation);
+end $$;
+
+create or replace function public.preview_fee_template(tpl uuid) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare t record; subj uuid; d jsonb; k text;
+begin
+  select * into t from public.document_templates where id = tpl;
+  if t.id is null or t.category <> 'fees' or not public.has_perm_school(t.school_id, 'documents.templates.view') then return null; end if;
+  k := coalesce(t.fee_kind, case when t.code like 'fee_demand%' or t.preset like 'fee_demand%' then 'demand' when t.code like 'fee_statement%' or t.preset like 'fee_statement%' then 'statement' else 'receipt' end);
+  if k = 'receipt' then
+    select id into subj from public.fee_receipts where school_id = t.school_id order by created_at desc limit 1;
+  else
+    select du.student_id into subj from public.fee_dues du where du.school_id = t.school_id group by du.student_id order by sum(du.amount - du.concession + du.fine - du.paid) desc limit 1;
+  end if;
+  if subj is null then return jsonb_build_object('empty', true); end if;
+  d := public.fee_template_data(k, subj);
+  if d is null then return jsonb_build_object('empty', true); end if;
+  return jsonb_build_object('html', public.sanitize_template_html(public.render_document(t.body_html, d)));
+end $$;
+
+-- "use this template for receipts / demand notices / statements" (one per school and kind); null = stop using it
+create or replace function public.set_fee_template(tpl uuid, p_kind text) returns void
+language plpgsql security definer set search_path = public as $$
+declare t record;
+begin
+  select * into t from public.document_templates where id = tpl;
+  if t.id is null then raise exception 'Template not found.'; end if;
+  if not public.has_perm_school(t.school_id, 'documents.templates.edit') then raise exception 'not allowed'; end if;
+  if p_kind is not null and p_kind not in ('receipt', 'demand', 'statement') then raise exception 'Unknown document type.'; end if;
+  if p_kind is null then
+    update public.document_templates set fee_kind = null where id = tpl;
+    return;
+  end if;
+  update public.document_templates set fee_kind = null where school_id = t.school_id and fee_kind = p_kind and id <> tpl;
+  update public.document_templates set category = 'fees', fee_kind = p_kind, active = true, module = 'fees' where id = tpl;
+end $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Step 18: transport — live bus tracking (driver phone → map for parents and the office), stop locations,
+--          trips, position history, and database-side list functions (search / filter / pages).
+-- Safe to run again.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- ───────────── Locations ─────────────
+alter table public.transport_stops add column if not exists lat numeric(9,6);
+alter table public.transport_stops add column if not exists lng numeric(9,6);
+alter table public.transport_stops drop constraint if exists transport_stops_geo_check;
+alter table public.transport_stops add constraint transport_stops_geo_check
+  check ((lat is null and lng is null) or (lat between -90 and 90 and lng between -180 and 180));
+
+alter table public.schools add column if not exists lat numeric(9,6);
+alter table public.schools add column if not exists lng numeric(9,6);
+
+-- the driver's private link: /drive/<token>
+alter table public.transport_vehicles add column if not exists track_token text;
+update public.transport_vehicles set track_token = encode(gen_random_bytes(12), 'hex') where track_token is null;
+alter table public.transport_vehicles alter column track_token set default encode(gen_random_bytes(12), 'hex');
+create unique index if not exists transport_vehicles_token on public.transport_vehicles (track_token);
+
+-- ───────────── Trips and positions ─────────────
+create table if not exists public.transport_trips (
+  id          uuid primary key default gen_random_uuid(),
+  school_id   uuid not null references public.schools(id) on delete cascade,
+  vehicle_id  uuid not null references public.transport_vehicles(id) on delete cascade,
+  route_id    uuid references public.transport_routes(id) on delete set null,
+  kind        text not null default 'pickup' check (kind in ('pickup', 'drop')),
+  status      text not null default 'running' check (status in ('running', 'ended')),
+  started_at  timestamptz not null default now(),
+  ended_at    timestamptz
+);
+create index if not exists transport_trips_vehicle_idx on public.transport_trips (vehicle_id, started_at desc);
+create unique index if not exists transport_trips_one_running on public.transport_trips (vehicle_id) where status = 'running';
+
+create table if not exists public.transport_vehicle_position (
+  vehicle_id  uuid primary key references public.transport_vehicles(id) on delete cascade,
+  school_id   uuid not null references public.schools(id) on delete cascade,
+  trip_id     uuid references public.transport_trips(id) on delete set null,
+  lat         numeric(9,6) not null check (lat between -90 and 90),
+  lng         numeric(9,6) not null check (lng between -180 and 180),
+  speed_kmh   numeric(6,1) check (speed_kmh is null or speed_kmh between 0 and 250),
+  heading     numeric(5,1) check (heading is null or heading between 0 and 360),
+  accuracy_m  numeric(8,1),
+  updated_at  timestamptz not null default now()
+);
+
+create table if not exists public.transport_position_log (
+  id          bigint generated always as identity primary key,
+  school_id   uuid not null references public.schools(id) on delete cascade,
+  trip_id     uuid not null references public.transport_trips(id) on delete cascade,
+  lat         numeric(9,6) not null,
+  lng         numeric(9,6) not null,
+  speed_kmh   numeric(6,1),
+  at          timestamptz not null default now()
+);
+create index if not exists transport_position_log_trip_idx on public.transport_position_log (trip_id, at);
+
+alter table public.transport_trips enable row level security;
+alter table public.transport_vehicle_position enable row level security;
+alter table public.transport_position_log enable row level security;
+drop policy if exists "read" on public.transport_trips;
+create policy "read" on public.transport_trips for select to authenticated using (public.has_perm_school(school_id, 'transport.tracking.view'));
+drop policy if exists "read" on public.transport_vehicle_position;
+create policy "read" on public.transport_vehicle_position for select to authenticated using (public.has_perm_school(school_id, 'transport.tracking.view'));
+drop policy if exists "read" on public.transport_position_log;
+create policy "read" on public.transport_position_log for select to authenticated using (public.has_perm_school(school_id, 'transport.tracking.view'));
+-- written only by the driver functions below
+
+-- ───────────── Geometry ─────────────
+create or replace function public.geo_km(lat1 numeric, lng1 numeric, lat2 numeric, lng2 numeric) returns numeric
+language sql immutable as $$
+  select (2 * 6371 * asin(least(1, sqrt(
+    power(sin(radians((lat2 - lat1) / 2)), 2) + cos(radians(lat1)) * cos(radians(lat2)) * power(sin(radians((lng2 - lng1) / 2)), 2)))))::numeric;
+$$;
+
+-- ───────────── Driver side (called by the app server only, with the vehicle's private token) ─────────────
+create or replace function public._vehicle_by_token(p_token text) returns public.transport_vehicles
+language plpgsql stable security definer set search_path = public as $$
+declare v public.transport_vehicles;
+begin
+  if p_token is null or p_token !~ '^[0-9a-f]{24}$' then raise exception 'This driver link is not valid.'; end if;
+  select * into v from public.transport_vehicles where track_token = p_token and active;
+  if v.id is null then raise exception 'This driver link is not valid or the vehicle is switched off.'; end if;
+  return v;
+end $$;
+revoke execute on function public._vehicle_by_token(text) from public, anon, authenticated;
+
+create or replace function public.driver_status(p_token text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare v public.transport_vehicles; t record; p record; r record;
+begin
+  if not public.is_service() then raise exception 'not allowed'; end if;
+  v := public._vehicle_by_token(p_token);
+  select * into t from public.transport_trips where vehicle_id = v.id and status = 'running';
+  select * into p from public.transport_vehicle_position where vehicle_id = v.id;
+  select r2.name, r2.id into r from public.transport_routes r2 where r2.vehicle_id = v.id and r2.active order by r2.name limit 1;
+  return jsonb_build_object('vehicle', v.reg_no, 'driver', v.driver_name, 'route', r.name, 'route_id', r.id,
+    'trip', case when t.id is null then null else jsonb_build_object('id', t.id, 'kind', t.kind, 'started_at', t.started_at) end,
+    'last_ping', p.updated_at, 'school', (select name from public.schools where id = v.school_id));
+end $$;
+revoke execute on function public.driver_status(text) from public, anon, authenticated;
+grant execute on function public.driver_status(text) to service_role;
+
+create or replace function public.driver_start_trip(p_token text, p_kind text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare v public.transport_vehicles; rid uuid; tid uuid;
+begin
+  if not public.is_service() then raise exception 'not allowed'; end if;
+  if p_kind not in ('pickup', 'drop') then raise exception 'Choose pickup or drop.'; end if;
+  v := public._vehicle_by_token(p_token);
+  select id into rid from public.transport_routes where vehicle_id = v.id and active order by name limit 1;
+  update public.transport_trips set status = 'ended', ended_at = now() where vehicle_id = v.id and status = 'running';
+  insert into public.transport_trips (school_id, vehicle_id, route_id, kind) values (v.school_id, v.id, rid, p_kind) returning id into tid;
+  -- old position from a previous trip must not look live
+  delete from public.transport_vehicle_position where vehicle_id = v.id;
+  return jsonb_build_object('trip_id', tid, 'kind', p_kind);
+end $$;
+revoke execute on function public.driver_start_trip(text, text) from public, anon, authenticated;
+grant execute on function public.driver_start_trip(text, text) to service_role;
+
+create or replace function public.driver_ping(p_token text, p_lat numeric, p_lng numeric, p_speed numeric default null, p_heading numeric default null, p_accuracy numeric default null)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare v public.transport_vehicles; t record; last_at timestamptz; last_log timestamptz;
+begin
+  if not public.is_service() then raise exception 'not allowed'; end if;
+  if p_lat is null or p_lng is null or p_lat not between -90 and 90 or p_lng not between -180 and 180 then raise exception 'Invalid location.'; end if;
+  v := public._vehicle_by_token(p_token);
+  select * into t from public.transport_trips where vehicle_id = v.id and status = 'running';
+  if t.id is null then raise exception 'Start the trip first.'; end if;
+  select updated_at into last_at from public.transport_vehicle_position where vehicle_id = v.id;
+  if last_at is not null and last_at > now() - interval '2 seconds' then return jsonb_build_object('ok', true, 'skipped', true); end if;
+  insert into public.transport_vehicle_position (vehicle_id, school_id, trip_id, lat, lng, speed_kmh, heading, accuracy_m, updated_at)
+  values (v.id, v.school_id, t.id, round(p_lat, 6), round(p_lng, 6), least(greatest(coalesce(p_speed, 0), 0), 250), p_heading, p_accuracy, now())
+  on conflict (vehicle_id) do update set trip_id = excluded.trip_id, lat = excluded.lat, lng = excluded.lng, speed_kmh = excluded.speed_kmh,
+        heading = excluded.heading, accuracy_m = excluded.accuracy_m, updated_at = excluded.updated_at;
+  select max(at) into last_log from public.transport_position_log where trip_id = t.id;
+  if last_log is null or last_log < now() - interval '8 seconds' then
+    insert into public.transport_position_log (school_id, trip_id, lat, lng, speed_kmh) values (v.school_id, t.id, round(p_lat, 6), round(p_lng, 6), p_speed);
+  end if;
+  return jsonb_build_object('ok', true);
+end $$;
+revoke execute on function public.driver_ping(text, numeric, numeric, numeric, numeric, numeric) from public, anon, authenticated;
+grant execute on function public.driver_ping(text, numeric, numeric, numeric, numeric, numeric) to service_role;
+
+create or replace function public.driver_end_trip(p_token text) returns void
+language plpgsql security definer set search_path = public as $$
+declare v public.transport_vehicles;
+begin
+  if not public.is_service() then raise exception 'not allowed'; end if;
+  v := public._vehicle_by_token(p_token);
+  update public.transport_trips set status = 'ended', ended_at = now() where vehicle_id = v.id and status = 'running';
+  delete from public.transport_vehicle_position where vehicle_id = v.id;
+  -- history older than 45 days is dropped
+  delete from public.transport_position_log where school_id = v.school_id and at < now() - interval '45 days';
+end $$;
+revoke execute on function public.driver_end_trip(text) from public, anon, authenticated;
+grant execute on function public.driver_end_trip(text) to service_role;
+
+create or replace function public.rotate_driver_token(vid uuid) returns text
+language plpgsql security definer set search_path = public as $$
+declare v record; t text;
+begin
+  select * into v from public.transport_vehicles where id = vid;
+  if v.id is null or not public.has_perm_school(v.school_id, 'transport.routes.edit') then raise exception 'not allowed'; end if;
+  t := encode(gen_random_bytes(12), 'hex');
+  update public.transport_vehicles set track_token = t where id = vid;
+  update public.transport_trips set status = 'ended', ended_at = now() where vehicle_id = vid and status = 'running';
+  delete from public.transport_vehicle_position where vehicle_id = vid;
+  return t;
+end $$;
+
+create or replace function public.set_school_location(sid uuid, p_lat numeric, p_lng numeric) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.has_perm_school(sid, 'transport.routes.edit') then raise exception 'not allowed'; end if;
+  if p_lat is null or p_lng is null or p_lat not between -90 and 90 or p_lng not between -180 and 180 then raise exception 'Invalid location.'; end if;
+  update public.schools set lat = round(p_lat, 6), lng = round(p_lng, 6) where id = sid;
+end $$;
+
+-- ───────────── Office side ─────────────
+-- every vehicle with its route, its trip and its last position (fresh = a ping in the last 60 seconds)
+create or replace function public.live_vehicles(sid uuid)
+returns table (vehicle_id uuid, reg_no text, kind text, driver_name text, driver_phone text, route_id uuid, route_name text, trip_id uuid, trip_kind text, trip_started timestamptz,
+               lat numeric, lng numeric, speed_kmh numeric, heading numeric, updated_at timestamptz, age_s int, state text, riders bigint)
+language sql stable security definer set search_path = public as $$
+  select v.id, v.reg_no, v.kind, v.driver_name, v.driver_phone, r.id, r.name, t.id, t.kind, t.started_at,
+         p.lat, p.lng, p.speed_kmh, p.heading, p.updated_at, extract(epoch from now() - p.updated_at)::int,
+         case when t.id is null then 'idle' when p.updated_at is null then 'waiting' when p.updated_at < now() - interval '90 seconds' then 'offline'
+              when coalesce(p.speed_kmh, 0) < 2 then 'stopped' else 'moving' end,
+         (select count(*) from public.transport_allocations a where a.route_id = r.id and a.end_date is null)
+    from public.transport_vehicles v
+    left join lateral (select * from public.transport_routes rr where rr.vehicle_id = v.id and rr.active order by rr.name limit 1) r on true
+    left join public.transport_trips t on t.vehicle_id = v.id and t.status = 'running'
+    left join public.transport_vehicle_position p on p.vehicle_id = v.id and p.trip_id = t.id
+   where v.school_id = sid and v.active and public.has_perm_school(sid, 'transport.tracking.view')
+   order by (t.id is not null) desc, v.reg_no;
+$$;
+
+create or replace function public.trip_trace(p_trip uuid) returns table (lat numeric, lng numeric, at timestamptz)
+language sql stable security definer set search_path = public as $$
+  select l.lat, l.lng, l.at from public.transport_position_log l join public.transport_trips t on t.id = l.trip_id
+   where l.trip_id = p_trip and public.has_perm_school(t.school_id, 'transport.tracking.view') order by l.at limit 3000;
+$$;
+
+-- recent trips of the school (history screen)
+create or replace function public.trip_history(sid uuid, p_vehicle uuid default null, p_limit int default 25, p_offset int default 0)
+returns table (trip_id uuid, vehicle_id uuid, reg_no text, route_name text, kind text, started_at timestamptz, ended_at timestamptz, minutes int, points bigint, total bigint)
+language sql stable security definer set search_path = public as $$
+  select t.id, v.id, v.reg_no, r.name, t.kind, t.started_at, t.ended_at,
+         (extract(epoch from coalesce(t.ended_at, now()) - t.started_at) / 60)::int,
+         (select count(*) from public.transport_position_log l where l.trip_id = t.id), count(*) over ()
+    from public.transport_trips t join public.transport_vehicles v on v.id = t.vehicle_id left join public.transport_routes r on r.id = t.route_id
+   where t.school_id = sid and public.has_perm_school(sid, 'transport.tracking.view') and (p_vehicle is null or t.vehicle_id = p_vehicle)
+   order by t.started_at desc
+   limit least(greatest(coalesce(p_limit, 25), 1), 100) offset greatest(coalesce(p_offset, 0), 0);
+$$;
+
+-- ───────────── Parent side (called by the app server for a valid parent link) ─────────────
+create or replace function public.child_bus(stu uuid) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare a record; v record; t record; p record; st record; sc record; stops jsonb; d numeric; sp numeric; eta int; state text; stop_lat numeric; stop_lng numeric;
+begin
+  if not public.is_service() then raise exception 'not allowed'; end if;
+  select al.*, r.name as route_name, r.vehicle_id, s.name as stop_name, s.lat as slat, s.lng as slng, s.pickup_time, s.drop_time, s.sort as stop_sort
+    into a from public.transport_allocations al join public.transport_routes r on r.id = al.route_id join public.transport_stops s on s.id = al.stop_id
+   where al.student_id = stu and al.end_date is null order by al.start_date desc limit 1;
+  if a.id is null then return jsonb_build_object('allocated', false); end if;
+  select * into v from public.transport_vehicles where id = a.vehicle_id;
+  select * into sc from public.schools where id = a.school_id;
+  select * into t from public.transport_trips where vehicle_id = a.vehicle_id and status = 'running';
+  select * into p from public.transport_vehicle_position where vehicle_id = a.vehicle_id and trip_id = t.id;
+
+  select coalesce(jsonb_agg(jsonb_build_object('id', s.id, 'name', s.name, 'seq', s.sort, 'lat', s.lat, 'lng', s.lng, 'pickup', s.pickup_time, 'drop', s.drop_time,
+           'mine', s.id = a.stop_id,
+           'visited', t.id is not null and s.lat is not null and exists (select 1 from public.transport_position_log l where l.trip_id = t.id and public.geo_km(l.lat, l.lng, s.lat, s.lng) < 0.15))
+           order by s.sort), '[]'::jsonb)
+    into stops from public.transport_stops s where s.route_id = a.route_id;
+
+  state := 'not_started';
+  if t.id is not null then
+    state := case when p.updated_at is null then 'starting' when p.updated_at < now() - interval '90 seconds' then 'offline' else 'on_the_way' end;
+  end if;
+  if p.lat is not null and a.slat is not null then
+    d := public.geo_km(p.lat, p.lng, a.slat, a.slng);
+    sp := greatest(coalesce(p.speed_kmh, 0), 18);                          -- a moving school bus; slower readings are treated as 18 km/h
+    eta := ceil(d / sp * 60);
+    if d < 0.15 then state := 'reached'; elsif d < 1 and state = 'on_the_way' then state := 'near'; end if;
+  end if;
+  return jsonb_build_object(
+    'allocated', true, 'state', state, 'student_trip', a.trip,
+    'vehicle', jsonb_build_object('reg_no', v.reg_no, 'driver', v.driver_name, 'phone', v.driver_phone, 'attendant', v.attendant_name, 'attendant_phone', v.attendant_phone),
+    'route', a.route_name,
+    'my_stop', jsonb_build_object('name', a.stop_name, 'lat', a.slat, 'lng', a.slng, 'pickup', a.pickup_time, 'drop', a.drop_time),
+    'school', jsonb_build_object('name', sc.name, 'lat', sc.lat, 'lng', sc.lng),
+    'trip', case when t.id is null then null else jsonb_build_object('kind', t.kind, 'started_at', t.started_at) end,
+    'position', case when p.lat is null then null else jsonb_build_object('lat', p.lat, 'lng', p.lng, 'speed', p.speed_kmh, 'heading', p.heading, 'age_s', extract(epoch from now() - p.updated_at)::int) end,
+    'distance_km', case when d is null then null else round(d, 2) end, 'eta_min', eta, 'stops', stops);
+end $$;
+revoke execute on function public.child_bus(uuid) from public, anon, authenticated;
+grant execute on function public.child_bus(uuid) to service_role;
+
+-- ───────────── Riders: search + filter + sort + count + page in the database ─────────────
+create or replace function public.transport_riders(sid uuid, sess uuid, p_q text default null, p_route uuid default null, p_stop uuid default null, p_class uuid default null,
+    p_trip text default null, p_ended boolean default false, p_sort text default 'route', p_limit int default 25, p_offset int default 0)
+returns table (alloc_id uuid, student_id uuid, admission_no text, student_name text, class_name text, section_name text, guardian_phone text, father_name text,
+               route_id uuid, route_name text, stop_id uuid, stop_name text, pickup_time time, trip text, fee numeric, start_date date, end_date date, total bigint, monthly_total numeric)
+language sql stable set search_path = public as $$
+  with base as (
+    select al.id as aid, s.id as sid2, s.admission_no, btrim(concat_ws(' ', s.first_name, s.middle_name, s.last_name)) as nm, c.name as cname, c.sort as csort, sec.name as secname,
+           s.guardian_phone, s.father_name, r.id as rid, r.name as rname, st.id as stid, st.name as stname, st.pickup_time, al.trip,
+           coalesce(al.monthly_fee, st.monthly_fee, 0) as fee, al.start_date, al.end_date, st.sort as stsort
+      from public.transport_allocations al
+      join public.students s on s.id = al.student_id
+      join public.transport_routes r on r.id = al.route_id
+      join public.transport_stops st on st.id = al.stop_id
+      left join public.classes c on c.id = s.class_id
+      left join public.sections sec on sec.id = s.section_id
+     where al.school_id = sid and al.session_id = sess
+       and (p_ended or al.end_date is null)
+       and (p_route is null or al.route_id = p_route) and (p_stop is null or al.stop_id = p_stop) and (p_class is null or s.class_id = p_class)
+       and (p_trip is null or p_trip = '' or al.trip = p_trip)
+       and (nullif(btrim(coalesce(p_q, '')), '') is null
+            or concat_ws(' ', s.first_name, s.middle_name, s.last_name) ilike public.like_escape(btrim(p_q)) or s.admission_no ilike public.like_escape(btrim(p_q))
+            or s.guardian_phone ilike public.like_escape(btrim(p_q)) or s.father_name ilike public.like_escape(btrim(p_q)) or st.name ilike public.like_escape(btrim(p_q)))
+  )
+  select b.aid, b.sid2, b.admission_no, b.nm, b.cname, b.secname, b.guardian_phone, b.father_name, b.rid, b.rname, b.stid, b.stname, b.pickup_time, b.trip, b.fee, b.start_date, b.end_date,
+         count(*) over (), sum(case when b.end_date is null then b.fee else 0 end) over ()
+    from base b
+   order by
+     case when p_sort = 'name' then b.nm end asc,
+     case when p_sort = 'class' then b.csort end asc nulls last,
+     case when p_sort = 'fee' then b.fee end desc,
+     b.rname asc, b.stsort asc, b.nm asc, b.aid
+   limit least(greatest(coalesce(p_limit, 25), 1), 200) offset greatest(coalesce(p_offset, 0), 0);
+$$;
+
+-- vehicles: papers due is computed here so it can be filtered and paged
+create or replace function public.vehicle_list(sid uuid, p_q text default null, p_kind text default null, p_active text default 'yes', p_papers text default null,
+    p_limit int default 25, p_offset int default 0)
+returns table (id uuid, reg_no text, kind text, capacity int, driver_name text, driver_phone text, attendant_name text, active boolean, route_names text,
+               insurance_upto date, fitness_upto date, permit_upto date, puc_upto date, papers_due int, track_token text, seen_at timestamptz, trip_state text, total bigint)
+language sql stable security definer set search_path = public as $$
+  with base as (
+    select v.*, (select string_agg(r.name, ', ' order by r.name) from public.transport_routes r where r.vehicle_id = v.id) as rn,
+           (select count(*) from unnest(array[v.insurance_upto, v.fitness_upto, v.permit_upto, v.puc_upto]) d where d is not null and d <= public.today_ist() + 30)::int as due,
+           p.updated_at as seen, t.status as ts
+      from public.transport_vehicles v
+      left join public.transport_vehicle_position p on p.vehicle_id = v.id
+      left join public.transport_trips t on t.vehicle_id = v.id and t.status = 'running'
+     where v.school_id = sid and (public.has_perm_school(sid, 'transport.routes.view') or public.has_perm_school(sid, 'transport.allocation.view'))
+       and (p_kind is null or p_kind = '' or v.kind = p_kind)
+       and (p_active is null or p_active = '' or p_active = 'all' or (p_active = 'yes' and v.active) or (p_active = 'no' and not v.active))
+       and (nullif(btrim(coalesce(p_q, '')), '') is null or v.reg_no ilike public.like_escape(btrim(p_q)) or v.driver_name ilike public.like_escape(btrim(p_q))
+            or v.driver_phone ilike public.like_escape(btrim(p_q)) or v.attendant_name ilike public.like_escape(btrim(p_q)))
+  )
+  select b.id, b.reg_no, b.kind, b.capacity, b.driver_name, b.driver_phone, b.attendant_name, b.active, b.rn, b.insurance_upto, b.fitness_upto, b.permit_upto, b.puc_upto, b.due,
+         case when public.has_perm_school(sid, 'transport.routes.edit') then b.track_token end, b.seen, b.ts, count(*) over ()
+    from base b
+   where (p_papers is null or p_papers = '' or (p_papers = 'due' and b.due > 0) or (p_papers = 'ok' and b.due = 0))
+   order by b.reg_no
+   limit least(greatest(coalesce(p_limit, 25), 1), 100) offset greatest(coalesce(p_offset, 0), 0);
+$$;
+
+-- audit for the vehicle token rotation is covered by the audit trigger on transport_vehicles when present
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Step 19: attendance, the modern way — QR scanning (kiosk at the gate / teacher's phone), biometric & RFID devices,
+--          staff self check-in by location, manual class-wise as before; staff attendance; low-attendance report;
+--          punches log; QR codes for ID cards.
+-- Safe to run again.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- ───────────── Settings ─────────────
+create table if not exists public.attendance_settings (
+  school_id      uuid primary key references public.schools(id) on delete cascade,
+  school_start   time not null default '08:00',
+  late_after     time not null default '08:15',
+  geofence_m     int  not null default 150 check (geofence_m between 30 and 2000),
+  updated_at     timestamptz not null default now()
+);
+alter table public.attendance_settings enable row level security;
+drop policy if exists "read" on public.attendance_settings;
+create policy "read" on public.attendance_settings for select to authenticated using (public.has_module_perm(school_id, 'attendance'));
+drop policy if exists "write" on public.attendance_settings;
+create policy "write" on public.attendance_settings for all to authenticated
+  using (public.has_perm_school(school_id, 'attendance.students.edit')) with check (public.has_perm_school(school_id, 'attendance.students.edit'));
+
+-- ───────────── Columns ─────────────
+alter table public.attendance add column if not exists source text not null default 'manual';
+alter table public.attendance drop constraint if exists attendance_source_check;
+alter table public.attendance add constraint attendance_source_check check (source in ('manual', 'qr', 'biometric', 'rfid', 'import', 'geo'));
+alter table public.attendance add column if not exists in_time time;
+alter table public.attendance add column if not exists out_time time;
+alter table public.attendance add column if not exists note text;
+
+alter table public.students add column if not exists att_code text;
+update public.students set att_code = encode(gen_random_bytes(6), 'hex') where att_code is null;
+alter table public.students alter column att_code set default encode(gen_random_bytes(6), 'hex');
+create unique index if not exists students_att_code on public.students (att_code);
+
+alter table public.staff add column if not exists att_code text;
+update public.staff set att_code = encode(gen_random_bytes(6), 'hex') where att_code is null;
+alter table public.staff alter column att_code set default encode(gen_random_bytes(6), 'hex');
+create unique index if not exists staff_att_code on public.staff (att_code);
+
+-- ───────────── Devices and punches ─────────────
+create table if not exists public.attendance_devices (
+  id           uuid primary key default gen_random_uuid(),
+  school_id    uuid not null references public.schools(id) on delete cascade,
+  name         text not null check (length(btrim(name)) > 0),
+  kind         text not null default 'qr_kiosk' check (kind in ('qr_kiosk', 'biometric', 'rfid')),
+  location     text,
+  token        text not null unique default encode(gen_random_bytes(12), 'hex'),
+  active       boolean not null default true,
+  last_seen_at timestamptz,
+  created_at   timestamptz not null default now()
+);
+create table if not exists public.attendance_punches (
+  id          bigint generated always as identity primary key,
+  school_id   uuid not null references public.schools(id) on delete cascade,
+  device_id   uuid references public.attendance_devices(id) on delete set null,
+  subject     text not null check (subject in ('student', 'staff')),
+  student_id  uuid references public.students(id) on delete cascade,
+  staff_id    uuid references public.staff(id) on delete cascade,
+  punched_at  timestamptz not null default now(),
+  source      text not null,
+  direction   text,
+  result      text not null,           -- in / out / already / unknown / inactive / error
+  raw         text
+);
+create index if not exists attendance_punches_idx on public.attendance_punches (school_id, punched_at desc);
+
+create table if not exists public.staff_attendance (
+  id         uuid primary key default gen_random_uuid(),
+  school_id  uuid not null references public.schools(id) on delete cascade,
+  staff_id   uuid not null references public.staff(id) on delete cascade,
+  date       date not null,
+  status     text not null check (status in ('P', 'A', 'L', 'H', 'LV', 'OD')),     -- present, absent, late, half day, leave, on duty
+  in_time    time,
+  out_time   time,
+  source     text not null default 'manual' check (source in ('manual', 'qr', 'biometric', 'rfid', 'import', 'geo')),
+  note       text,
+  marked_by  text,
+  marked_at  timestamptz not null default now(),
+  unique (staff_id, date)
+);
+create index if not exists staff_attendance_date_idx on public.staff_attendance (school_id, date);
+
+alter table public.attendance_devices enable row level security;
+alter table public.attendance_punches enable row level security;
+alter table public.staff_attendance enable row level security;
+drop policy if exists "read" on public.attendance_devices;
+create policy "read" on public.attendance_devices for select to authenticated using (public.has_perm_school(school_id, 'attendance.students.edit'));
+drop policy if exists "read" on public.attendance_punches;
+create policy "read" on public.attendance_punches for select to authenticated
+  using (public.has_perm_school(school_id, 'attendance.students.edit') or public.has_perm_school(school_id, 'attendance.staff.view'));
+drop policy if exists "read" on public.staff_attendance;
+create policy "read" on public.staff_attendance for select to authenticated
+  using (public.has_perm_school(school_id, 'attendance.staff.view') or exists (select 1 from public.staff s where s.id = staff_id and s.user_id = auth.uid()));
+-- devices and punches are written by the functions below; staff attendance by the functions and the policies here
+drop policy if exists "create" on public.staff_attendance;
+create policy "create" on public.staff_attendance for insert to authenticated with check (public.has_perm_school(school_id, 'attendance.staff.create'));
+drop policy if exists "edit" on public.staff_attendance;
+create policy "edit" on public.staff_attendance for update to authenticated using (public.has_perm_school(school_id, 'attendance.staff.edit') or public.has_perm_school(school_id, 'attendance.staff.create'));
+
+-- ───────────── Punch core ─────────────
+create or replace function public._punch_core(sid uuid, p_kind text, p_subject uuid, p_at timestamptz, p_dir text, p_source text, p_device uuid, p_by text, p_raw text default null)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare cfg record; d date := (p_at at time zone 'Asia/Kolkata')::date; tm time := date_trunc('second', (p_at at time zone 'Asia/Kolkata'))::time;
+        late time; st text; ex record; res text := 'in'; nm text; cls text; stu record; stf record; sid2 uuid;
+begin
+  select * into cfg from public.attendance_settings where school_id = sid;
+  late := coalesce(cfg.late_after, time '08:15');
+  if d > public.today_ist() then raise exception 'That time is in the future.'; end if;
+  st := case when tm > late then 'L' else 'P' end;
+
+  if p_kind = 'student' then
+    select s.id, s.status, s.class_id, s.section_id, btrim(concat_ws(' ', s.first_name, s.middle_name, s.last_name)) as nm, c.name as cname, sec.name as sname
+      into stu from public.students s left join public.classes c on c.id = s.class_id left join public.sections sec on sec.id = s.section_id where s.id = p_subject and s.school_id = sid;
+    if stu.id is null then raise exception 'Student not found.'; end if;
+    nm := stu.nm; cls := concat_ws('-', stu.cname, stu.sname);
+    if stu.status <> 'active' then
+      insert into public.attendance_punches (school_id, device_id, subject, student_id, punched_at, source, direction, result, raw) values (sid, p_device, 'student', stu.id, p_at, p_source, p_dir, 'inactive', p_raw);
+      return jsonb_build_object('ok', false, 'result', 'inactive', 'name', nm, 'class', cls, 'message', 'This student is not currently on roll.');
+    end if;
+    select * into ex from public.attendance where student_id = stu.id and date = d;
+    if ex.id is null then
+      insert into public.attendance (school_id, student_id, class_id, section_id, date, status, marked_by, source, in_time) values (sid, stu.id, stu.class_id, stu.section_id, d, st, p_by, p_source, tm);
+    elsif ex.status in ('A', 'LV') then
+      update public.attendance set status = st, source = p_source, in_time = tm, out_time = null, marked_by = p_by, marked_at = now(), note = null where id = ex.id;
+    elsif ex.in_time is null then
+      update public.attendance set in_time = tm, source = case when ex.source = 'manual' then ex.source else p_source end where id = ex.id;
+    elsif tm >= ex.in_time + interval '10 minutes' and (ex.out_time is null or tm > ex.out_time) then
+      update public.attendance set out_time = tm where id = ex.id; res := 'out';
+    else
+      res := 'already';
+    end if;
+    insert into public.attendance_punches (school_id, device_id, subject, student_id, punched_at, source, direction, result, raw) values (sid, p_device, 'student', stu.id, p_at, p_source, p_dir, res, p_raw);
+    return jsonb_build_object('ok', true, 'result', res, 'kind', 'student', 'name', nm, 'class', cls, 'status', case when ex.id is null or ex.status in ('A','LV') then st else ex.status end, 'time', to_char(tm, 'HH24:MI'), 'late', st = 'L' and res = 'in');
+  end if;
+
+  select s.id, s.name, s.status, s.designation into stf from public.staff s where s.id = p_subject and s.school_id = sid;
+  if stf.id is null then raise exception 'Staff member not found.'; end if;
+  if stf.status <> 'active' then
+    insert into public.attendance_punches (school_id, device_id, subject, staff_id, punched_at, source, direction, result, raw) values (sid, p_device, 'staff', stf.id, p_at, p_source, p_dir, 'inactive', p_raw);
+    return jsonb_build_object('ok', false, 'result', 'inactive', 'name', stf.name, 'message', 'This staff member is not working here.');
+  end if;
+  select * into ex from public.staff_attendance where staff_id = stf.id and date = d;
+  if ex.id is null then
+    insert into public.staff_attendance (school_id, staff_id, date, status, in_time, source, marked_by) values (sid, stf.id, d, st, tm, p_source, p_by);
+  elsif ex.status in ('A', 'LV') then
+    update public.staff_attendance set status = st, in_time = tm, out_time = null, source = p_source, marked_by = p_by, marked_at = now() where id = ex.id;
+  elsif ex.in_time is null then
+    update public.staff_attendance set in_time = tm where id = ex.id;
+  elsif tm >= ex.in_time + interval '10 minutes' and (ex.out_time is null or tm > ex.out_time) then
+    update public.staff_attendance set out_time = tm where id = ex.id; res := 'out';
+  else
+    res := 'already';
+  end if;
+  insert into public.attendance_punches (school_id, device_id, subject, staff_id, punched_at, source, direction, result, raw) values (sid, p_device, 'staff', stf.id, p_at, p_source, p_dir, res, p_raw);
+  return jsonb_build_object('ok', true, 'result', res, 'kind', 'staff', 'name', stf.name, 'class', stf.designation, 'status', case when ex.id is null or ex.status in ('A','LV') then st else ex.status end, 'time', to_char(tm, 'HH24:MI'), 'late', st = 'L' and res = 'in');
+end $$;
+revoke execute on function public._punch_core(uuid, text, uuid, timestamptz, text, text, uuid, text, text) from public, anon, authenticated;
+
+-- the code printed on an ID card (QR) or typed in by a biometric device: att_code, else admission no., else employee code
+create or replace function public._find_subject(sid uuid, p_code text) returns table (kind text, id uuid)
+language sql stable security definer set search_path = public as $$
+  select x.kind, x.id from (
+    select 'student'::text, s.id, 1 as pri from public.students s where s.school_id = sid and s.att_code = lower(btrim(p_code))
+    union all select 'staff', t.id, 2 from public.staff t where t.school_id = sid and t.att_code = lower(btrim(p_code))
+    union all select 'student', s.id, 3 from public.students s where s.school_id = sid and lower(s.admission_no) = lower(btrim(p_code))
+    union all select 'staff', t.id, 4 from public.staff t where t.school_id = sid and t.emp_code is not null and lower(t.emp_code) = lower(btrim(p_code))
+  ) x(kind, id, pri) order by pri limit 1;
+$$;
+revoke execute on function public._find_subject(uuid, text) from public, anon, authenticated;
+
+-- ───────────── Device side (the app server, with the device's private token) ─────────────
+create or replace function public.device_scan(p_token text, p_code text, p_at timestamptz default null, p_dir text default null, p_raw text default null)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare dv public.attendance_devices; f record; r jsonb; src text;
+begin
+  if not public.is_service() then raise exception 'not allowed'; end if;
+  if p_token is null or p_token !~ '^[0-9a-f]{24}$' then raise exception 'This device link is not valid.'; end if;
+  select * into dv from public.attendance_devices where token = p_token and active;
+  if dv.id is null then raise exception 'This device link is not valid or the device is switched off.'; end if;
+  if p_code is null or length(btrim(p_code)) < 1 or length(p_code) > 60 then raise exception 'Nothing was scanned.'; end if;
+  update public.attendance_devices set last_seen_at = now() where id = dv.id;
+  select * into f from public._find_subject(dv.school_id, p_code);
+  if f.id is null then
+    insert into public.attendance_punches (school_id, device_id, subject, punched_at, source, direction, result, raw)
+    values (dv.school_id, dv.id, 'student', coalesce(p_at, now()), case dv.kind when 'qr_kiosk' then 'qr' else dv.kind end, p_dir, 'unknown', left(p_code, 60));
+    return jsonb_build_object('ok', false, 'result', 'unknown', 'message', 'This code is not on any student or staff card.');
+  end if;
+  src := case dv.kind when 'qr_kiosk' then 'qr' when 'biometric' then 'biometric' else 'rfid' end;
+  r := public._punch_core(dv.school_id, f.kind, f.id, coalesce(p_at, now()), p_dir, src, dv.id, dv.name, left(p_code, 60));
+  return r;
+end $$;
+revoke execute on function public.device_scan(text, text, timestamptz, text, text) from public, anon, authenticated;
+grant execute on function public.device_scan(text, text, timestamptz, text, text) to service_role;
+
+-- "who am I" for a kiosk page
+create or replace function public.device_info(p_token text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare dv public.attendance_devices;
+begin
+  if not public.is_service() then raise exception 'not allowed'; end if;
+  select * into dv from public.attendance_devices where token = p_token and active;
+  if dv.id is null then raise exception 'This device link is not valid or the device is switched off.'; end if;
+  update public.attendance_devices set last_seen_at = now() where id = dv.id;
+  return jsonb_build_object('name', dv.name, 'kind', dv.kind, 'school', (select name from public.schools where id = dv.school_id),
+    'today', (select count(*) from public.attendance_punches p where p.device_id = dv.id and p.punched_at >= (public.today_ist())::timestamp at time zone 'Asia/Kolkata' and p.result in ('in', 'out')));
+end $$;
+revoke execute on function public.device_info(text) from public, anon, authenticated;
+grant execute on function public.device_info(text) to service_role;
+
+-- ───────────── Staff side ─────────────
+-- A teacher scans a student's QR with the ERP (permission follows the class assignment).
+create or replace function public.scan_attendance(sid uuid, p_code text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare f record; sec uuid;
+begin
+  if auth.uid() is null then raise exception 'not allowed'; end if;
+  select * into f from public._find_subject(sid, p_code);
+  if f.id is null then return jsonb_build_object('ok', false, 'result', 'unknown', 'message', 'This code is not on any student or staff card.'); end if;
+  if f.kind = 'student' then
+    select section_id into sec from public.students where id = f.id;
+    if not coalesce(public.can_section(sid, 'attendance.students.create', sec), false) then raise exception 'not allowed — this student is not in your class.'; end if;
+  elsif not public.has_perm_school(sid, 'attendance.staff.create') then
+    raise exception 'not allowed';
+  end if;
+  return public._punch_core(sid, f.kind, f.id, now(), null, 'qr', null, coalesce(auth.jwt() ->> 'email', ''), left(p_code, 60));
+end $$;
+
+-- A staff member checks in from their own phone, only near the school.
+create or replace function public.staff_check_in(sid uuid, p_lat numeric, p_lng numeric) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare stf record; sc record; cfg record; dist numeric;
+begin
+  if auth.uid() is null then raise exception 'not allowed'; end if;
+  select s.id, s.name into stf from public.staff s where s.school_id = sid and s.user_id = auth.uid() and s.status = 'active';
+  if stf.id is null then raise exception 'Your login is not linked to a staff record.'; end if;
+  select lat, lng into sc from public.schools where id = sid;
+  if sc.lat is null or sc.lng is null then raise exception 'The school location is not set yet (Transport → Live bus map → School location).'; end if;
+  select * into cfg from public.attendance_settings where school_id = sid;
+  dist := public.geo_km(sc.lat, sc.lng, p_lat, p_lng) * 1000;
+  if dist > coalesce(cfg.geofence_m, 150) then
+    return jsonb_build_object('ok', false, 'result', 'far', 'message', 'You are about ' || round(dist) || ' m from the school. Check in when you reach.', 'distance_m', round(dist));
+  end if;
+  return public._punch_core(sid, 'staff', stf.id, now(), null, 'geo', null, stf.name, null) || jsonb_build_object('distance_m', round(dist));
+end $$;
+
+-- CSV import of punches (a biometric machine's export): code, date-time
+create or replace function public.import_punch(sid uuid, p_code text, p_at timestamptz) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare f record;
+begin
+  if not (public.has_perm_school(sid, 'attendance.students.edit') or public.has_perm_school(sid, 'attendance.staff.create')) then raise exception 'not allowed'; end if;
+  select * into f from public._find_subject(sid, p_code);
+  if f.id is null then return jsonb_build_object('ok', false, 'result', 'unknown'); end if;
+  return public._punch_core(sid, f.kind, f.id, p_at, null, 'import', null, coalesce(auth.jwt() ->> 'email', ''), left(p_code, 60));
+end $$;
+
+-- device management
+create or replace function public.rotate_device_token(did uuid) returns text
+language plpgsql security definer set search_path = public as $$
+declare d record; t text;
+begin
+  select * into d from public.attendance_devices where id = did;
+  if d.id is null or not public.has_perm_school(d.school_id, 'attendance.students.edit') then raise exception 'not allowed'; end if;
+  t := encode(gen_random_bytes(12), 'hex');
+  update public.attendance_devices set token = t where id = did;
+  return t;
+end $$;
+
+create or replace function public.add_device(sid uuid, p_name text, p_kind text, p_location text) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare i uuid;
+begin
+  if not public.has_perm_school(sid, 'attendance.students.edit') then raise exception 'not allowed'; end if;
+  if coalesce(btrim(p_name), '') = '' then raise exception 'Give the device a name.'; end if;
+  if p_kind not in ('qr_kiosk', 'biometric', 'rfid') then raise exception 'Unknown device type.'; end if;
+  insert into public.attendance_devices (school_id, name, kind, location) values (sid, btrim(p_name), p_kind, nullif(btrim(coalesce(p_location, '')), '')) returning id into i;
+  return i;
+end $$;
+
+-- ───────────── Reports ─────────────
+create or replace function public.attendance_day(sid uuid, on_day date)
+returns table (class_id uuid, section_id uuid, class_name text, section_name text, strength bigint, present bigint, late bigint, half bigint, absent bigint, leave bigint, not_marked bigint, scanned bigint)
+language sql stable set search_path = public as $$
+  select c.id, sec.id, c.name, sec.name, count(s.id),
+         count(a.id) filter (where a.status in ('P', 'L', 'H')), count(a.id) filter (where a.status = 'L'), count(a.id) filter (where a.status = 'H'),
+         count(a.id) filter (where a.status = 'A'), count(a.id) filter (where a.status = 'LV'),
+         count(s.id) filter (where a.id is null), count(a.id) filter (where a.source <> 'manual')
+    from public.students s
+    join public.classes c on c.id = s.class_id
+    join public.sections sec on sec.id = s.section_id
+    left join public.attendance a on a.student_id = s.id and a.date = on_day
+   where s.school_id = sid and s.status = 'active'
+   group by c.id, c.name, c.sort, sec.id, sec.name
+   order by c.sort, sec.name;
+$$;
+
+create or replace function public.attendance_low(sid uuid, d1 date, d2 date, thr numeric default 75, cls uuid default null, sec uuid default null, p_q text default null,
+                                                 p_limit int default 25, p_offset int default 0)
+returns table (student_id uuid, admission_no text, student_name text, class_name text, section_name text, guardian_phone text, father_name text,
+               marked bigint, present bigint, absent bigint, pct numeric, total bigint)
+language sql stable set search_path = public as $$
+  with agg as (
+    select s.id, s.admission_no, btrim(concat_ws(' ', s.first_name, s.middle_name, s.last_name)) as nm, c.name as cname, c.sort as csort, sec2.name as secname, s.guardian_phone, s.father_name,
+           count(a.id) as marked, count(a.id) filter (where a.status in ('P', 'L', 'H')) as pres, count(a.id) filter (where a.status = 'A') as abs
+      from public.students s
+      left join public.classes c on c.id = s.class_id left join public.sections sec2 on sec2.id = s.section_id
+      left join public.attendance a on a.student_id = s.id and a.date between d1 and d2
+     where s.school_id = sid and s.status = 'active' and (cls is null or s.class_id = cls) and (sec is null or s.section_id = sec)
+       and (nullif(btrim(coalesce(p_q, '')), '') is null or concat_ws(' ', s.first_name, s.middle_name, s.last_name) ilike public.like_escape(btrim(p_q)) or s.admission_no ilike public.like_escape(btrim(p_q)))
+     group by s.id, c.name, c.sort, sec2.name
+  )
+  select g.id, g.admission_no, g.nm, g.cname, g.secname, g.guardian_phone, g.father_name, g.marked, g.pres, g.abs,
+         round(100.0 * g.pres / nullif(g.marked, 0), 1), count(*) over ()
+    from agg g
+   where g.marked > 0 and 100.0 * g.pres / g.marked < thr
+   order by 100.0 * g.pres / g.marked asc, g.csort nulls last, g.nm
+   limit least(greatest(coalesce(p_limit, 25), 1), 200) offset greatest(coalesce(p_offset, 0), 0);
+$$;
+
+create or replace function public.staff_attendance_day(sid uuid, on_day date)
+returns table (staff_id uuid, name text, emp_code text, designation text, department text, status text, in_time time, out_time time, source text, note text, leave_kind text)
+language sql stable security definer set search_path = public as $$
+  select s.id, s.name, s.emp_code, s.designation, s.department, a.status, a.in_time, a.out_time, a.source, a.note,
+         (select l.kind from public.staff_leaves l where l.staff_id = s.id and l.status = 'approved' and on_day between l.from_date and l.to_date limit 1)
+    from public.staff s left join public.staff_attendance a on a.staff_id = s.id and a.date = on_day
+   where s.school_id = sid and s.status = 'active' and public.has_perm_school(sid, 'attendance.staff.view')
+   order by s.name;
+$$;
+
+-- one month per staff member; suggested unpaid days for payroll
+create or replace function public.staff_attendance_month(sid uuid, p_month date)
+returns table (staff_id uuid, name text, emp_code text, present numeric, late bigint, half bigint, absent bigint, leave_days numeric, on_duty bigint, marked bigint, working_days int, suggested_lop numeric)
+language plpgsql stable security definer set search_path = public as $$
+declare m1 date := date_trunc('month', p_month)::date; m2 date := (date_trunc('month', p_month) + interval '1 month - 1 day')::date; wd int; days int[];
+begin
+  if not public.has_perm_school(sid, 'attendance.staff.view') then return; end if;
+  select coalesce(array(select jsonb_array_elements_text(prefs -> 'working_days')::int), array[1,2,3,4,5,6]) into days from public.schools where id = sid;
+  if days is null or cardinality(days) = 0 then days := array[1,2,3,4,5,6]; end if;
+  select count(*) into wd from generate_series(m1, m2, interval '1 day') g where extract(isodow from g)::int = any(days);
+  return query
+    select s.id, s.name, s.emp_code,
+           coalesce(sum(case when a.status in ('P', 'L', 'OD') then 1 when a.status = 'H' then 0.5 else 0 end), 0),
+           count(*) filter (where a.status = 'L'), count(*) filter (where a.status = 'H'), count(*) filter (where a.status = 'A'),
+           coalesce((select sum(l.days) from public.staff_leaves l where l.staff_id = s.id and l.status = 'approved' and l.kind <> 'LWP' and l.from_date <= m2 and l.to_date >= m1), 0)::numeric,
+           count(*) filter (where a.status = 'OD'), count(a.id), wd,
+           greatest(wd - coalesce(sum(case when a.status in ('P', 'L', 'OD') then 1 when a.status = 'H' then 0.5 else 0 end), 0)
+                       - coalesce((select sum(l.days) from public.staff_leaves l where l.staff_id = s.id and l.status = 'approved' and l.kind <> 'LWP' and l.from_date <= m2 and l.to_date >= m1), 0), 0)::numeric
+      from public.staff s left join public.staff_attendance a on a.staff_id = s.id and a.date between m1 and m2
+     where s.school_id = sid and s.status = 'active'
+     group by s.id, s.name, s.emp_code
+     order by s.name;
+end $$;
+
+-- ───────────── QR on ID cards and documents ─────────────
+do $$
+begin
+  if exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'document_data')
+     and not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'document_data_base') then
+    alter function public.document_data(uuid, uuid, uuid, text, date, date, jsonb) rename to document_data_base;
+  end if;
+end $$;
+create or replace function public.document_data(sid uuid, stu uuid, stf uuid, doc_no text, on_day date, valid_until date, p_extra jsonb)
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare d jsonb;
+begin
+  d := public.document_data_base(sid, stu, stf, doc_no, on_day, valid_until, p_extra);
+  if stu is not null then d := jsonb_set(d, '{student,att_code}', to_jsonb((select att_code from public.students where id = stu)), true); end if;
+  if stf is not null then d := jsonb_set(d, '{staff,att_code}', to_jsonb((select att_code from public.staff where id = stf)), true); end if;
+  return d;
+end $$;
+revoke execute on function public.document_data(uuid, uuid, uuid, text, date, date, jsonb) from public, anon, authenticated;
+revoke execute on function public.document_data_base(uuid, uuid, uuid, text, date, date, jsonb) from public, anon, authenticated;
+
+create or replace function public.render_document(body text, data jsonb) returns text
+language plpgsql immutable as $$
+declare out text := regexp_replace(coalesce(body, ''), '\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}', '{{\1}}', 'g'); k text; v text;
+begin
+  for k in select distinct t.m[1] from regexp_matches(out, '\{\{([a-zA-Z0-9_.]+)\}\}', 'g') as t(m) loop
+    v := data #>> string_to_array(k, '.');
+    if k = 'student.photo' then
+      out := replace(out, '{{' || k || '}}', '<img class="doc-photo" data-photo="1" src="" alt="Photograph" style="width:100%;height:100%;object-fit:cover">');
+    elsif k = 'school.logo' then
+      out := replace(out, '{{' || k || '}}', case when v ~* '^https://' then '<img class="doc-logo" src="' || public.html_escape(v) || '" alt="Logo" style="width:100%;height:100%;object-fit:contain">' else '' end);
+    elsif k in ('student.qr', 'staff.qr') then
+      v := data #>> string_to_array(case when k = 'student.qr' then 'student.att_code' else 'staff.att_code' end, '.');
+      out := replace(out, '{{' || k || '}}', case when v ~ '^[0-9a-f]{12}$' then '<img class="doc-qr" data-qr="' || v || '" src="" alt="QR" style="width:100%;height:100%;object-fit:contain">' else '' end);
+    elsif k ~ '^fee\.[a-z_]+_html$' then
+      out := replace(out, '{{' || k || '}}', coalesce(v, ''));
+    else
+      out := replace(out, '{{' || k || '}}', public.html_escape(v));
+    end if;
+  end loop;
+  return out;
+end $$;
+
+-- ───────────── Audit ─────────────
+do $$
+declare t text;
+begin
+  foreach t in array array['attendance_settings', 'attendance_devices'] loop
+    execute format('drop trigger if exists audit_%1$s on public.%1$I', t);
+    execute format('create trigger audit_%1$s after insert or update or delete on public.%1$I for each row execute function public.audit_row()', t);
+  end loop;
+end $$;

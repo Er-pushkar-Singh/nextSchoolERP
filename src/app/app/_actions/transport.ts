@@ -73,7 +73,9 @@ export async function saveStop(f: FormData) {
   const fee = num(f, "monthly_fee") ?? 0;
   if (!route_id || !name) go(back, { error: "Stop name is required." });
   if (fee < 0) go(back, { error: "Fee can't be negative." });
-  const row = { name, sort: Math.round(num(f, "sort") ?? 0), pickup_time: time(f, "pickup_time"), drop_time: time(f, "drop_time"), monthly_fee: fee };
+  const lat = num(f, "lat"), lng = num(f, "lng");
+  if ((lat === null) !== (lng === null) || (lat !== null && (lat < -90 || lat > 90 || lng! < -180 || lng! > 180))) go(back, { error: "Give both latitude and longitude (or leave both empty)." });
+  const row = { name, sort: Math.round(num(f, "sort") ?? 0), pickup_time: time(f, "pickup_time"), drop_time: time(f, "drop_time"), monthly_fee: fee, lat, lng };
   const { error } = id
     ? await supabase.from("transport_stops").update(row).eq("id", id).eq("school_id", school.id)
     : await supabase.from("transport_stops").insert({ ...row, route_id, school_id: school.id });
@@ -135,4 +137,19 @@ export async function billTransport(f: FormData) {
   const { data, error } = await supabase.rpc("generate_transport_dues", { sid: school.id, sess: session!.id, p_label: label, p_due: due, p_months: months });
   revalidatePath("/app/fees");
   go(back, error ? { error: errMsg(error) } : { ok: data ? `Billed transport fee “${label}” to ${data} student(s). It now shows in Collect fee, Defaulters and the parent page.` : `Nothing new to bill — “${label}” was already billed to every student on transport.` });
+}
+
+/** The driver's private link is replaced; the old one stops working at once. */
+export async function rotateDriverLink(f: FormData) {
+  const { supabase } = await requirePerm("transport.routes.edit");
+  const { error } = await supabase.rpc("rotate_driver_token", { vid: uuid(f, "id") });
+  go("/app/transport/vehicles", error ? { error: errMsg(error) } : { ok: "A new driver link was created. Send it to the driver; the old one no longer works." });
+}
+
+export async function setSchoolLocation(f: FormData) {
+  const { supabase, school } = await requirePerm("transport.routes.edit");
+  const lat = num(f, "lat"), lng = num(f, "lng");
+  if (lat === null || lng === null) go("/app/transport/live", { error: "Click the map or enter the latitude and longitude." });
+  const { error } = await supabase.rpc("set_school_location", { sid: school.id, p_lat: lat, p_lng: lng });
+  go("/app/transport/live", error ? { error: errMsg(error) } : { ok: "School location saved." });
 }

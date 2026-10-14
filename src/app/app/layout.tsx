@@ -29,6 +29,7 @@ const NAV: Entry[] = [
     { href: "/app/admissions/online", label: "Online admission form", any: ["frontdesk.online_form.view"] },
     { href: "/app/board", label: "UP Board registration", any: ["students.board_reg.view"] },
     { href: "/app/documents", label: "Documents & templates", any: ["documents.issue.view", "documents.templates.view"] },
+    { href: "/app/templates", label: "Template studio", any: ["documents.templates.view"] },
     { href: "/app/certificates", label: "Old-format certificates", any: ["students.certificates.view"] },
   ] },
   { key: "attendance", label: "Attendance", icon: "attendance", items: [
@@ -60,6 +61,7 @@ const NAV: Entry[] = [
   ] },
   { key: "transport", label: "Transport", icon: "transport", section: "Operations", items: [
     { href: "/app/transport", label: "Routes & stops", any: ["transport.routes.view"] },
+    { href: "/app/transport/live", label: "Live bus map", any: ["transport.tracking.view"] },
     { href: "/app/transport/students", label: "Students on transport", any: ["transport.allocation.view"] },
     { href: "/app/transport/vehicles", label: "Vehicles", any: ["transport.routes.view"] },
   ] },

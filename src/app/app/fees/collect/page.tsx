@@ -5,11 +5,12 @@ import { addDays, cleanSearch, fmtDate, fullName, money, todayIST, waLink } from
 import { balance, getClasses, sectionOptions, type Due } from "@/lib/erp";
 import { Pagination, pageParams } from "@/components/ui/Pagination";
 import { CopyButton } from "@/components/CopyButton";
-import { LINK_STATUS, METHODS, METHOD_GROUPS } from "@/lib/fees";
+import { CollectDesk, type DeskDue } from "@/components/CollectDesk";
+import { LINK_STATUS } from "@/lib/fees";
 import { addPromise, adjustDue, cancelPaymentLink, collectFeeV2, createPaymentLink, siblingDiscount } from "../../_actions/fees2";
 
 type Stu = { id: string; admission_no: string; first_name: string; last_name: string | null; father_name: string | null; guardian_phone: string | null; class_id: string | null; section_id: string | null; status: string; classes: { name: string } | null; sections: { name: string } | null };
-type DueRow = Due & { kind: string; fine_auto: number; original_due_date: string | null };
+type DueRow = Due & { kind: string; fine_auto: number; original_due_date: string | null; fee_heads: { name: string } | null };
 const sel = "id,admission_no,first_name,last_name,father_name,guardian_phone,class_id,section_id,status";
 
 type Hit = { id: string; admission_no: string; first_name: string; middle_name: string | null; last_name: string | null; father_name: string | null; guardian_phone: string | null;
@@ -61,9 +62,11 @@ export default async function Collect({ searchParams }: { searchParams: Promise<
   let history: { id: string; kind: string; amount: number; reason: string; created_at: string; created_by_name: string | null }[] = [];
   const { data: st } = await supabase.from("fee_settings").select("fine_enabled,fine_mode,fine_amount,advance_allowed").eq("school_id", school.id).maybeSingle();
   if (sp.student && /^[0-9a-f-]{36}$/.test(sp.student)) {
+    // the late fine is brought up to date as the student is opened, so what is shown is what will be collected
+    if (st?.fine_enabled) await supabase.rpc("refresh_student_fines", { sid: school.id, stu: sp.student });
     const [{ data: s }, { data: d }, { data: w }, { data: r }, { data: h }, sib, { data: pr }, { data: lk }] = await Promise.all([
       supabase.from("students").select(sel).eq("id", sp.student).eq("school_id", school.id).maybeSingle(),
-      supabase.from("fee_dues").select("id,label,due_date,amount,concession,fine,paid,status,kind,fine_auto,original_due_date").eq("student_id", sp.student).neq("status", "paid").order("due_date").order("label"),
+      supabase.from("fee_dues").select("id,label,due_date,amount,concession,fine,paid,status,kind,fine_auto,original_due_date,fee_heads(name)").eq("student_id", sp.student).neq("status", "paid").order("due_date").order("label"),
       supabase.from("fee_wallet_entries").select("amount").eq("student_id", sp.student),
       supabase.from("fee_receipts").select("id,receipt_no,paid_on,amount,mode,cancelled").eq("student_id", sp.student).order("created_at", { ascending: false }).limit(5),
       supabase.from("fee_adjustments").select("id,kind,amount,reason,created_at,created_by_name").eq("student_id", sp.student).order("created_at", { ascending: false }).limit(8),
@@ -78,7 +81,7 @@ export default async function Collect({ searchParams }: { searchParams: Promise<
     const sn = new Map(classes.flatMap((c) => c.sections.map((x) => [x.id, x.name] as [string, string])));
     const raw = s as unknown as { class_id: string | null; section_id: string | null } | null;
     stu = s ? ({ ...(s as object), classes: raw?.class_id && cn.get(raw.class_id) ? { name: cn.get(raw.class_id)! } : null, sections: raw?.section_id && sn.get(raw.section_id) ? { name: sn.get(raw.section_id)! } : null } as unknown as Stu) : null;
-    dues = (d ?? []) as DueRow[];
+    dues = (d ?? []) as unknown as DueRow[];
     wallet = ((w ?? []) as { amount: number }[]).reduce((t, x) => t + Number(x.amount), 0);
     recent = (r ?? []) as typeof recent;
     history = (h ?? []) as typeof history;
@@ -164,56 +167,9 @@ export default async function Collect({ searchParams }: { searchParams: Promise<
             </div>
           )}
           {dues.length ? (
-            <form action={collectFeeV2} className="flex flex-col gap-5">
-              <input type="hidden" name="student_id" value={stu.id} />
-              <Table head={["Pay", "Instalment", "Due", "Fine", "Balance", ""]} minWidth={560}>
-                {dues.map((d) => (
-                  <tr key={d.id}>
-                    <td className={td}><input type="checkbox" name="due_id" value={d.id} aria-label={`Pay ${d.label}`} /></td>
-                    <td className={td}>{d.label}{d.kind !== "plan" && <span className="ml-1 text-[12px] text-muted">{d.kind}</span>}</td>
-                    <td className={td}>{fmtDate(d.due_date)}{d.original_due_date && <div className="text-[12px] text-muted">was {fmtDate(d.original_due_date)}</div>}</td>
-                    <td className={td}>{Number(d.fine) > 0 ? money(d.fine) : "—"}</td>
-                    <td className={`${td} font-semibold text-ink`}>{money(balance(d))}</td>
-                    <td className={td}><Badge value={d.due_date < today ? "overdue" : d.status} /></td>
-                  </tr>
-                ))}
-              </Table>
-              <p className="m-0 -mt-3 text-[13px] text-muted">Tick instalments to pay only those; leave all unticked to pay oldest first.</p>
-
-              <Card title="Receive payment">
-                <div className="grid gap-3">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                      <Input label={i === 1 ? "Amount received (₹)" : `Second payment ${i - 1} (₹)`} name={`amount_${i}`} type="number" step="0.01" min={0}
-                        defaultValue={i === 1 ? (overdue || total) : undefined} hint={i === 1 ? `Overdue ${money(overdue)} · all dues ${money(total)}` : undefined} />
-                      <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">Payment method
-                        <select name={`mode_${i}`} defaultValue={i === 1 ? "cash" : i === 2 ? "upi" : "cheque"} className="input !min-h-10 !py-2 text-[15px] font-normal">
-                          {METHOD_GROUPS.map((g) => (
-                            <optgroup key={g} label={g}>
-                              {METHODS.filter((m) => m.group === g).map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-                            </optgroup>
-                          ))}
-                        </select>
-                      </label>
-                      <Input label="Reference (UTR · cheque / DD no. · POS slip)" name={`reference_${i}`} />
-                      <Input label="Bank (cheque / DD)" name={`bank_${i}`} />
-                      <Input label="Cheque / DD date" name={`cheque_date_${i}`} type="date" />
-                    </div>
-                  ))}
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                    <Input label="Receipt date" name="paid_on" type="date" defaultValue={today} />
-                    {wallet > 0 && <Input label={`Use advance (max ${money(wallet)})`} name="wallet_use" type="number" step="0.01" min={0} max={wallet} />}
-                    <Input label="Extra fine (₹)" name="fine" type="number" step="1" min={0} defaultValue={legacyFine || ""}
-                      hint={autoFine ? "Late fine is added automatically by the school's rule." : legacyFine ? `${lateDays} days late × ${money(school.late_fine_per_day)}/day` : undefined} />
-                    <Input label="Note" name="note" />
-                  </div>
-                  <div><Submit>Save &amp; print receipt</Submit></div>
-                </div>
-                <p className="mt-3 mb-0 text-[13px] text-muted">
-                  Use the second line for split payments (cash + UPI). {st?.advance_allowed === false ? "Paying more than is due is not allowed." : "Anything above what is due is kept as the student's advance."}
-                </p>
-              </Card>
-            </form>
+            <CollectDesk studentId={stu.id} wallet={wallet} advanceAllowed={st?.advance_allowed !== false} autoFine={autoFine} legacyFine={legacyFine} today={today} action={collectFeeV2}
+              dues={dues.map((d): DeskDue => ({ id: d.id, label: d.label, head: d.fee_heads?.name ?? (d.kind === "arrears" ? "Arrears" : d.kind === "bounce" ? "Cheque bounce charge" : "Other charges"),
+                due_date: d.due_date, amount: Number(d.amount), concession: Number(d.concession), fine: Number(d.fine), paid: Number(d.paid), balance: balance(d), overdue: d.due_date < today, kind: d.kind }))} />
           ) : <Empty>No unpaid instalments for this student. 🎉{wallet > 0 && ` Advance balance ${money(wallet)}.`}</Empty>}
 
           {can("fees.online.create") && dues.length > 0 && (

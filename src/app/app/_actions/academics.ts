@@ -20,7 +20,7 @@ export async function saveAttendance(f: FormData) {
     if (!k.startsWith("st_")) continue;
     const student_id = k.slice(3);
     if (!/^[0-9a-f-]{36}$/.test(student_id) || !STATUSES.includes(String(v))) continue;
-    rows.push({ school_id: school.id, student_id, class_id, section_id, date: day, status: String(v), marked_by: by, marked_at: new Date().toISOString() });
+    rows.push({ school_id: school.id, student_id, class_id, section_id, date: day, status: String(v), marked_by: by, marked_at: new Date().toISOString(), source: "manual" });
   }
   if (!rows.length) go(back, { error: "No students to mark." });
   const { error } = await supabase.from("attendance").upsert(rows, { onConflict: "student_id,date" });

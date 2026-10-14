@@ -21,7 +21,7 @@ export async function saveTemplate(f: FormData) {
   const to = id ? `${HUB}/templates/${id}` : `${HUB}/templates/new`;
   const name = str(f, "name", 100);
   if (!name) go(to, { error: "Template name is required." });
-  const category = oneOf(f, "category", ["certificate", "id_card", "letter", "other"] as const, "certificate");
+  const category = oneOf(f, "category", ["certificate", "id_card", "letter", "fees", "other"] as const, "certificate");
   const audience = oneOf(f, "audience", ["student", "staff"] as const, "student");
   const page_size = oneOf(f, "page_size", ["A4", "A5", "card"] as const, "A4");
   const w = num(f, "card_width_mm"), h = num(f, "card_height_mm");
@@ -51,9 +51,9 @@ export async function saveTemplate(f: FormData) {
 export async function restoreVersion(f: FormData) {
   const { supabase, school } = await requirePerm("documents.templates.edit");
   const id = uuid(f, "id");
-  const { data: v } = await supabase.from("document_template_versions").select("body_html,fields").eq("id", uuid(f, "version_id")!).eq("template_id", id!).eq("school_id", school.id).maybeSingle();
+  const { data: v } = await supabase.from("document_template_versions").select("body_html,fields,design").eq("id", uuid(f, "version_id")!).eq("template_id", id!).eq("school_id", school.id).maybeSingle();
   if (!v) go(`${HUB}/templates/${id}`, { error: "Version not found." });
-  const { error } = await supabase.from("document_templates").update({ body_html: v!.body_html, fields: v!.fields }).eq("id", id!).eq("school_id", school.id);
+  const { error } = await supabase.from("document_templates").update({ body_html: v!.body_html, fields: v!.fields, design: v!.design ?? null }).eq("id", id!).eq("school_id", school.id);
   revalidatePath(HUB);
   go(`${HUB}/templates/${id}`, error ? { error: errMsg(error) } : { ok: "Restored as a new version." });
 }

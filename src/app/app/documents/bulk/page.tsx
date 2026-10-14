@@ -4,6 +4,7 @@ import { PrintButton } from "@/components/ui/PrintButton";
 import { ClassSection } from "@/components/ClassSection";
 import { getClasses } from "@/lib/erp";
 import { sanitizeHtml, withPhoto } from "@/lib/html-sanitize";
+import { withQr } from "@/lib/qr";
 import { signedPhotoUrls } from "@/lib/doc-photo";
 import { issueBulk } from "../../_actions/documents";
 
@@ -57,7 +58,7 @@ export default async function Bulk({ searchParams }: { searchParams: Promise<{ t
         <div className="flex flex-wrap gap-[4mm] print:gap-[3mm]">
           {docs.map((d) => (
             <div key={d.id} className="break-inside-avoid" style={cw ? { width: cw } : { width: "100%" }}
-              dangerouslySetInnerHTML={{ __html: withPhoto(sanitizeHtml(d.html), d.student_id ? photos.get(d.student_id) ?? null : null) }} />
+              dangerouslySetInnerHTML={{ __html: withQr(withPhoto(sanitizeHtml(d.html), d.student_id ? photos.get(d.student_id) ?? null : null)) }} />
           ))}
         </div>
       ) : tpl ? <div className="print:hidden"><Empty>Nothing issued yet for this selection.</Empty></div> : null}

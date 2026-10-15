@@ -50,3 +50,8 @@ Dashboard and parent page (session %), template studio (QR block on ID cards), T
 
 ## Gaps & ideas
 Student leave requests from parents (`attendance.leave`); automatic SMS / WhatsApp for absent and late arrivals (see `docs/plans/communications.md`); pushing "suggested unpaid days" straight into payroll; period-wise attendance; face recognition; holiday calendar (the month summary uses the school's working days only); vendor-specific push protocols (ZKTeco ADMS etc.) — today a machine must POST JSON/form to `/api/attendance/punch`, or export a CSV.
+
+## Register & synchronisation (15 Oct 2026, migration `0036`)
+- `/app/attendance/register` reads marks **by student**, so manual marks, QR / biometric / card scans and marks made before a student changed section all appear in one grid; scanned marks are underlined (hover shows in / out time and source). It lists Sundays and school holidays, working days so far, class average, students below 75% and a present-count per day; a teacher with *assigned* scope picks only own sections.
+- Saving the manual page writes only rows that are new or whose status was changed, so a scan's time and source are not overwritten ("by scan" count stays right); an absence entered by hand clears that day's scan times.
+- `attendance_summary` groups by the student's **current** class / section, and a trigger moves today's and later marks when a student changes section (past marks keep the section of that day). Test: `attendance_sync.test.sql`.

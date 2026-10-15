@@ -15,17 +15,34 @@ export async function saveAttendance(f: FormData) {
   const back = `/app/attendance?class_id=${class_id}&section_id=${section_id}&date=${day}`;
   if (day > todayIST()) go(back, { error: "Can't mark attendance for a future date." });
   const by = myName || null;
-  const rows: Record<string, unknown>[] = [];
+  const wanted = new Map<string, string>();
   for (const [k, v] of f.entries()) {
     if (!k.startsWith("st_")) continue;
     const student_id = k.slice(3);
     if (!/^[0-9a-f-]{36}$/.test(student_id) || !STATUSES.includes(String(v))) continue;
-    rows.push({ school_id: school.id, student_id, class_id, section_id, date: day, status: String(v), marked_by: by, marked_at: new Date().toISOString(), source: "manual" });
+    wanted.set(student_id, String(v));
   }
-  if (!rows.length) go(back, { error: "No students to mark." });
-  const { error } = await supabase.from("attendance").upsert(rows, { onConflict: "student_id,date" });
+  if (!wanted.size) go(back, { error: "No students to mark." });
+  // Marks made by a QR scan / device must survive a manual save: only rows that are new or whose status the teacher changed are
+  // written, so the scan time, source and the "by scan" count of the others stay as they were.
+  const { data: have } = await supabase.from("attendance").select("student_id,status").eq("date", day).in("student_id", [...wanted.keys()]);
+  const was = new Map((have ?? []).map((r) => [r.student_id, r.status as string]));
+  const rows: Record<string, unknown>[] = [];
+  for (const [student_id, status] of wanted) {
+    if (was.get(student_id) === status) continue;
+    rows.push({
+      school_id: school.id, student_id, class_id, section_id, date: day, status, marked_by: by, marked_at: new Date().toISOString(), source: "manual",
+      // an absence / leave entered by hand cancels the scan times of that day
+      ...(status === "A" || status === "LV" ? { in_time: null, out_time: null } : {}),
+    });
+  }
+  if (rows.length) {
+    const { error } = await supabase.from("attendance").upsert(rows, { onConflict: "student_id,date" });
+    if (error) go(`${back}`, { error: errMsg(error) });
+  }
   revalidatePath("/app");
-  go(`${back}&saved=1`, error ? { error: errMsg(error) } : { ok: `Attendance saved for ${rows.length} students.` });
+  const kept = wanted.size - rows.length;
+  go(`${back}&saved=1`, { ok: rows.length ? `Attendance saved — ${rows.length} mark${rows.length === 1 ? "" : "s"} written${kept ? `, ${kept} left as they were` : ""}.` : "Nothing changed — every mark is already as shown." });
 }
 
 /* ───────── Exams ───────── */

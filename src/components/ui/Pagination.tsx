@@ -3,8 +3,8 @@ import Link from "next/link";
 export const PAGE_SIZES = [25, 50, 100] as const;
 
 /** Parses ?page= / ?size= (size is limited to PAGE_SIZES). */
-export function pageParams(sp: { page?: string; size?: string }, fallback = 25) {
-  const size = (PAGE_SIZES as readonly number[]).includes(Number(sp.size)) ? Number(sp.size) : fallback;
+export function pageParams(sp: { page?: string; size?: string }, fallback = 25, sizes: readonly number[] = PAGE_SIZES) {
+  const size = sizes.includes(Number(sp.size)) ? Number(sp.size) : fallback;
   const page = Math.max(1, Math.floor(Number(sp.page)) || 1);
   return { page, size, offset: (page - 1) * size };
 }
@@ -27,14 +27,18 @@ function pages(cur: number, last: number): (number | "…")[] {
  * Server-rendered pager. `params` are the current filters (page and size are managed here).
  * Everything is in the URL, so a filtered / paged view can be bookmarked or shared.
  */
-export function Pagination({ total, page, size, basePath, params }: { total: number; page: number; size: number; basePath: string; params: Record<string, string | undefined> }) {
+export function Pagination({ total, page, size, basePath, params, sizes = PAGE_SIZES, pageKey = "page", sizeKey = "size" }: {
+  total: number; page: number; size: number; basePath: string; params: Record<string, string | undefined>;
+  /** page sizes offered (the first is the default and is left out of the URL); `pageKey` / `sizeKey` allow two pagers on one page */
+  sizes?: readonly number[]; pageKey?: string; sizeKey?: string;
+}) {
   const last = Math.max(1, Math.ceil(total / size));
   const cur = Math.min(page, last);
   const href = (p: number, s = size) => {
     const q = new URLSearchParams();
     for (const [k, v] of Object.entries(params)) if (v) q.set(k, v);
-    if (s !== PAGE_SIZES[0]) q.set("size", String(s));
-    if (p > 1) q.set("page", String(p));
+    if (s !== sizes[0]) q.set(sizeKey, String(s));
+    if (p > 1) q.set(pageKey, String(p));
     const qs = q.toString();
     return qs ? `${basePath}?${qs}` : basePath;
   };
@@ -56,7 +60,7 @@ export function Pagination({ total, page, size, basePath, params }: { total: num
         </span>
       )}
       <span className="flex items-center gap-2 text-muted">Per page
-        {PAGE_SIZES.map((s) => s === size ? <b key={s} className="text-ink">{s}</b> : <Link key={s} href={href(1, s)}>{s}</Link>)}
+        {sizes.map((s) => s === size ? <b key={s} className="text-ink">{s}</b> : <Link key={s} href={href(1, s)}>{s}</Link>)}
       </span>
     </nav>
   );

@@ -97,7 +97,9 @@ export function LiveMap({ markers, line, lineColor = "#2563eb", trace, focus, fi
       if (dead || !el.current || s.map) return;
       s.L = L;
       const map = L.map(el.current, { zoomControl: true, attributionControl: true }).setView([26.85, 80.95], 12);
-      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap contributors" }).addTo(map);
+      // The app sends no Referer to other sites (Referrer-Policy: same-origin), but OpenStreetMap's tile servers refuse requests
+      // without one with "403 Access blocked". Only the tiles are allowed to send the bare origin (never a path or a secret link).
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap contributors", referrerPolicy: "origin" }).addTo(map);
       s.map = map; s.layer = L.layerGroup().addTo(map);
       map.on("click", (e: Lf.LeafletMouseEvent) => cb.current.onPick?.(Number(e.latlng.lat.toFixed(6)), Number(e.latlng.lng.toFixed(6))));
       sync();

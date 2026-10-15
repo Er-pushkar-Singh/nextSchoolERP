@@ -678,7 +678,11 @@ with expected(mig, kind, name, extra) as (values
   ('0035', 'function', 'report_exam_by_subject', ''),
   ('0035', 'function', 'student_lookup', ''),
   ('0035', 'function', 'staff_lookup', ''),
-  ('0035', 'function', 'report_udise_strength', '')
+  ('0035', 'function', 'report_udise_strength', ''),
+  ('0036', 'function', 'attendance_summary', ''),
+  ('0036', 'function', 'attendance_follow_section', ''),
+  ('0036', 'function', 'student_lookup', ''),
+  ('0036', 'function', 'staff_lookup', '')
 ),
 missing as (
   select e.* from expected e

@@ -19,7 +19,8 @@ export function EntityPicker({ kind, name, label, required = false, placeholder,
   const box = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (chosen || q.trim().length < 2) return;
+    // opened and empty → the school's first few names are listed at once; typing narrows them (1 letter waits for the 2nd)
+      if (chosen || !open || q.trim().length === 1) return;
     const ctl = new AbortController();
     const t = setTimeout(async () => {
       setBusy(true);
@@ -32,7 +33,7 @@ export function EntityPicker({ kind, name, label, required = false, placeholder,
       setBusy(false);
     }, 220);
     return () => { clearTimeout(t); ctl.abort(); };
-  }, [q, kind, chosen]);
+  }, [q, kind, chosen, open]);
 
   useEffect(() => {
     const off = (e: MouseEvent) => { if (box.current && !box.current.contains(e.target as Node)) setOpen(false); };
@@ -51,7 +52,7 @@ export function EntityPicker({ kind, name, label, required = false, placeholder,
         </div>
       ) : (
         <>
-          <input value={q} onChange={(e) => setQ(e.target.value)} onFocus={() => hits.length && setOpen(true)} placeholder={placeholder ?? "Type at least 2 letters…"} autoComplete="off"
+          <input value={q} onChange={(e) => setQ(e.target.value)} onFocus={() => setOpen(true)} onClick={() => setOpen(true)} placeholder={placeholder ?? "Click to choose, or type to search…"} autoComplete="off"
             aria-label={label} required={required && !chosen} className="input !min-h-10 !py-2 text-[15px] font-normal" />
           {open && (
             <ul role="listbox" className="absolute top-full right-0 left-0 z-20 m-0 mt-1 max-h-64 list-none overflow-y-auto rounded-[10px] border border-line bg-white p-1 shadow-lg">

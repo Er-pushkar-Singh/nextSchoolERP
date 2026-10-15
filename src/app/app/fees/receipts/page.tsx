@@ -2,22 +2,29 @@ import Link from "next/link";
 import { requirePerm } from "@/lib/school";
 import { Badge, Card, Empty, PageHeader, Table, td } from "@/components/ui/ui";
 import { fmtDate, fullName, money, todayIST } from "@/lib/format";
+import { Pagination, pageParams } from "@/components/ui/Pagination";
 
 const valid = (d?: string) => (d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null);
 type R = { id: string; receipt_no: string; paid_on: string; amount: number; mode: string; reference: string | null; collected_by: string | null; cancelled: boolean; students: { first_name: string; last_name: string | null; admission_no: string; classes: { name: string } | null } | null };
 
-export default async function Receipts({ searchParams }: { searchParams: Promise<{ from?: string; to?: string; mode?: string }> }) {
+export default async function Receipts({ searchParams }: { searchParams: Promise<{ from?: string; to?: string; mode?: string; page?: string; size?: string }> }) {
   const { supabase, school } = await requirePerm("fees.receipts.view");
   const sp = await searchParams;
   const today = todayIST();
   const from = valid(sp.from) ?? today.slice(0, 8) + "01";
   const to = valid(sp.to) ?? today;
-  let q = supabase.from("fee_receipts").select("id,receipt_no,paid_on,amount,mode,reference,collected_by,cancelled,students(first_name,last_name,admission_no,classes!class_id(name))")
+  const { page, size, offset } = pageParams(sp);
+  let q = supabase.from("fee_receipts").select("id,receipt_no,paid_on,amount,mode,reference,collected_by,cancelled,students(first_name,last_name,admission_no,classes!class_id(name))", { count: "exact" })
     .eq("school_id", school.id).gte("paid_on", from).lte("paid_on", to);
-  if (sp.mode) q = q.eq("mode", sp.mode);
-  const { data } = await q.order("paid_on", { ascending: false }).order("receipt_no", { ascending: false }).limit(1000);
+  // the totals above the table cover the whole period, the table itself is paged
+  let sumQ = supabase.from("fee_receipts").select("paid_on,amount,mode,cancelled").eq("school_id", school.id).gte("paid_on", from).lte("paid_on", to);
+  if (sp.mode) { q = q.eq("mode", sp.mode); sumQ = sumQ.eq("mode", sp.mode); }
+  const [{ data, count }, { data: sums }] = await Promise.all([
+    q.order("paid_on", { ascending: false }).order("receipt_no", { ascending: false }).range(offset, offset + size - 1),
+    sumQ.limit(50000),
+  ]);
   const rows = (data ?? []) as unknown as R[];
-  const live = rows.filter((r) => !r.cancelled);
+  const live = ((sums ?? []) as { paid_on: string; amount: number; mode: string; cancelled: boolean }[]).filter((r) => !r.cancelled);
   const byMode = live.reduce<Record<string, number>>((m, r) => ({ ...m, [r.mode]: (m[r.mode] ?? 0) + Number(r.amount) }), {});
   const byDay = live.reduce<Record<string, number>>((m, r) => ({ ...m, [r.paid_on]: (m[r.paid_on] ?? 0) + Number(r.amount) }), {});
   const total = live.reduce((s, r) => s + Number(r.amount), 0);
@@ -62,6 +69,7 @@ export default async function Receipts({ searchParams }: { searchParams: Promise
           ))}
         </Table>
       ) : <Empty>No receipts in this period.</Empty>}
+      <Pagination total={count ?? 0} page={page} size={size} basePath="/app/fees/receipts" params={{ from: sp.from ? from : undefined, to: sp.to ? to : undefined, mode: sp.mode || undefined }} />
     </div>
   );
 }

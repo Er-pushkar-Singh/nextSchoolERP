@@ -1,6 +1,7 @@
 {
   "crons": [
     { "path": "/api/cron/billing", "schedule": "30 3 * * *" },
-    { "path": "/api/cron/late-fines", "schedule": "0 4 * * *" }
+    { "path": "/api/cron/late-fines", "schedule": "0 4 * * *" },
+    { "path": "/api/cron/messages?job=reminders", "schedule": "30 4 * * *" }
   ]
 }

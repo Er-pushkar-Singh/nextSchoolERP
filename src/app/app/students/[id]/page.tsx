@@ -13,6 +13,7 @@ import { ContactsCard, DocumentsCard, EnrolmentHistoryCard, IdentityCard, PriorE
 import { fmtTime } from "@/lib/transport";
 import { addConcession, applyConcessions, newPortalLink, removeConcession, setStudentStatus } from "../../_actions/students";
 import { blockStudent, deleteStudent, unblockStudent } from "../../_actions/people";
+import { setMessageOptOut } from "../../_actions/messages";
 
 export default async function StudentPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ ok?: string; error?: string }> }) {
   const { id } = await params;
@@ -123,6 +124,13 @@ ${link}`) : null;
             <form action={newPortalLink}><input type="hidden" name="id" value={id} /><button className="cursor-pointer border-0 bg-transparent text-[13px] text-blue underline">Reset link</button></form>
           )}
         </div>
+        {can("students.profile.edit") && (
+          <form action={setMessageOptOut} className="mt-3 flex flex-wrap items-center gap-3 border-t border-line pt-3 text-[13.5px]">
+            <input type="hidden" name="student_id" value={id} /><input type="hidden" name="opt_out" value={s.msg_opt_out ? "0" : "1"} />
+            <span>Automatic messages (fee receipts, absence, results): <b className={s.msg_opt_out ? "text-error" : "text-[#15803d]"}>{s.msg_opt_out ? "switched off — parent opted out" : "on"}</b></span>
+            <button className="cursor-pointer border-0 bg-transparent p-0 text-blue underline">{s.msg_opt_out ? "Switch on" : "Parent asked to stop"}</button>
+          </form>
+        )}
       </Card>}
 
       {(can("transport.allocation.view") || can("library.circulation.view")) && (

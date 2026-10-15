@@ -6,6 +6,7 @@ import { getClasses } from "@/lib/erp";
 import { appUrl } from "@/lib/brand";
 import { feeReminderText, type Defaulter } from "@/lib/reminders";
 import { WaQueue } from "@/components/WaQueue";
+import { sendFeeReminders } from "../../_actions/messages";
 import { Pagination, pageParams } from "@/components/ui/Pagination";
 
 export default async function Defaulters({ searchParams }: { searchParams: Promise<{ class_id?: string; min?: string; on?: string; page?: string; size?: string }> }) {
@@ -41,6 +42,12 @@ export default async function Defaulters({ searchParams }: { searchParams: Promi
       {rows.length ? (
         <>
           <p className="m-0 text-[14px] print:hidden"><Link href={`/app/fees/print/demand?${new URLSearchParams({ ...(cls ? { class_id: cls } : {}), min: String(min) })}`}>Print demand notices for all {all.length > 60 ? "(first 60) " : ""}{all.length} →</Link></p>
+          <form action={sendFeeReminders} className="flex flex-wrap items-center gap-3 rounded-[12px] border border-line bg-blue-soft px-4 py-3 print:hidden">
+            <input type="hidden" name="on" value={on} />{cls && <input type="hidden" name="class_id" value={cls} />}
+            <input type="hidden" name="back" value={`/app/fees/defaulters?${qs}`} />
+            <button className="btn btn-sm btn-primary cursor-pointer border-0">Send reminders to all {all.length} by WhatsApp / SMS / email</button>
+            <span className="text-[13px] text-muted">Goes out through the school&apos;s own accounts; each parent gets one reminder a day. <a href="/app/messages">See what was sent →</a></span>
+          </form>
           <WaQueue items={msgs} />
           <Table head={["Student", "Class", "Father / phone", "Overdue", "Since", ""]}>
             {rows.map((r, i) => (

@@ -35,6 +35,8 @@ The top-level [`README.md`](../README.md) is the product / setup guide; these do
 | 27 | Health & discipline | [modules/health-discipline.md](modules/health-discipline.md) | `wellbeing.*` | Built (step 31) |
 | 28 | Hostel | [modules/hostel.md](modules/hostel.md) | `hostel.*` | Built (step 32) |
 | 29 | Reports & analysis | [modules/reports.md](modules/reports.md) | `reports.*` | Built (step 33) |
+| 30 | Communications (email / SMS / WhatsApp, per school + platform) | [modules/communications.md](modules/communications.md) | `comms.outbox`, `comms.templates`, `comms.broadcast` | Built (step 35) |
+| 31 | Inventory & sales | [modules/inventory.md](modules/inventory.md) | `inventory.*` | Built (step 36) |
 | 17 | Help & support desk | [modules/support.md](modules/support.md) | `support.tickets` | Built |
 | 18 | UP Board registration (Class 9-12) | [modules/board-registration.md](modules/board-registration.md) | `students.board_reg` | Built (step 6; no direct portal submission) |
 | 19 | Certificates (old fixed layouts) | [modules/certificates.md](modules/certificates.md) | `students.certificates` | Built (step 7) — superseded by 20 |
@@ -45,7 +47,7 @@ The top-level [`README.md`](../README.md) is the product / setup guide; these do
 | 22 | Accounts (day book & vouchers) | [modules/accounts.md](modules/accounts.md) | `accounts.*` | Built (step 20) |
 | 21 | Template studio (visual designer, gallery, module registry) | [modules/templates.md](modules/templates.md) | `documents.templates` | Built (step 16) |
 
-Not built yet (permissions exist, no screens): Inventory & sales, UDISE+ file export, parent / student logins, automatic messaging, and the sub-modules marked "not yet" above — see [roadmap.md](roadmap.md).
+Not built yet (permissions exist, no screens): UDISE+ file export, parent / student logins, student leave, backups, and the sub-modules marked "not yet" above — see [roadmap.md](roadmap.md).
 
 ## Each module doc has the same sections
 

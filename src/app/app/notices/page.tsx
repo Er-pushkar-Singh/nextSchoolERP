@@ -25,6 +25,7 @@ export default async function Notices({ searchParams }: { searchParams: Promise<
             <Select label="For" name="class_id" blank="Whole school" options={classes.map((c) => [c.id, `Class ${c.name}`] as [string, string])} />
             <Textarea label="Details" name="body" rows={4} className="sm:col-span-3" />
             <Input label="Date" name="published_on" type="date" defaultValue={todayIST()} />
+            <label className="flex items-center gap-2 self-end pb-2 text-[14px]"><input type="checkbox" name="notify" value="1" /> Also send to parents (WhatsApp / SMS / email)</label>
             <div className="flex items-end"><Submit>Publish</Submit></div>
           </form>
         </Card>

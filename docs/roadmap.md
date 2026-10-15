@@ -98,6 +98,9 @@ Still open:
 - Apply `setup.sql` (includes the 12 Oct 2026 security fix) to the production Supabase project, then click-test every module.
 - Dashboard widgets for step-5 modules; README screenshots / user guide for schools.
 
+## Done in step 34–36 (15 Oct 2026)
+Attendance synchronisation and a reformed monthly register; fee pages paged; **Communications 2.0** (one outbox for email / SMS / WhatsApp through each school's own accounts and the platform's own account, templates, compose, retry, fee reminders job, platform invoice mails) and **Inventory & sales** (stock ledger, purchases, counter sales with fee-account billing, stock take). Apply migrations `0036` … `0038`; schedule `/api/cron/messages` (see docs/modules/communications.md).
+
 ## Done in step 29–33 (15 Oct 2026)
 School branding (principal's signature, seal, watermark) and the mandatory-documents checklist with marksheet / report card / result certificate / DOB / migration templates; photographs that really print; **Library v2**, **Health & discipline**, **Hostel**, and **Reports & analysis** (principal dashboard, enrolment, attendance, fees, exam analysis, UDISE strength, CSV). Apply migrations `0027` … `0036` in order on production (or re-run `setup.sql`).
 

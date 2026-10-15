@@ -24,6 +24,18 @@ begin
   delete from public.payslips p using public.payroll_runs r
    where p.run_id = r.id and r.school_id = sid and r.status = 'draft' and p.staff_id in (select id from public.staff where school_id = sid and emp_code like 'DEMO-E%');
   delete from public.payroll_runs r where r.school_id = sid and r.status = 'draft' and not exists (select 1 from public.payslips p where p.run_id = r.id);
+  if to_regclass('public.inventory_items') is not null then
+    delete from public.vouchers where school_id = sid and id in (select voucher_id from public.inventory_sales where school_id = sid and note = 'DEMO' and voucher_id is not null)
+      or id in (select voucher_id from public.inventory_purchases where school_id = sid and note = 'DEMO' and voucher_id is not null);
+    delete from public.fee_dues where school_id = sid and source_key in (select 'sale:' || id from public.inventory_sales where school_id = sid and note = 'DEMO');
+    delete from public.inventory_sales where school_id = sid and note = 'DEMO';
+    delete from public.inventory_purchases where school_id = sid and note = 'DEMO';
+    delete from public.inventory_items where school_id = sid and sku like 'DEMO-%';
+    delete from public.inventory_suppliers where school_id = sid and name like 'DEMO %';
+  end if;
+  if to_regclass('public.message_outbox') is not null then
+    delete from public.message_outbox where school_id = sid and created_by_name = 'DEMO';
+  end if;
   delete from public.discipline_incidents where school_id = sid and reported_by_name = 'DEMO';
   delete from public.counselling_notes where school_id = sid and by_name = 'DEMO';
   delete from public.health_visits where school_id = sid and attended_by_name = 'DEMO';

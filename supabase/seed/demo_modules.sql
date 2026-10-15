@@ -178,6 +178,67 @@ begin
     on conflict do nothing;
   end if;
 
+  -- ── Inventory & sales: items, a supplier, two purchases, bills over the last weeks ──
+  if to_regclass('public.inventory_items') is not null and not exists (select 1 from public.inventory_items where school_id = sid) then
+    declare sup uuid; lines jsonb; r record; j jsonb; g3 int; stu uuid; itm uuid[]; pick uuid; mode text;
+    begin
+      insert into public.inventory_suppliers (school_id, name, phone, gstin) values (sid, 'DEMO Sharma Uniforms', '9811100009', '09ABCDE1234F1Z5') returning id into sup;
+      insert into public.inventory_items (school_id, sku, name, category, variant, cost, price, reorder_level)
+      select sid, 'DEMO-SH-' || v, 'School shirt', 'Uniform', v::text, 140 + (v - 26) * 5, 220 + (v - 26) * 8, 6 from generate_series(26, 36, 2) v;
+      insert into public.inventory_items (school_id, sku, name, category, variant, cost, price, reorder_level)
+      select sid, 'DEMO-TR-' || v, 'School trousers', 'Uniform', v::text, 210 + (v - 26) * 6, 320 + (v - 26) * 9, 6 from generate_series(26, 36, 2) v;
+      insert into public.inventory_items (school_id, sku, name, category, cost, price, reorder_level) values
+        (sid, 'DEMO-TIE', 'School tie', 'Uniform', 45, 80, 10), (sid, 'DEMO-BELT', 'School belt', 'Uniform', 60, 100, 10), (sid, 'DEMO-SOCK', 'Socks (pair)', 'Uniform', 25, 45, 15),
+        (sid, 'DEMO-PT', 'PT dress set', 'Uniform', 280, 420, 5), (sid, 'DEMO-NB-S', 'Notebook — single line', 'Stationery', 18, 30, 40), (sid, 'DEMO-NB-D', 'Notebook — double line', 'Stationery', 18, 30, 40),
+        (sid, 'DEMO-GEO', 'Geometry box', 'Stationery', 85, 130, 8), (sid, 'DEMO-DIARY', 'School diary', 'Stationery', 40, 70, 20), (sid, 'DEMO-IDH', 'ID card holder', 'Stationery', 12, 25, 20);
+      insert into public.inventory_items (school_id, sku, name, category, variant, cost, price, reorder_level)
+      select sid, 'DEMO-BK-' || s || '-' || c, s || ' textbook', 'Books', 'Class ' || c, 90 + c * 6, 130 + c * 8, 5
+        from (values ('Maths'), ('English'), ('Hindi'), ('Science')) a(s) cross join generate_series(5, 8) c;
+      select array_agg(id) into itm from public.inventory_items where school_id = sid and sku like 'DEMO-%';
+      -- opening purchase for everything, a smaller top-up for the uniform
+      select jsonb_agg(jsonb_build_object('item', id, 'qty', 12 + abs(hashtext(id::text)) % 40, 'unit_cost', cost)) into lines from public.inventory_items where school_id = sid and sku like 'DEMO-%';
+      perform public.inventory_purchase(sid, sup, tt - 30, 'DEMO-B-101', lines, 20000, 'bank_transfer', 'DEMO');
+      select jsonb_agg(jsonb_build_object('item', id, 'qty', 10, 'unit_cost', cost)) into lines from public.inventory_items where school_id = sid and category = 'Uniform' and sku like 'DEMO-SH-%';
+      perform public.inventory_purchase(sid, sup, tt - 12, 'DEMO-B-118', lines, 0, 'cash', 'DEMO');
+      -- bills: some paid at the counter, some added to the fee account
+      for g3 in 1..28 loop
+        select id into stu from (select id, row_number() over (order by admission_no) rn from public.students where school_id = sid and status = 'active') s where s.rn = 1 + (g3 * 7) % n;
+        mode := (array['cash', 'upi', 'fee_account', 'cash', 'card', 'fee_account'])[1 + g3 % 6];
+        select jsonb_agg(jsonb_build_object('item', x, 'qty', 1 + (g3 % 3))) into lines from (
+          select itm[1 + (g3 * 3 + k) % cardinality(itm)] x from generate_series(0, g3 % 3) k) q;
+        begin
+          j := public.inventory_sell(sid, 'student', stu, null, null, null, lines, 0, mode, 'DEMO');
+          update public.inventory_sales set on_date = tt - (g3 % 27), created_at = now() - (g3 % 27) * interval '1 day' where id = (j ->> 'id')::uuid;
+          update public.vouchers set date = tt - (g3 % 27) where id = (select voucher_id from public.inventory_sales where id = (j ->> 'id')::uuid);
+        exception when others then null;   -- a line that is out of stock is simply skipped in the demo
+        end;
+      end loop;
+      -- two items below their re-order level, one cancelled bill
+      update public.inventory_items set reorder_level = on_hand + 2 where school_id = sid and sku in ('DEMO-TIE', 'DEMO-GEO', 'DEMO-SH-30');
+      select id into pick from public.inventory_sales where school_id = sid and note = 'DEMO' and status = 'paid' order by created_at limit 1;
+      if pick is not null then perform public.inventory_cancel_sale(sid, pick, 'Wrong size — returned (demo)'); end if;
+    end;
+  end if;
+
+  -- ── Messages: a few outbox rows so the screen is not empty ──
+  if to_regclass('public.message_outbox') is not null and not exists (select 1 from public.message_outbox where school_id = sid and created_by_name = 'DEMO') then
+    insert into public.message_outbox (school_id, channel, event, to_addr, recipient_name, student_id, subject, body, status, attempts, last_error, provider_ref, account_source, created_by_name, created_at, sent_at, dedupe_key)
+    select sid, (array['whatsapp', 'sms', 'email', 'whatsapp'])[1 + g % 4], (array['fee_receipt', 'absent', 'fee_reminder', 'exam_result', 'notice'])[1 + g % 5],
+           case when g % 4 = 2 then lower(s.first_name) || '.parent@example.com' else '98' || lpad((10000000 + g * 7919)::text, 8, '0') end,
+           coalesce(s.father_name, s.first_name), s.id, case when g % 4 = 2 then 'School message' end,
+           case g % 5 when 0 then 'Dear Parent, fee of Rs ' || (1000 + g * 150) || ' received for ' || s.first_name || '. Thank you.'
+                      when 1 then 'Dear Parent, ' || s.first_name || ' is absent from school today.'
+                      when 2 then 'Dear Parent, fee of Rs ' || (2000 + g * 100) || ' for ' || s.first_name || ' is pending.'
+                      when 3 then 'Dear Parent, the result of ' || s.first_name || ' is published.'
+                      else 'Notice: Winter uniform from 1 November.' end,
+           case when g % 9 = 0 then 'failed' when g % 7 = 0 then 'skipped' when g % 11 = 0 then 'queued' else 'sent' end,
+           case when g % 9 = 0 then 3 else 1 end, case when g % 9 = 0 then 'Template not approved' when g % 7 = 0 then 'No valid mobile number or email on record.' end,
+           case when g % 9 <> 0 and g % 7 <> 0 and g % 11 <> 0 then 'demo-' || g end, case when g % 9 <> 0 and g % 7 <> 0 and g % 11 <> 0 then 'school' end,
+           'DEMO', now() - (g % 20) * interval '1 day' - (g % 7) * interval '1 hour', case when g % 9 <> 0 and g % 7 <> 0 and g % 11 <> 0 then now() - (g % 20) * interval '1 day' end, 'demo:' || g
+      from generate_series(1, 36) g
+      join (select id, first_name, father_name, row_number() over (order by admission_no) rn from public.students where school_id = sid and status = 'active') s on s.rn = 1 + (g * 5) % n;
+  end if;
+
   raise notice 'MODULE DEMO DATA READY for "%": % library issues, % reservations, % health records, % medical visits, % incidents, % hostel beds allotted.', v_code,
     (select count(*) from public.library_issues where school_id = sid), (select count(*) from public.library_reservations where school_id = sid),
     (select count(*) from public.student_health where school_id = sid), (select count(*) from public.health_visits where school_id = sid),

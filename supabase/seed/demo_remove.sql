@@ -29,6 +29,10 @@ begin
   delete from public.health_visits where school_id = sid and attended_by_name = 'DEMO';
   delete from public.health_checkups where school_id = sid and by_name = 'DEMO';
   delete from public.hostel_visitors where school_id = sid and by_name = 'DEMO';
+  delete from public.hostel_attendance where school_id = sid and marked_by_name = 'DEMO';
+  delete from public.hostel_outpasses where school_id = sid and requested_by_name = 'DEMO';
+  delete from public.hostel_allocations where school_id = sid and created_by_name = 'DEMO';
+  delete from public.student_health where school_id = sid and updated_by_name = 'DEMO';
   delete from public.hostels h where h.school_id = sid and h.name like 'DEMO %'
      and not exists (select 1 from public.hostel_rooms r join public.hostel_allocations a on a.room_id = r.id where r.hostel_id = h.id);
   delete from public.library_issues where school_id = sid and issued_by_name = 'DEMO';

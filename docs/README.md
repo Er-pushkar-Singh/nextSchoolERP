@@ -70,6 +70,9 @@ _Last full review: 12 Oct 2026 (after step 24 — front office, academic setup, 
 
 ## Demo data
 - `supabase/seed/demo_data.sql` — admissions, fee structure, ~40 students, receipts, staff, transport, attendance, accounts, timetable, front office (run first).
-- `supabase/seed/demo_scale.sql` — ~30 students per class (set `per_class`), dues and payments, 30 days of attendance, exams with marks, homework, notices, library issues and reservations, health records / visits / check-ups, discipline incidents and counselling notes, two hostels with boarders / roll call / outpass / mess menu, staff leave and attendance, last month's draft payroll, visitors, calls, enquiries, vouchers.
-- `supabase/seed/demo_remove.sql` — removes both (students, receipts, exams, library, health, discipline, hostels, vouchers, visitors, demo staff and draft payroll). Never run the seeds against a real school.
+- `supabase/seed/demo_scale.sql` — ~30 students per class (set `per_class`), dues and payments, 30 days of attendance, exams with marks, homework, notices, library issues, staff leave and attendance, last month's draft payroll, visitors, calls, enquiries, vouchers.
+- `supabase/seed/demo_remove.sql` — removes all of them (students, receipts, exams, library, health, discipline, hostels, vouchers, visitors, demo staff and draft payroll). Never run the seeds against a real school.
+- supabase/seed/demo_modules.sql — library loans / reservations, health records and visits, discipline incidents, two hostels with boarders, roll call, outpass, visitors and mess menu. Works on any school with 20+ active students (scale seed or real data); safe to run again; removed by demo_remove.sql.
+- supabase/check_setup.sql — read-only; lists tables, columns and functions the migrations create that the database is missing (an unapplied migration). Regenerate with 
+ode scripts/gen-check-setup.mjs after adding a migration.
 - Next modules: [plans/next-modules.md](plans/next-modules.md).

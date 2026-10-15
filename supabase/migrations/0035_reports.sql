@@ -244,3 +244,6 @@ begin
       from public.students s join public.classes c on c.id = s.class_id
      where s.school_id = sid and s.status = 'active' group by c.name, c.sort, coalesce(nullif(initcap(s.category), ''), 'Not stated') order by c.sort, 3;
 end $$;
+
+-- let the API see the new functions at once
+notify pgrst, 'reload schema';

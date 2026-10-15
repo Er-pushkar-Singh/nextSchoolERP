@@ -3,6 +3,8 @@ import { requirePerm } from "@/lib/school";
 import { PrintButton } from "@/components/ui/PrintButton";
 import { Empty, PageHeader } from "@/components/ui/ui";
 import { sanitizeHtml } from "@/lib/html-sanitize";
+import { getBranding, withBrand } from "@/lib/branding";
+import { DocSheet } from "@/components/DocSheet";
 import { todayIST } from "@/lib/format";
 
 /**
@@ -28,6 +30,8 @@ export default async function PrintFeeDoc({ params, searchParams }: { params: Pr
     return (data as { html: string; page_size: string } | null) ?? null;
   }))).filter(Boolean) as { html: string; page_size: string }[];
 
+  const branding = await getBranding(supabase, school.id);
+
   return (
     <div className="flex flex-col gap-5">
       <div className="print:hidden">
@@ -36,8 +40,10 @@ export default async function PrintFeeDoc({ params, searchParams }: { params: Pr
       {docs.length === 0 ? (
         <Empty>Nothing to print. {kind === "demand" ? "Nobody has dues for these filters, or the fee demand template is switched off (Fees → Templates)." : "The statement template is switched off (Fees → Templates)."}</Empty>
       ) : docs.map((d, i) => (
-        <article key={i} className={`mx-auto w-full rounded-[12px] border border-line bg-white p-8 text-ink print:max-w-none print:break-after-page print:border-0 print:p-0 ${d.page_size === "A5" ? "max-w-[560px]" : "max-w-[794px]"}`}
-          dangerouslySetInnerHTML={{ __html: sanitizeHtml(d.html) }} />
+        <DocSheet key={i} branding={branding} logoUrl={school.logo_url} schoolName={school.name}
+          className={`mx-auto w-full rounded-[12px] border border-line bg-white print:max-w-none print:break-after-page print:border-0 ${d.page_size === "A5" ? "max-w-[560px]" : "max-w-[794px]"}`}>
+          <article className="p-8 text-ink print:p-0" dangerouslySetInnerHTML={{ __html: withBrand(sanitizeHtml(d.html), branding) }} />
+        </DocSheet>
       ))}
     </div>
   );

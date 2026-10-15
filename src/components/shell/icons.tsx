@@ -3,7 +3,7 @@ import {
   LuLayoutDashboard, LuUsers, LuGraduationCap, LuCalendarCheck, LuClipboardList, LuWallet, LuMegaphone, LuSettings, LuLifeBuoy,
   LuBuilding2, LuNetwork, LuReceipt, LuCreditCard, LuTicket, LuShieldCheck, LuUserCog, LuPlug, LuBell, LuHistory, LuBlocks,
   LuSlidersHorizontal, LuSchool, LuUserPlus, LuTags, LuLayers, LuChartColumn, LuDatabaseBackup, LuBookOpen,
-  LuBus, LuLibrary, LuNotebookPen, LuBriefcase, LuCalendarOff, LuBanknote, LuRoute,
+  LuBus, LuLibrary, LuNotebookPen, LuBriefcase, LuCalendarOff, LuBanknote, LuRoute, LuHeartPulse, LuBedDouble, LuScale, LuChartPie, LuQrCode,
 } from "react-icons/lu";
 import type { IconType } from "react-icons";
 
@@ -15,6 +15,7 @@ export const ICONS = {
   integrations: LuPlug, notifications: LuBell, prefs: LuSlidersHorizontal, school: LuSchool, admissions: LuUserPlus, layers: LuLayers,
   revenue: LuChartColumn, backups: LuDatabaseBackup, card: LuCreditCard, book: LuBookOpen,
   homework: LuNotebookPen, transport: LuBus, hr: LuBriefcase, library: LuLibrary, leave: LuCalendarOff, payroll: LuBanknote, route: LuRoute,
+  health: LuHeartPulse, hostel: LuBedDouble, discipline: LuScale, reports: LuChartPie, qr: LuQrCode,
 } satisfies Record<string, IconType>;
 
 export type IconName = keyof typeof ICONS;

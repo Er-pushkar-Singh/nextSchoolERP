@@ -4,7 +4,9 @@ import { Badge, ButtonLink, Empty, Flash, PageHeader, Table, td } from "@/compon
 import { Pagination, pageParams } from "@/components/ui/Pagination";
 import { cleanSearch, fullName, money } from "@/lib/format";
 import { getClasses, sectionOptions } from "@/lib/erp";
-import { bulkStudents } from "../_actions/people";
+import { Modal } from "@/components/ui/Modal";
+import { ClassSection } from "@/components/ClassSection";
+import { bulkStudents, moveStudent } from "../_actions/people";
 
 const STUDENT_STATUS: [string, string][] = [["active", "Active"], ["left", "Left"], ["transferred", "Transferred"], ["withdrawn", "Withdrawn"], ["passed_out", "Passed out"], ["admission_pending", "Admission in progress"], ["all", "All"]];
 const SORTS: [string, string][] = [["name", "Name"], ["class", "Class & roll"], ["adm", "Admission no."], ["newest", "Newest first"], ["dues", "Highest dues"]];
@@ -45,6 +47,9 @@ export default async function Students({ searchParams }: { searchParams: Promise
   const canWrite = can("students.profile.create");
   const canBlock = can("students.profile.block");
   const canMove = can("students.profile.edit");
+  const canPromote = can("students.promotion.create");
+  const classId = (s: Row) => classes.find((c) => c.name === s.class_name)?.id ?? null;
+  const nextClass = (s: Row) => { const i = classes.findIndex((c) => c.name === s.class_name); return classes[i + 1]?.id ?? null; };
   const sections = sectionOptions(classes);
   const exportQs = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][]).toString();
 
@@ -100,12 +105,13 @@ export default async function Students({ searchParams }: { searchParams: Promise
 
       {listQ.error && <Flash error={`Could not load students: ${listQ.error.message}`} />}
       {rows.length ? (
-        <form className="flex flex-col gap-3">
-          <input type="hidden" name="back" value={here} />
-          <Table head={["", "Adm. no.", "Name", "Class", "Roll", "Father", "Phone", ...(can("fees.collection.view") ? ["Dues"] : []), ""]} minWidth={880}>
+        <div className="flex flex-col gap-3">
+          <form id="bulk" />
+          <input type="hidden" name="back" value={here} form="bulk" />
+          <Table head={["", "Adm. no.", "Name", "Class", "Roll", "Father", "Phone", ...(can("fees.collection.view") ? ["Dues"] : []), "Status", "Actions"]} minWidth={1000}>
             {rows.map((s) => (
               <tr key={s.id} className={s.blocked ? "bg-[#fff7f6]" : ""}>
-                <td className={td}><input type="checkbox" name="id" value={s.id} aria-label={`Select ${s.first_name}`} /></td>
+                <td className={td}><input type="checkbox" name="id" value={s.id} form="bulk" aria-label={`Select ${s.first_name}`} /></td>
                 <td className={`${td} font-mono text-[13px]`}>{s.admission_no}</td>
                 <td className={td}><Link href={`/app/students/${s.id}`} className="font-semibold">{fullName(s)}</Link>
                   <div className="text-[12px] text-muted">{[s.gender === "M" ? "Boy" : s.gender === "F" ? "Girl" : null, s.category].filter(Boolean).join(" · ")}</div></td>
@@ -116,9 +122,49 @@ export default async function Students({ searchParams }: { searchParams: Promise
                 {can("fees.collection.view") && <td className={`${td} ${Number(s.balance) > 0 ? "font-semibold text-error" : "text-muted"}`}>{Number(s.balance) > 0 ? money(s.balance) : "—"}</td>}
                 <td className={td}>
                   <span className="flex flex-wrap gap-1">
-                    {s.status !== "active" && <Badge value={s.status} />}
+                    {s.status !== "active" ? <Badge value={s.status} /> : <Badge value="active" text="Active" />}
                     {s.blocked && <span title={s.block_reason ?? ""}><Badge value="overdue" text="Blocked" /></span>}
                   </span>
+                </td>
+                <td className={td}>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
+                    <Link href={`/app/students/${s.id}`}>{canMove ? "Edit" : "View"}</Link>
+                    {s.status === "active" && canMove && (
+                      <Modal label="Move" variant="link" title={`Move ${fullName(s)} to another section`} size="sm">
+                        <form action={moveStudent} className="grid gap-3">
+                          <input type="hidden" name="id" value={s.id} /><input type="hidden" name="back" value={here} /><input type="hidden" name="kind" value="move" />
+                          <p className="m-0 text-[13px] text-muted">Now in {s.class_name ? `Class ${s.class_name}${s.section_name ? `-${s.section_name}` : ""}` : "no class"}. Moving to another class keeps the old class in the history; use Promote for a new session.</p>
+                          <ClassSection classes={classes} classId={classId(s)} required />
+                          <button className="btn btn-sm btn-primary cursor-pointer border-0">Move</button>
+                        </form>
+                      </Modal>
+                    )}
+                    {s.status === "active" && canPromote && (
+                      <Modal label="Promote" variant="link" title={`Promote ${fullName(s)}`} size="sm">
+                        <form action={moveStudent} className="grid gap-3">
+                          <input type="hidden" name="id" value={s.id} /><input type="hidden" name="back" value={here} /><input type="hidden" name="kind" value="promote" />
+                          <p className="m-0 text-[13px] text-muted">Currently {s.class_name ? `Class ${s.class_name}` : "—"}. The old class stays in the student&apos;s history as <b>promoted</b>; the roll number is cleared.</p>
+                          <ClassSection classes={classes} classId={nextClass(s)} required />
+                          <button className="btn btn-sm btn-primary cursor-pointer border-0">Promote</button>
+                        </form>
+                      </Modal>
+                    )}
+                    {canBlock && (s.blocked ? (
+                      <form action={bulkStudents}><input type="hidden" name="id" value={s.id} /><input type="hidden" name="back" value={here} /><input type="hidden" name="action" value="unblock" />
+                        <button className="cursor-pointer border-0 bg-transparent p-0 text-[#15803d] underline">Unblock</button></form>
+                    ) : (
+                      <Modal label="Block" variant="link" title={`Block ${fullName(s)}`} size="sm">
+                        <form action={bulkStudents} className="grid gap-3">
+                          <input type="hidden" name="id" value={s.id} /><input type="hidden" name="back" value={here} /><input type="hidden" name="action" value="block" />
+                          <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">Reason<input name="reason" required className="input !min-h-10 !py-2 font-normal" placeholder="e.g. fees pending, discipline" /></label>
+                          <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">Until (optional)<input name="till" type="date" className="input !min-h-10 !py-2 font-normal" /></label>
+                          <button className="btn btn-sm btn-primary cursor-pointer border-0">Block student</button>
+                        </form>
+                      </Modal>
+                    ))}
+                    {can("fees.collection.create") && s.status === "active" && <Link href={`/app/fees/collect?student=${s.id}`}>Collect fee</Link>}
+                    {can("documents.issue.view") && <Link href={`/app/documents?student=${s.id}`}>Documents</Link>}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -129,24 +175,24 @@ export default async function Students({ searchParams }: { searchParams: Promise
               <legend className="px-1 text-[13px] font-bold text-ink">For the ticked students</legend>
               {canMove && (
                 <>
-                  <select name="section_id" className="input !min-h-10 !w-auto !py-2" aria-label="Move to section" defaultValue="">
+                  <select name="section_id" form="bulk" className="input !min-h-10 !w-auto !py-2" aria-label="Move to section" defaultValue="">
                     <option value="">Move to section…</option>
                     {sections.map(([id, l]) => <option key={id} value={id}>{l}</option>)}
                   </select>
-                  <button name="action" value="section" formAction={bulkStudents} className="btn btn-sm btn-secondary cursor-pointer">Move</button>
+                  <button name="action" value="section" form="bulk" formAction={bulkStudents} className="btn btn-sm btn-secondary cursor-pointer">Move</button>
                 </>
               )}
               {canBlock && (
                 <>
-                  <input name="reason" placeholder="Reason to block" aria-label="Reason to block" className="input !min-h-10 max-w-[220px] !py-2" />
-                  <input name="till" type="date" aria-label="Blocked until" className="input !min-h-10 !w-auto !py-2" />
-                  <button name="action" value="block" formAction={bulkStudents} className="btn btn-sm btn-secondary cursor-pointer">Block</button>
-                  <button name="action" value="unblock" formAction={bulkStudents} className="btn btn-sm btn-secondary cursor-pointer">Unblock</button>
+                  <input name="reason" form="bulk" placeholder="Reason to block" aria-label="Reason to block" className="input !min-h-10 max-w-[220px] !py-2" />
+                  <input name="till" form="bulk" type="date" aria-label="Blocked until" className="input !min-h-10 !w-auto !py-2" />
+                  <button name="action" value="block" form="bulk" formAction={bulkStudents} className="btn btn-sm btn-secondary cursor-pointer">Block</button>
+                  <button name="action" value="unblock" form="bulk" formAction={bulkStudents} className="btn btn-sm btn-secondary cursor-pointer">Unblock</button>
                 </>
               )}
             </fieldset>
           )}
-        </form>
+        </div>
       ) : (
         <Empty>{filtered ? "No student matches these filters." : <>No students here yet. {canWrite && <><Link href="/app/students/new">Admit one</Link> or <Link href="/app/students/import">import your list from Excel</Link>.</>}</>}</Empty>
       )}

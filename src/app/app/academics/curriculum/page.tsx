@@ -1,7 +1,8 @@
 import { requirePerm } from "@/lib/school";
 import { Card, Empty, Flash, PageHeader, Submit } from "@/components/ui/ui";
 import { getClasses } from "@/lib/erp";
-import { saveCurriculum } from "../../_actions/academics2";
+import { Modal } from "@/components/ui/Modal";
+import { addSubjectToClass, saveCurriculum } from "../../_actions/academics2";
 
 export default async function Curriculum({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const { supabase, school, can } = await requirePerm("academics.setup.view");
@@ -22,7 +23,21 @@ export default async function Curriculum({ searchParams }: { searchParams: Promi
         const count = (subjects ?? []).filter((s) => m.has(`${c.id}:${s.id}`)).length;
         const total = (subjects ?? []).reduce((t, s) => t + (m.get(`${c.id}:${s.id}`)?.periods_per_week ?? 0), 0);
         return (
-          <Card key={c.id} title={`Class ${c.name}`} description={`${count} subjects · ${total} periods a week`}>
+          <Card key={c.id} title={`Class ${c.name}`} description={`${count} subjects · ${total} periods a week`}
+            actions={edit ? (
+              <Modal label="+ Add subject" variant="secondary" title={`Add a subject to Class ${c.name}`} size="sm">
+                <form action={addSubjectToClass} className="grid gap-3">
+                  <input type="hidden" name="class_id" value={c.id} />
+                  <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">Existing subject
+                    <select name="subject_id" defaultValue="" className="input !min-h-10 !py-2 font-normal"><option value="">— choose —</option>{(subjects ?? []).filter((s) => !m.has(`${c.id}:${s.id}`)).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
+                  </label>
+                  <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">…or a new subject<input name="new_name" placeholder="e.g. Computer Science" className="input !min-h-10 !py-2 font-normal" /></label>
+                  <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">Periods a week<input name="periods" type="number" min={0} max={20} defaultValue={5} className="input !min-h-10 !py-2 font-normal" /></label>
+                  <label className="flex items-center gap-2 text-[14px]"><input type="checkbox" name="optional" value="1" /> Optional subject</label>
+                  <button className="btn btn-sm btn-primary cursor-pointer border-0">Add to class</button>
+                </form>
+              </Modal>
+            ) : undefined}>
             <form action={saveCurriculum} className="flex flex-col gap-3">
               <input type="hidden" name="class_id" value={c.id} />
               <ul className="m-0 grid list-none gap-2 p-0 sm:grid-cols-2 lg:grid-cols-3">

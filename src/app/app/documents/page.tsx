@@ -1,60 +1,92 @@
 import Link from "next/link";
 import { requirePerm } from "@/lib/school";
 import { Badge, Card, Empty, Flash, Input, PageHeader, Select, Stat, Table, td } from "@/components/ui/ui";
+import { Modal } from "@/components/ui/Modal";
+import { EntityPicker } from "@/components/ui/EntityPicker";
+import { Pagination, pageParams } from "@/components/ui/Pagination";
 import { addDays, cleanSearch, fmtDate, fullName, todayIST } from "@/lib/format";
 import { CATEGORIES } from "@/lib/documents";
 import { seedTemplates } from "../_actions/documents";
 
 type Tpl = { id: string; code: string; name: string; category: string; audience: string; active: boolean; page_size: string };
-type Issued = { id: string; doc_no: string; template_name: string; category: string; status: string; issued_on: string; is_duplicate: boolean;
+type Issued = { id: string; doc_no: string; template_name: string; template_code: string; category: string; status: string; issued_on: string; is_duplicate: boolean; student_id: string | null; staff_id: string | null;
   students: { id: string; first_name: string; last_name: string | null; admission_no: string } | null; staff: { id: string; name: string; emp_code: string | null } | null };
+const ok = (v?: string) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
 
-export default async function Documents({ searchParams }: { searchParams: Promise<{ q?: string; find?: string; template?: string; status?: string; ok?: string; error?: string }> }) {
+export default async function Documents({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const { supabase, school, can } = await requirePerm("documents.issue.view", "documents.templates.view");
   const sp = await searchParams;
-  const q = cleanSearch(sp.find ?? "").trim();
-  const search = cleanSearch(sp.q ?? "").trim();
+  const { page, size, offset } = pageParams(sp);
+  const q = cleanSearch(sp.q ?? "").trim();
   const canIssue = can("documents.issue.create");
+  const from = ok(sp.from), to = ok(sp.to);
+  const category = CATEGORIES.some(([k]) => k === sp.category) ? sp.category! : null;
+  const status = sp.status === "issued" || sp.status === "cancelled" ? sp.status : null;
+  const studentId = sp.student && /^[0-9a-f-]{36}$/.test(sp.student) ? sp.student : null;
+  const template = sp.template && /^[a-z0-9_]+$/.test(sp.template) ? sp.template : null;
   const { data: tplRows } = await supabase.from("document_templates").select("id,code,name,category,audience,active,page_size").eq("school_id", school.id).neq("category", "fees").order("category").order("name");
   const T = (tplRows ?? []) as Tpl[];
+
   let list = supabase.from("issued_documents")
-    .select("id,doc_no,template_name,category,status,issued_on,is_duplicate,students(id,first_name,last_name,admission_no),staff(id,name,emp_code)")
-    .eq("school_id", school.id).order("created_at", { ascending: false }).limit(60);
-  if (sp.template && /^[a-z0-9_]+$/.test(sp.template)) list = list.eq("template_code", sp.template);
-  if (sp.status === "issued" || sp.status === "cancelled") list = list.eq("status", sp.status);
-  if (search) list = list.ilike("doc_no", `%${search}%`);
-  const [{ data: issued }, found, { count: total }, { count: month }] = await Promise.all([
+    .select("id,doc_no,template_name,template_code,category,status,issued_on,is_duplicate,student_id,staff_id,students(id,first_name,last_name,admission_no),staff(id,name,emp_code)", { count: "exact" })
+    .eq("school_id", school.id).order("created_at", { ascending: false }).range(offset, offset + size - 1);
+  if (template) list = list.eq("template_code", template);
+  if (category) list = list.eq("category", category);
+  if (status) list = list.eq("status", status);
+  if (studentId) list = list.eq("student_id", studentId);
+  if (from) list = list.gte("issued_on", from);
+  if (to) list = list.lte("issued_on", to);
+  if (q) {
+    const p = `%${q.replace(/[%_\\,()]/g, " ")}%`;
+    const [{ data: ss }, { data: ff }] = await Promise.all([
+      supabase.from("students").select("id").eq("school_id", school.id).or(`first_name.ilike.${p},last_name.ilike.${p},admission_no.ilike.${p}`).limit(100),
+      supabase.from("staff").select("id").eq("school_id", school.id).or(`name.ilike.${p},emp_code.ilike.${p}`).limit(100),
+    ]);
+    const parts = [`doc_no.ilike.${p}`, (ss ?? []).length ? `student_id.in.(${(ss ?? []).map((x) => x.id).join(",")})` : null, (ff ?? []).length ? `staff_id.in.(${(ff ?? []).map((x) => x.id).join(",")})` : null].filter(Boolean).join(",");
+    list = list.or(parts);
+  }
+  const [{ data: issued, count }, { count: total }, { count: month }] = await Promise.all([
     list,
-    q && canIssue
-      ? Promise.all([
-          supabase.from("students").select("id,first_name,last_name,admission_no,father_name,classes!class_id(name),sections(name)").eq("school_id", school.id)
-            .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,admission_no.ilike.${q}%,father_name.ilike.%${q}%`).order("first_name").limit(10),
-          supabase.from("staff").select("id,name,emp_code,designation").eq("school_id", school.id).or(`name.ilike.%${q}%,emp_code.ilike.${q}%`).order("name").limit(10),
-        ])
-      : Promise.resolve(null),
     supabase.from("issued_documents").select("id", { count: "exact", head: true }).eq("school_id", school.id),
     supabase.from("issued_documents").select("id", { count: "exact", head: true }).eq("school_id", school.id).gte("created_at", addDays(todayIST(), -30)),
   ]);
   const I = (issued ?? []) as unknown as Issued[];
   const stuTpl = T.filter((t) => t.audience === "student" && t.active);
   const stfTpl = T.filter((t) => t.audience === "staff" && t.active);
-  const students = (found?.[0].data ?? []) as unknown as { id: string; first_name: string; last_name: string | null; admission_no: string; father_name: string | null; classes: { name: string } | null; sections: { name: string } | null }[];
-  const staff = (found?.[1].data ?? []) as unknown as { id: string; name: string; emp_code: string | null; designation: string | null }[];
   const catName = new Map(CATEGORIES);
+  const params = { q: q || undefined, template: template ?? undefined, category: category ?? undefined, status: status ?? undefined, from: from ?? undefined, to: to ?? undefined, student: studentId ?? undefined };
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader icon="academics" title="Documents & templates" subtitle="TC, bonafide, ID cards, letters — each from a template you control"
+      <PageHeader icon="academics" title="Documents" subtitle="TC, bonafide, ID cards, letters — each from a template you control"
         actions={<>
+          {canIssue && T.length > 0 && (
+            <Modal label="+ Issue a document" title="Issue a document">
+              <div className="grid gap-6">
+                <form action="/app/documents/issue" method="get" className="grid gap-3">
+                  <h3 className="m-0 text-[15px] font-bold text-ink">For a student</h3>
+                  <Select label="Document" name="template" options={stuTpl.map((t) => [t.id, t.name] as [string, string])} />
+                  <EntityPicker kind="student" name="student" label="Student" required placeholder="Type name or admission no." />
+                  <div><button className="btn btn-sm btn-primary cursor-pointer border-0">Continue</button></div>
+                </form>
+                <form action="/app/documents/issue" method="get" className="grid gap-3 border-t border-line pt-4">
+                  <h3 className="m-0 text-[15px] font-bold text-ink">For a staff member</h3>
+                  <Select label="Document" name="template" options={stfTpl.map((t) => [t.id, t.name] as [string, string])} />
+                  <EntityPicker kind="staff" name="staff" label="Staff member" required placeholder="Type name or employee code" />
+                  <div><button className="btn btn-sm btn-primary cursor-pointer border-0">Continue</button></div>
+                </form>
+              </div>
+            </Modal>
+          )}
           {can("documents.issue.create") && <Link href="/app/documents/bulk" className="btn btn-sm btn-secondary">ID cards in bulk</Link>}
-          {can("documents.templates.view") && <Link href="/app/documents/templates" className="btn btn-sm btn-primary">Manage templates</Link>}
+          {can("documents.templates.view") && <Link href="/app/documents/templates" className="btn btn-sm btn-secondary">Manage templates</Link>}
         </>} />
       <Flash ok={sp.ok} error={sp.error} />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Templates" value={T.filter((t) => t.active).length} hint={`${T.length} in all`} icon="layers" />
         <Stat label="Issued (all time)" value={total ?? 0} icon="academics" tone="cyan" />
         <Stat label="Issued (30 days)" value={month ?? 0} icon="revenue" tone="green" />
-        <Stat label="Cancelled" value={I.filter((i) => i.status === "cancelled").length} hint="in the list below" icon="notifications" tone="rose" />
+        <Stat label="Matching filters" value={count ?? 0} icon="notifications" tone="violet" />
       </div>
 
       {T.length === 0 && (
@@ -64,55 +96,36 @@ export default async function Documents({ searchParams }: { searchParams: Promis
         </Card>
       )}
 
-      {canIssue && T.length > 0 && (
-        <Card title="Issue a document" icon="academics">
-          <form className="flex flex-wrap items-end gap-2">
-            <Input label="Find student or staff" name="find" defaultValue={sp.find} placeholder="Name, admission no., father, employee code" />
-            <button className="btn btn-sm btn-secondary cursor-pointer">Find</button>
-          </form>
-          {q && !students.length && !staff.length && <p className="mt-3 mb-0 text-[14px] text-muted">Nobody matches “{q}”.</p>}
-          {students.length > 0 && (
-            <ul className="m-0 mt-3 list-none p-0 text-[14px]">
-              {students.map((s) => (
-                <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-line py-2 first:border-0">
-                  <span><b className="text-ink">{fullName(s)}</b> <span className="text-muted">· {s.admission_no} · Class {s.classes?.name}{s.sections ? `-${s.sections.name}` : ""} · {s.father_name ?? ""}</span></span>
-                  <span className="flex flex-wrap gap-3">{stuTpl.map((t) => <Link key={t.id} href={`/app/documents/issue?template=${t.id}&student=${s.id}`} className="text-[13px]">{t.name.replace(/ \(.*\)/, "")}</Link>)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-          {staff.length > 0 && (
-            <ul className="m-0 mt-3 list-none p-0 text-[14px]">
-              {staff.map((s) => (
-                <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-line py-2 first:border-0">
-                  <span><b className="text-ink">{s.name}</b> <span className="text-muted">· {s.emp_code ?? ""} · {s.designation ?? ""}</span></span>
-                  <span className="flex flex-wrap gap-3">{stfTpl.map((t) => <Link key={t.id} href={`/app/documents/issue?template=${t.id}&staff=${s.id}`} className="text-[13px]">{t.name.replace(/ \(.*\)/, "")}</Link>)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      )}
-
-      <form className="flex flex-wrap items-end gap-2">
-        <Input label="Document no." name="q" defaultValue={sp.q} placeholder="TC/2026-27/0001" />
-        <Select label="Template" name="template" blank="All" defaultValue={sp.template} options={T.map((t) => [t.code, t.name] as [string, string])} />
-        <Select label="Status" name="status" blank="All" defaultValue={sp.status} options={[["issued", "Issued"], ["cancelled", "Cancelled"]]} />
-        <button className="btn btn-sm btn-secondary cursor-pointer">Show</button>
+      <form className="grid items-end gap-2 sm:grid-cols-3 lg:grid-cols-7">
+        <Input label="Search" name="q" defaultValue={sp.q} placeholder="Doc no., student, staff" className="lg:col-span-2" />
+        <Select label="Template" name="template" blank="All" defaultValue={template} options={T.map((t) => [t.code, t.name] as [string, string])} />
+        <Select label="Category" name="category" blank="All" defaultValue={category} options={CATEGORIES.map(([k, l]) => [k, l] as [string, string])} />
+        <Select label="Status" name="status" blank="All" defaultValue={status} options={[["issued", "Issued"], ["cancelled", "Cancelled"]]} />
+        <Input label="From" name="from" type="date" defaultValue={from ?? ""} />
+        <Input label="To" name="to" type="date" defaultValue={to ?? ""} />
+        <div><button className="btn btn-sm btn-secondary cursor-pointer">Show</button></div>
       </form>
+
       {I.length ? (
-        <Table head={["Number", "Document", "Issued to", "Date", "Status"]} minWidth={720}>
+        <Table head={["Number", "Document", "Issued to", "Date", "Status", ""]} minWidth={860}>
           {I.map((d) => (
             <tr key={d.id}>
               <td className={`${td} font-mono text-[13px]`}><Link href={`/app/documents/${d.id}`}>{d.doc_no}</Link></td>
               <td className={td}>{d.template_name}{d.is_duplicate && <span className="ml-1 text-[12px] text-muted">duplicate</span>}<div className="text-[12px] text-muted">{catName.get(d.category)}</div></td>
-              <td className={td}>{d.students ? <Link href={`/app/students/${d.students.id}`}>{fullName(d.students)}</Link> : d.staff ? d.staff.name : "—"}<div className="text-[12px] text-muted">{d.students?.admission_no ?? d.staff?.emp_code ?? ""}</div></td>
+              <td className={td}>{d.students ? <Link href={`/app/students/${d.students.id}`}>{fullName(d.students)}</Link> : d.staff ? <Link href={`/app/hr/staff/${d.staff.id}`}>{d.staff.name}</Link> : "—"}<div className="text-[12px] text-muted">{d.students?.admission_no ?? d.staff?.emp_code ?? ""}</div></td>
               <td className={td}>{fmtDate(d.issued_on)}</td>
               <td className={td}><Badge value={d.status === "issued" ? "paid" : "cancelled"} text={d.status} /></td>
+              <td className={`${td} text-[13px]`}>
+                <div className="flex flex-wrap gap-3">
+                  <Link href={`/app/documents/${d.id}`}>Open / print</Link>
+                  {d.students && <Link href={`/app/documents?student=${d.students.id}`}>All of this student</Link>}
+                </div>
+              </td>
             </tr>
           ))}
         </Table>
-      ) : <Empty>No documents issued yet.</Empty>}
+      ) : <Empty>{q || template || category || status || from || to || studentId ? "No document matches these filters." : "No documents issued yet."}</Empty>}
+      <Pagination total={count ?? 0} page={page} size={size} basePath="/app/documents" params={params} />
       <p className="m-0 text-[12px] text-muted">Certificates issued before templates were introduced are under <Link href="/app/certificates">Old-format certificates</Link>.</p>
     </div>
   );

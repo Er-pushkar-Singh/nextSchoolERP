@@ -58,6 +58,15 @@ export default async function StudentPage({ params, searchParams }: { params: Pr
     : { data: [] };
   const photoPath = ((docRows ?? []) as { doc_type: string; file_path: string | null; status: string }[]).find((d) => d.doc_type === "photo" && d.file_path && d.status !== "rejected")?.file_path;
   const photoUrl = photoPath ? (await supabaseAdmin()?.storage.from(DOC_BUCKET).createSignedUrl(photoPath, 300))?.data?.signedUrl ?? null : null;
+  const seeHealth = can("wellbeing.medical.view"), seeDiscipline = can("wellbeing.discipline.view"), seeHostel = can("hostel.allocation.view");
+  const [{ data: healthRow }, { data: wellbeing }, { data: bedRow }] = await Promise.all([
+    seeHealth ? supabase.from("student_health").select("blood_group,allergies,conditions,emergency_name,emergency_phone").eq("student_id", id).maybeSingle() : Promise.resolve({ data: null }),
+    seeHealth || seeDiscipline ? supabase.rpc("student_wellbeing", { sid: school.id, p_student: id }) : Promise.resolve({ data: null }),
+    seeHostel ? supabase.from("hostel_allocations").select("bed_no,start_date,hostel_rooms(room_no,hostels(name))").eq("student_id", id).eq("status", "active").maybeSingle() : Promise.resolve({ data: null }),
+  ]);
+  const health = healthRow as { blood_group: string | null; allergies: string | null; conditions: string | null; emergency_name: string | null; emergency_phone: string | null } | null;
+  const wb = (wellbeing ?? {}) as { visits_90?: number | null; incidents_180?: number | null };
+  const bed = bedRow as unknown as { bed_no: number; start_date: string; hostel_rooms: { room_no: string; hostels: { name: string } | null } | null } | null;
   const canLink = can("students.parent_link.view");
   const canBlock = can("students.profile.block");
   const canDelete = can("students.profile.delete");
@@ -136,6 +145,36 @@ ${link}`) : null;
                   {libBooks.map((b) => <li key={b.id} className="flex justify-between gap-2"><span>{b.library_books?.title}</span><span className={b.due_on < today ? "font-semibold text-error" : "text-muted"}>due {fmtDate(b.due_on)}</span></li>)}
                 </ul>
               ) : <p className="m-0 text-[14px] text-muted">No books issued.</p>}
+            </Card>
+          )}
+        </div>
+      )}
+
+      {(seeHealth || seeDiscipline || seeHostel) && (
+        <div className="grid gap-5 md:grid-cols-2">
+          {(seeHealth || seeDiscipline) && (
+            <Card title="Health & discipline" icon="health" actions={seeHealth ? <Link href={`/app/health/records?q=${encodeURIComponent(s.admission_no)}`} className="text-[14px] font-semibold">Record →</Link> : undefined}>
+              <div className="flex flex-col gap-1.5 text-[14px]">
+                {seeHealth && (health ? (
+                  <>
+                    <p className="m-0"><b className="text-ink">{health.blood_group ?? "Blood group not recorded"}</b>{health.emergency_name ? ` · emergency: ${health.emergency_name}${health.emergency_phone ? ` (${health.emergency_phone})` : ""}` : ""}</p>
+                    {health.allergies && <p className="m-0 font-semibold text-[#9a3412]">⚠ Allergy: {health.allergies}</p>}
+                    {health.conditions && <p className="m-0">{health.conditions}</p>}
+                  </>
+                ) : <p className="m-0 text-muted">No health record yet.</p>)}
+                <p className="m-0 text-muted">
+                  {seeHealth && wb.visits_90 !== null && wb.visits_90 !== undefined ? <>{wb.visits_90} medical-room visit{wb.visits_90 === 1 ? "" : "s"} in 90 days</> : null}
+                  {seeHealth && seeDiscipline ? " · " : ""}
+                  {seeDiscipline && wb.incidents_180 !== null && wb.incidents_180 !== undefined ? <Link href="/app/discipline">{wb.incidents_180} incident{wb.incidents_180 === 1 ? "" : "s"} in 6 months</Link> : null}
+                </p>
+              </div>
+            </Card>
+          )}
+          {seeHostel && (
+            <Card title="Hostel" icon="hostel" actions={<Link href="/app/hostel/allocation" className="text-[14px] font-semibold">{bed ? "Manage" : "Allot a bed"} →</Link>}>
+              {bed ? (
+                <p className="m-0 text-[14px]"><b className="text-ink">{bed.hostel_rooms?.hostels?.name}</b> · room {bed.hostel_rooms?.room_no} · bed {bed.bed_no} <span className="text-muted">since {fmtDate(bed.start_date)}</span></p>
+              ) : <p className="m-0 text-[14px] text-muted">Not a hostel boarder.</p>}
             </Card>
           )}
         </div>

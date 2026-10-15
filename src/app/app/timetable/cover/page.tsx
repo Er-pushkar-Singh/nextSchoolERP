@@ -4,6 +4,8 @@ import { Badge, Card, Empty, Flash, Input, PageHeader, Stat } from "@/components
 import { addDays, fmtDate, todayIST } from "@/lib/format";
 import { DAY_NAMES, hhmm } from "@/lib/timetable";
 import { removeSubstitution, saveSubstitution } from "../../_actions/timetable";
+import { Modal } from "@/components/ui/Modal";
+import { ManualCover } from "@/components/timetable/ManualCover";
 
 type Need = { slot_id: string; class_name: string; section_name: string; period_id: string; period_name: string; start_time: string; end_time: string; subject_name: string | null;
   teacher_id: string; teacher_name: string; why: string; substitution_id: string | null; substitute_id: string | null; substitute_name: string | null };
@@ -25,13 +27,24 @@ export default async function Cover({ searchParams }: { searchParams: Promise<Re
       free.set(p, (f ?? []) as Free[]);
     }));
   }
+  // every period of the day, for arranging cover by hand (teacher on duty elsewhere, training, half-day …)
+  const dowNum = new Date(`${day}T00:00:00Z`).getUTCDay() || 7;
+  const { data: dayslots } = edit
+    ? await supabase.from("timetable_slots").select("id,staff:staff(name),period:periods(name,no),section:sections(name,class:classes(name))").eq("school_id", school.id).eq("day", dowNum).not("staff_id", "is", null)
+    : { data: [] };
+  type DS = { id: string; staff: { name: string } | { name: string }[] | null; period: { name: string; no: number } | { name: string; no: number }[] | null; section: { name: string; class: { name: string } | { name: string }[] | null } | { name: string; class: { name: string } | { name: string }[] | null }[] | null };
+  const o1 = <T,>(v: T | T[] | null): T | null => (Array.isArray(v) ? v[0] ?? null : v);
+  const manual = ((dayslots ?? []) as unknown as DS[]).map((d) => {
+    const sec = o1(d.section), c = sec ? o1(sec.class) : null, p = o1(d.period);
+    return { id: d.id, no: p?.no ?? 0, label: `${p?.name ?? ""} · ${c?.name ?? ""}-${sec?.name ?? ""} · ${o1(d.staff)?.name ?? ""}` };
+  }).sort((a, b) => a.no - b.no || a.label.localeCompare(b.label));
   const done = needs.filter((n) => n.substitute_id).length;
   const dow = new Date(`${day}T00:00:00Z`).getUTCDay() || 7;
 
   return (
     <div className="flex flex-col gap-5">
       <PageHeader icon="academics" title="Cover & substitutes" subtitle={`${DAY_NAMES[dow]}, ${fmtDate(day)}`} back={{ href: "/app/timetable", label: "Timetable" }}
-        actions={<><Link href={`/app/timetable/cover?date=${addDays(day, -1)}`} className="btn btn-sm btn-secondary">← Previous</Link><Link href={`/app/timetable/cover?date=${addDays(day, 1)}`} className="btn btn-sm btn-secondary">Next →</Link></>} />
+        actions={<>{edit && manual.length > 0 && <Modal label="+ Add cover" title="Add cover for any period" size="sm"><ManualCover date={day} slots={manual} /></Modal>}<Link href={`/app/timetable/cover?date=${addDays(day, -1)}`} className="btn btn-sm btn-secondary">← Previous</Link><Link href={`/app/timetable/cover?date=${addDays(day, 1)}`} className="btn btn-sm btn-secondary">Next →</Link></>} />
       <Flash ok={sp.ok} error={sp.error} />
       <form className="flex items-end gap-2"><Input label="Date" name="date" type="date" defaultValue={day} /><button className="btn btn-sm btn-secondary cursor-pointer">Show</button></form>
       <div className="grid grid-cols-3 gap-3">

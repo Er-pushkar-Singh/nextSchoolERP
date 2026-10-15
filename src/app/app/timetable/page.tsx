@@ -19,12 +19,20 @@ export default async function Timetable({ searchParams }: { searchParams: Promis
   const days = workingDays(school.prefs);
   const edit = can("academics.timetable.edit");
 
-  const [{ data: periods }, { data: slots }, { data: subjects }, { data: teachers }] = await Promise.all([
+  const [{ data: periods }, { data: slots }, { data: subjects }, { data: teachers }, { data: others }] = await Promise.all([
     supabase.from("periods").select("*").eq("school_id", school.id).order("no"),
     section ? supabase.from("timetable_slots").select("id,day,period_id,subject_id,staff_id,room").eq("section_id", section.id) : Promise.resolve({ data: [] }),
     supabase.from("subjects").select("id,name").eq("school_id", school.id).order("name"),
     supabase.from("staff").select("id,name").eq("school_id", school.id).eq("status", "active").eq("kind", "teaching").order("name"),
+    section ? supabase.from("timetable_slots").select("staff_id,day,period_id,section:sections(name,class:classes(name))").eq("school_id", school.id).neq("section_id", section.id).not("staff_id", "is", null) : Promise.resolve({ data: [] }),
   ]);
+  type OtherSlot = { staff_id: string; day: number; period_id: string; section: { name: string; class: { name: string } | { name: string }[] | null } | { name: string; class: { name: string } | { name: string }[] | null }[] | null };
+  const busy = new Map<string, string>();
+  for (const o of (others ?? []) as unknown as OtherSlot[]) {
+    const sec = Array.isArray(o.section) ? o.section[0] : o.section;
+    const c = sec ? (Array.isArray(sec.class) ? sec.class[0] : sec.class) : null;
+    busy.set(`${o.staff_id}:${o.day}:${o.period_id}`, `${c?.name ?? ""}-${sec?.name ?? ""}`);
+  }
   const P = (periods ?? []) as Period[];
   const S = (slots ?? []) as Slot[];
   const at = (day: number, period: string) => S.find((s) => s.day === day && s.period_id === period);
@@ -79,7 +87,7 @@ export default async function Timetable({ searchParams }: { searchParams: Promis
                                   <option value="">— subject —</option>{(subjects ?? []).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
                                 </select>
                                 <select name={`t_${key}`} defaultValue={s?.staff_id ?? ""} aria-label={`Teacher, ${DAY_SHORT[d]} ${p.name}`} className={sel}>
-                                  <option value="">— teacher —</option>{(teachers ?? []).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                                  <option value="">— teacher —</option>{(teachers ?? []).map((x) => { const b = busy.get(`${x.id}:${d}:${p.id}`); return <option key={x.id} value={x.id} disabled={Boolean(b) && s?.staff_id !== x.id}>{x.name}{b ? ` — busy in ${b}` : ""}</option>; })}
                                 </select>
                                 <input name={`r_${key}`} defaultValue={s?.room ?? ""} placeholder="Room" maxLength={30} aria-label={`Room, ${DAY_SHORT[d]} ${p.name}`} className={sel} />
                               </div>
@@ -95,7 +103,7 @@ export default async function Timetable({ searchParams }: { searchParams: Promis
               </tbody>
             </table>
           </div>
-          {edit && <div className="flex flex-wrap items-center gap-3 print:hidden"><Submit>Save timetable</Submit><span className="text-[12px] text-muted">A teacher cannot be in two sections in the same period — clashes are reported and not saved.</span></div>}
+          {edit && <div className="flex flex-wrap items-center gap-3 print:hidden"><Submit>Save timetable</Submit><span className="text-[12px] text-muted">A teacher who already has a class in that period is shown as “busy in …” and cannot be picked; the database enforces it too.</span></div>}
         </form>
       )}
 

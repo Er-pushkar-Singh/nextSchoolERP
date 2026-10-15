@@ -40,6 +40,13 @@ Every document the school hands out comes from a **template the school controls*
 - `sanitize_template_html()` on every save (scripts, iframes, forms, event handlers, `javascript:` removed); the app strips again with an allow-list (`src/lib/html-sanitize.ts`) before showing anything.
 - RLS: templates readable with templates.view or issue.view/create; written by create / edit / delete; issued documents readable with issue.view, written only through the functions.
 
+## School branding, watermark and mandatory documents (15 Oct 2026, migration `0031`)
+- **Settings → Documents** (`/app/settings/documents`): upload the **principal's signature** and the **school seal** (PNG / JPG / WebP ≤ 330 KB, checked by file signature), choose a **watermark** (logo or seal, opacity), and see the **mandatory documents** checklist (marksheet, report card, result certificate, TC, bonafide, character, DOB, migration, admit card, student / staff ID, fee receipt) with *Add from gallery* for what is missing.
+- Placeholders `{{school.signature}}` and `{{school.seal}}` and the designer's **Signature** / **Seal** items fill from `school_branding` at print time (stored as validated data URIs, so they print everywhere).
+- Every printed page goes through `DocSheet`, which draws the watermark as a real element, so it survives printing.
+- **Photos at print time**: the app inlines photographs as data URIs (≤ 30 per page, else 1-hour signed links), the global print stylesheet forces exact colours / images, and **Print** waits until every image has loaded.
+- Exam documents (marksheet, report card, result certificate) take their data from declared results: `{{exam.*}}` fields, `exam.subjects_html`, and the "exam" question type at issue.
+
 ## Business rules
 1. An issued document never changes: later template edits or student edits do not touch it; cancel and re-issue instead.
 2. Teachers cannot see templates or documents; other schools see nothing.

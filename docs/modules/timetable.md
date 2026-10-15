@@ -31,3 +31,7 @@ A weekly timetable per class-section built on a bell schedule, a per-teacher vie
 
 ## Gaps & ideas
 Parent page / parent login timetable, timetable per student's optional subjects, auto-generation (constraint solver), lab / room clashes, exam datesheet from the calendar, notices from calendar events, ICS export, substitutions notifying the teacher by WhatsApp.
+
+## Refinements (step 25)
+- Class timetable: teachers already teaching another section in the same period are shown as **"busy in 6-A"** and cannot be picked (the unique index still guards the database).
+- Cover board: **+ Add cover** for any period of the day (not only teachers on leave): choose the period, the page lists only teachers free in it (`/api/timetable/free`).

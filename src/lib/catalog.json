@@ -681,23 +681,46 @@
       "submodules": [
         {
           "code": "rooms",
-          "name": "Rooms & beds",
+          "name": "Hostels, rooms & beds",
           "actions": [
             "view",
             "create",
             "edit",
             "delete"
-          ]
+          ],
+          "built": true
         },
         {
           "code": "allocation",
-          "name": "Resident allocation",
+          "name": "Bed allocation & hostel fee",
           "actions": [
             "view",
             "create",
             "edit",
             "delete"
-          ]
+          ],
+          "built": true
+        },
+        {
+          "code": "rollcall",
+          "name": "Night roll call & outpass",
+          "actions": [
+            "view",
+            "create",
+            "edit",
+            "approve"
+          ],
+          "built": true
+        },
+        {
+          "code": "mess",
+          "name": "Mess menu & visitors",
+          "actions": [
+            "view",
+            "create",
+            "edit"
+          ],
+          "built": true
         }
       ]
     },
@@ -736,21 +759,26 @@
       "submodules": [
         {
           "code": "medical",
-          "name": "Medical records",
+          "name": "Health records & medical room",
           "actions": [
             "view",
             "create",
-            "edit"
-          ]
+            "edit",
+            "delete"
+          ],
+          "built": true
         },
         {
           "code": "discipline",
-          "name": "Incidents & counselling",
+          "name": "Discipline & counselling",
           "actions": [
             "view",
             "create",
-            "edit"
-          ]
+            "edit",
+            "delete",
+            "approve"
+          ],
+          "built": true
         }
       ]
     },
@@ -784,6 +812,15 @@
           "actions": [
             "export"
           ]
+        },
+        {
+          "code": "overview",
+          "name": "Principal dashboard & analytics",
+          "actions": [
+            "view",
+            "export"
+          ],
+          "built": true
         }
       ]
     },
@@ -1036,7 +1073,7 @@
         ],
         "hostel.rooms": [
           "school",
-          "view"
+          "*"
         ],
         "reports.academic": [
           "school",
@@ -1079,6 +1116,34 @@
           "school",
           "view",
           "edit"
+        ],
+        "wellbeing.medical": [
+          "school",
+          "*"
+        ],
+        "wellbeing.discipline": [
+          "school",
+          "*"
+        ],
+        "hostel.allocation": [
+          "school",
+          "view"
+        ],
+        "hostel.rollcall": [
+          "school",
+          "view"
+        ],
+        "hostel.mess": [
+          "school",
+          "view"
+        ],
+        "reports.overview": [
+          "school",
+          "*"
+        ],
+        "library.circulation": [
+          "school",
+          "view"
         ]
       }
     },
@@ -1187,6 +1252,14 @@
           "own",
           "view",
           "create"
+        ],
+        "hostel.allocation": [
+          "school",
+          "view"
+        ],
+        "reports.overview": [
+          "school",
+          "view"
         ]
       }
     },
@@ -1381,6 +1454,12 @@
           "view",
           "create",
           "print"
+        ],
+        "wellbeing.medical": [
+          "school",
+          "view",
+          "create",
+          "edit"
         ]
       }
     },
@@ -1488,6 +1567,15 @@
         "students.sensitive": [
           "assigned",
           "view"
+        ],
+        "wellbeing.medical": [
+          "assigned",
+          "view"
+        ],
+        "wellbeing.discipline": [
+          "assigned",
+          "view",
+          "create"
         ]
       }
     },
@@ -1569,6 +1657,11 @@
           "own",
           "view",
           "create"
+        ],
+        "wellbeing.discipline": [
+          "assigned",
+          "view",
+          "create"
         ]
       }
     },
@@ -1608,6 +1701,10 @@
           "own",
           "view",
           "create"
+        ],
+        "reports.overview": [
+          "school",
+          "view"
         ]
       }
     },
@@ -1690,6 +1787,18 @@
           "own",
           "view",
           "create"
+        ],
+        "hostel.rollcall": [
+          "school",
+          "*"
+        ],
+        "hostel.mess": [
+          "school",
+          "*"
+        ],
+        "wellbeing.medical": [
+          "school",
+          "view"
         ]
       }
     },

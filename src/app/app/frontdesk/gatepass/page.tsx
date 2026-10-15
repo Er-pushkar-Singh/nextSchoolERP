@@ -1,5 +1,8 @@
 import { requirePerm } from "@/lib/school";
-import { Badge, Card, Empty, Flash, Input, PageHeader, Select, Submit, Table, td } from "@/components/ui/ui";
+import { Badge, Empty, Flash, Input, PageHeader, Select, Submit, Table, td } from "@/components/ui/ui";
+import { Modal } from "@/components/ui/Modal";
+import { EntityPicker } from "@/components/ui/EntityPicker";
+import { PickupFields } from "@/components/frontdesk/PickupFields";
 import { Pagination, pageParams } from "@/components/ui/Pagination";
 import { fmtDate, todayIST } from "@/lib/format";
 import { cancelGatePass, decideGatePass, releaseGatePass, requestGatePass } from "../../_actions/frontdesk";
@@ -26,20 +29,19 @@ export default async function GatePass({ searchParams }: { searchParams: Promise
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader icon="admissions" title="Student gate pass" subtitle="Early leave only with a named pick-up person" back={{ href: "/app/frontdesk", label: "Front office" }} />
+      <PageHeader icon="admissions" title="Student gate pass" subtitle="Early leave only with a named pick-up person" back={{ href: "/app/frontdesk", label: "Front desk" }}
+        actions={can("frontdesk.visitors.create") ? (
+          <Modal label="+ New gate pass" title="New gate pass">
+            <p className="mt-0 text-[13px] text-muted">{can("frontdesk.visitors.edit") ? "Passes you raise are approved at once." : "A principal / office approver must approve it before the child is released."}</p>
+            <form action={requestGatePass} className="grid gap-3 sm:grid-cols-2">
+              <EntityPicker kind="student" name="student_id" label="Student" required placeholder="Type name or admission no." className="sm:col-span-2" />
+              <Input label="Reason" name="reason" required className="sm:col-span-2" placeholder="Doctor appointment, family function…" />
+              <PickupFields />
+              <div className="sm:col-span-2"><Submit>Create pass</Submit></div>
+            </form>
+          </Modal>
+        ) : undefined} />
       <Flash ok={sp.ok} error={sp.error} />
-      {can("frontdesk.visitors.create") && (
-        <Card title="New gate pass" description={can("frontdesk.visitors.edit") ? "Passes you raise are approved at once." : "A principal / office approver must approve it before the child is released."}>
-          <form action={requestGatePass} className="grid gap-3 sm:grid-cols-4">
-            <Input label="Admission no." name="admission_no" required />
-            <Input label="Reason" name="reason" required className="sm:col-span-3" placeholder="Doctor appointment, family function…" />
-            <Input label="Taken by" name="pickup_name" required />
-            <Input label="Relation" name="pickup_relation" placeholder="Father, uncle…" />
-            <Input label="Phone" name="pickup_phone" type="tel" />
-            <div className="flex items-end"><Submit>Create pass</Submit></div>
-          </form>
-        </Card>
-      )}
       <form className="flex flex-wrap items-end gap-2">
         <Select label="Show" name="when" defaultValue={scope} options={[["today", "Today"], ["all", "All dates"]]} />
         <Select label="Status" name="status" blank="All" defaultValue={status} options={[["requested", "Waiting approval"], ["approved", "Approved — to release"], ["completed", "Released"], ["rejected", "Refused"], ["cancelled", "Cancelled"]]} />

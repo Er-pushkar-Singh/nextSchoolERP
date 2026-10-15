@@ -1,117 +1,163 @@
 import Link from "next/link";
 import { requirePerm } from "@/lib/school";
 import { Badge, Card, Empty, Flash, Input, PageHeader, Select, Stat, Submit, Table, td } from "@/components/ui/ui";
-import { fmtDate, fullName, money, todayIST, waLink } from "@/lib/format";
-import { issueBook, renewBook, returnBook } from "../_actions/library";
+import { Modal } from "@/components/ui/Modal";
+import { EntityPicker } from "@/components/ui/EntityPicker";
+import { Pagination, pageParams } from "@/components/ui/Pagination";
+import { BarChart, Donut, HBars } from "@/components/ui/charts";
+import { fmtDate, money, todayIST, waLink } from "@/lib/format";
+import { collectLibraryFine, issueBook, renewBook, returnBook } from "../_actions/library";
 
-type Issue = {
-  id: string; book_id: string; issued_on: string; due_on: string; returned_on: string | null; fine: number; issued_by_name: string | null;
-  library_books: { title: string; accession_no: string | null; author: string | null } | null;
-  students: { id: string; first_name: string; last_name: string | null; admission_no: string; guardian_phone: string | null; classes: { name: string } | null; sections: { name: string } | null } | null;
-  staff: { id: string; name: string; phone: string | null } | null;
+type Row = {
+  id: string; book_id: string; title: string; accession_no: string | null; author: string | null; member_kind: "student" | "staff"; member_id: string; member_name: string; member_sub: string | null;
+  phone: string | null; issued_on: string; due_on: string; returned_on: string | null; fine: number; lost: boolean; fine_paid_on: string | null; renewals: number; days_late: number; fine_now: number; total: number;
 };
-const sel = "id,book_id,issued_on,due_on,returned_on,fine,issued_by_name,library_books(title,accession_no,author),students(id,first_name,last_name,admission_no,guardian_phone,classes!class_id(name),sections(name)),staff(id,name,phone)";
-/** Suggested late fine per day (₹); the librarian can change it on each return. */
-const FINE_PER_DAY = 1;
+type Dash = { titles: number; copies: number; out: number; overdue: number; due_today: number; fines_pending: number; fines_collected_30: number; reservations: number;
+  per_month: { m: string; n: number }[]; top_books: { title: string; n: number }[]; top_classes: { name: string; n: number }[]; by_category: { name: string; n: number }[] };
 
-export default async function Library({ searchParams }: { searchParams: Promise<{ book?: string; show?: string; ok?: string; error?: string }> }) {
+const STATES = [["out", "Out now"], ["overdue", "Overdue"], ["returned", "Returned"], ["fines", "Fines to collect"], ["all", "Everything"]] as const;
+
+export default async function Library({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const { supabase, school, can } = await requirePerm("library.circulation.view");
   const sp = await searchParams;
+  const { page, size, offset } = pageParams(sp);
+  const state = STATES.some(([k]) => k === sp.state) ? sp.state! : "out";
+  const q = (sp.q ?? "").trim().slice(0, 60);
+  const member = sp.member === "student" || sp.member === "staff" ? sp.member : null;
+  const from = /^\d{4}-\d{2}-\d{2}$/.test(sp.from ?? "") ? sp.from! : null;
+  const to = /^\d{4}-\d{2}-\d{2}$/.test(sp.to ?? "") ? sp.to! : null;
   const today = todayIST();
-  const overdueOnly = sp.show === "overdue";
-  let open = supabase.from("library_issues").select(sel).eq("school_id", school.id).is("returned_on", null).order("due_on").limit(500);
-  if (overdueOnly) open = open.lt("due_on", today);
-  const [{ data: issues }, { data: returned }, { count: titles }, { data: copies }, { data: staff }, { data: book }] = await Promise.all([
-    open,
-    supabase.from("library_issues").select(sel).eq("school_id", school.id).not("returned_on", "is", null).order("returned_on", { ascending: false }).limit(15),
-    supabase.from("library_books").select("id", { count: "exact", head: true }).eq("school_id", school.id),
-    supabase.from("library_books").select("copies").eq("school_id", school.id).limit(20000),
-    can("library.circulation.create") ? supabase.from("staff").select("id,name").eq("school_id", school.id).eq("status", "active").order("name") : Promise.resolve({ data: [] }),
-    sp.book && /^[0-9a-f-]{36}$/.test(sp.book) ? supabase.from("library_books").select("id,title,accession_no").eq("id", sp.book).eq("school_id", school.id).maybeSingle() : Promise.resolve({ data: null }),
+
+  const [{ data: dash }, { data: rows }] = await Promise.all([
+    supabase.rpc("library_dashboard", { sid: school.id }),
+    supabase.rpc("library_issue_list", { sid: school.id, p_state: state, p_q: q || null, p_member: member, p_from: from, p_to: to, p_limit: size, p_offset: offset }),
   ]);
-  const I = (issues ?? []) as unknown as Issue[];
-  const late = (i: Issue) => Math.max(0, Math.round((Date.parse(today) - Date.parse(i.due_on)) / 86400000));
-  const overdue = I.filter((i) => i.due_on < today);
-  const totalCopies = (copies ?? []).reduce((t, b) => t + Number(b.copies), 0);
-  const who = (i: Issue) => i.students
-    ? <><Link href={`/app/students/${i.students.id}`} className="font-semibold">{fullName(i.students)}</Link><div className="text-[12px] text-muted">{i.students.admission_no} · {i.students.classes ? `${i.students.classes.name}-${i.students.sections?.name ?? ""}` : ""}</div></>
-    : <><b className="text-ink">{i.staff?.name}</b><div className="text-[12px] text-muted">Staff</div></>;
+  const D = (dash ?? {}) as Dash;
+  const R = (rows ?? []) as Row[];
+  const total = R[0] ? Number(R[0].total) : 0;
+  const params = { state: state === "out" ? undefined : state, q: q || undefined, member: member ?? undefined, from: from ?? undefined, to: to ?? undefined };
+  const qs = new URLSearchParams(Object.entries({ ...params, page: page > 1 ? String(page) : undefined, size: size !== 25 ? String(size) : undefined }).filter(([, v]) => v) as [string, string][]).toString();
+  const back = `/app/library${qs ? `?${qs}` : ""}`;
+  const tabHref = (k: string) => `/app/library${k === "out" ? "" : `?state=${k}`}`;
+  const edit = can("library.circulation.edit");
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader icon="library" title="Library" subtitle="Issue and return books, overdue reminders"
-        actions={can("library.catalogue.view") ? <Link href="/app/library/books" className="btn btn-sm btn-secondary">Book catalogue</Link> : undefined} />
+      <PageHeader icon="library" title="Library" subtitle="Issue by scanning the card, return with fine, reservations"
+        actions={<>
+          {can("library.circulation.create") && (
+            <Modal label="+ Issue a book" title="Issue a book">
+              <form action={issueBook} className="grid gap-3 sm:grid-cols-2">
+                <input type="hidden" name="back" value={back} />
+                <EntityPicker kind="book" name="book_id" label="Book (title, author or accession no.)" placeholder="Type at least 2 letters…" className="sm:col-span-2" />
+                <Input label="…or scan the accession no. / ISBN" name="accession_no" className="sm:col-span-2" />
+                <Input label="Member card code" name="member_code" className="sm:col-span-2" hint="Scan the ID card QR, or type the admission no. / employee code" />
+                <EntityPicker kind="student" name="student_id" label="…or find the student" placeholder="Name or admission no." />
+                <EntityPicker kind="staff" name="staff_id" label="…or find the staff member" placeholder="Name or employee code" />
+                <Input label="Loan days" name="days" type="number" min={1} max={180} hint="Blank = the school's rule" />
+                <div className="flex items-end"><Submit>Issue book</Submit></div>
+              </form>
+            </Modal>
+          )}
+          {can("library.circulation.create") && <Link href="/app/library/reservations" className="btn btn-sm btn-secondary">Reservations{D.reservations ? ` (${D.reservations})` : ""}</Link>}
+          {can("library.catalogue.view") && <Link href="/app/library/books" className="btn btn-sm btn-secondary">Catalogue</Link>}
+          {can("library.catalogue.edit") && <Link href="/app/library/settings" className="btn btn-sm btn-secondary">Loan rules</Link>}
+        </>} />
       <Flash ok={sp.ok} error={sp.error} />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Titles" value={titles ?? 0} hint={`${totalCopies} copies`} icon="library" href={can("library.catalogue.view") ? "/app/library/books" : undefined} />
-        <Stat label="Issued now" value={overdueOnly ? "—" : I.length} icon="book" tone="cyan" href="/app/library" />
-        <Stat label="Overdue" value={overdueOnly ? I.length : overdue.length} icon="notifications" tone={overdue.length || overdueOnly ? "rose" : "green"} href="/app/library?show=overdue" />
-        <Stat label="Fines this list" value={money((returned ?? []).reduce((t, r) => t + Number(r.fine), 0))} hint="last 15 returns" icon="fees" tone="amber" />
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
+        <Stat label="Titles" value={D.titles ?? 0} hint={`${D.copies ?? 0} copies`} icon="library" href={can("library.catalogue.view") ? "/app/library/books" : undefined} />
+        <Stat label="Out now" value={D.out ?? 0} icon="book" tone="cyan" href="/app/library" />
+        <Stat label="Due today" value={D.due_today ?? 0} icon="attendance" tone="amber" />
+        <Stat label="Overdue" value={D.overdue ?? 0} icon="notifications" tone={D.overdue ? "rose" : "green"} href="/app/library?state=overdue" />
+        <Stat label="Fines to collect" value={money(D.fines_pending ?? 0)} icon="fees" tone="violet" href="/app/library?state=fines" />
+        <Stat label="Fines, 30 days" value={money(D.fines_collected_30 ?? 0)} icon="revenue" tone="green" />
       </div>
 
-      {can("library.circulation.create") && (
-        <Card title="Issue a book" icon="book">
-          <form action={issueBook} className="grid gap-3 sm:grid-cols-6">
-            {book ? (
-              <div className="flex flex-col gap-1 text-[13px] font-semibold text-ink sm:col-span-2">
-                Book<input type="hidden" name="book_id" value={book.id} />
-                <span className="rounded-lg border border-line bg-blue-soft px-3 py-2 text-[15px] font-normal">{book.title}{book.accession_no ? ` · ${book.accession_no}` : ""} <Link href="/app/library" className="text-[13px]">change</Link></span>
-              </div>
-            ) : <Input label="Accession no. or ISBN" name="accession_no" required className="sm:col-span-2" hint="Or pick from the catalogue" />}
-            <Input label="Student admission no." name="admission_no" />
-            <Select label="…or staff member" name="staff_id" blank="—" options={(staff ?? []).map((s) => [s.id, s.name] as [string, string])} />
-            <Input label="Days" name="days" type="number" min={1} max={90} defaultValue={14} />
-            <div className="flex items-end"><Submit>Issue</Submit></div>
-          </form>
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card title="Books issued — last 6 months" className="lg:col-span-2">
+          <BarChart data={(D.per_month ?? []).map((m) => ({ label: m.m, value: m.n }))} />
         </Card>
-      )}
+        <Card title="What is read (6 months)">
+          {(D.by_category ?? []).length ? <Donut size={120} data={(D.by_category ?? []).map((c) => ({ label: c.name, value: c.n }))} /> : <p className="m-0 text-[13px] text-muted">No issues yet.</p>}
+        </Card>
+        <Card title="Most issued titles">
+          <HBars data={(D.top_books ?? []).map((b) => ({ label: b.title, value: b.n }))} />
+        </Card>
+        <Card title="Classes that read most">
+          <HBars color="#16a34a" data={(D.top_classes ?? []).map((b) => ({ label: `Class ${b.name}`, value: b.n }))} />
+        </Card>
+      </div>
 
-      <Card title={overdueOnly ? `Overdue (${I.length})` : `Books out (${I.length})`} actions={overdueOnly ? <Link href="/app/library" className="text-[14px]">Show all</Link> : undefined}>
-        {I.length ? (
-          <Table head={["Book", "Borrower", "Issued", "Due", ...(can("library.circulation.edit") ? ["Return"] : []), ""]} minWidth={900}>
-            {I.map((i) => {
-              const d = late(i);
-              const fine = d * FINE_PER_DAY;
-              const remind = i.students ? waLink(i.students.guardian_phone, `Dear Parent, the library book “${i.library_books?.title}” issued to ${fullName(i.students)} was due on ${fmtDate(i.due_on)}. Please return it to the school library.\n— ${school.name}`) : null;
-              return (
-                <tr key={i.id}>
-                  <td className={td}><b className="text-ink">{i.library_books?.title}</b><div className="text-[12px] text-muted">{[i.library_books?.accession_no, i.library_books?.author].filter(Boolean).join(" · ")}</div></td>
-                  <td className={td}>{who(i)}</td>
-                  <td className={td}>{fmtDate(i.issued_on)}</td>
-                  <td className={td}>{fmtDate(i.due_on)}{d > 0 && <div><Badge value="overdue" text={`${d} day${d === 1 ? "" : "s"} late`} /></div>}</td>
-                  {can("library.circulation.edit") && (
-                    <td className={td}>
-                      <form action={returnBook} className="flex items-center gap-2">
-                        <input type="hidden" name="id" value={i.id} />
-                        <label className="text-[12px] text-muted">Fine ₹<input name="fine" type="number" min={0} step="1" defaultValue={fine} className="input ml-1 !min-h-8 w-16 !py-1 text-[14px]" /></label>
-                        <Submit>Return</Submit>
+      <nav className="flex flex-wrap gap-1.5" aria-label="Show">
+        {STATES.map(([k, t]) => (
+          <Link key={k} href={tabHref(k)} className={`rounded-full border px-3.5 py-1.5 text-[13.5px] font-semibold no-underline ${state === k ? "border-ink bg-ink text-white" : "border-line bg-white text-body"}`}>{t}</Link>
+        ))}
+      </nav>
+      <form className="flex flex-wrap items-end gap-2">
+        {state !== "out" && <input type="hidden" name="state" value={state} />}
+        <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">Search
+          <input name="q" defaultValue={q} placeholder="Book, author, borrower, admission no." className="input !min-h-10 w-64 !py-2 text-[15px] font-normal" /></label>
+        <Select label="Borrower" name="member" blank="Students & staff" defaultValue={member} options={[["student", "Students"], ["staff", "Staff"]]} />
+        <Input label="Issued from" name="from" type="date" defaultValue={from} />
+        <Input label="to" name="to" type="date" defaultValue={to} />
+        <button className="btn btn-sm btn-secondary cursor-pointer">Filter</button>
+        {(q || member || from || to) && <Link href={tabHref(state)} className="pb-2 text-[14px]">Clear</Link>}
+      </form>
+
+      {R.length ? (
+        <Table head={["Book", "Borrower", "Issued", state === "returned" || state === "fines" ? "Returned" : "Due", "Fine", ""]} minWidth={960}>
+          {R.map((i) => {
+            const open = i.returned_on === null;
+            const remind = open && i.days_late > 0 && i.member_kind === "student"
+              ? waLink(i.phone, `Dear Parent, the library book “${i.title}” issued to ${i.member_name} was due on ${fmtDate(i.due_on)}. Please return it to the school library.\n— ${school.name}`) : null;
+            return (
+              <tr key={i.id}>
+                <td className={td}><b className="text-ink">{i.title}</b><div className="text-[12px] text-muted">{[i.accession_no, i.author].filter(Boolean).join(" · ")}</div></td>
+                <td className={td}>
+                  {i.member_kind === "student" ? <Link href={`/app/students/${i.member_id}`} className="font-semibold">{i.member_name}</Link> : <b className="text-ink">{i.member_name}</b>}
+                  <div className="text-[12px] text-muted">{i.member_sub}</div>
+                </td>
+                <td className={td}>{fmtDate(i.issued_on)}{i.renewals > 0 && <div className="text-[12px] text-muted">renewed {i.renewals}×</div>}</td>
+                <td className={td}>
+                  {open ? <>{fmtDate(i.due_on)}{i.days_late > 0 ? <div><Badge value="overdue" text={`${i.days_late} day${i.days_late === 1 ? "" : "s"} late`} /></div> : i.due_on === today ? <div><Badge value="due" text="Due today" /></div> : null}</>
+                    : <>{fmtDate(i.returned_on)}{i.lost && <div><Badge value="lost" text="Lost" /></div>}</>}
+                </td>
+                <td className={td}>
+                  {open ? (i.fine_now > 0 ? <b className="text-error">{money(i.fine_now)}</b> : <span className="text-muted">—</span>)
+                    : i.fine > 0 ? <><b className="text-ink">{money(i.fine)}</b><div className="text-[12px] text-muted">{i.fine_paid_on ? `paid ${fmtDate(i.fine_paid_on)}` : "unpaid"}</div></> : <span className="text-muted">—</span>}
+                </td>
+                <td className={`${td} whitespace-nowrap text-[13px]`}>
+                  <div className="flex flex-col items-start gap-1">
+                    {open && edit && (
+                      <Modal label="Return" variant="link" title={`Return: ${i.title}`} size="sm">
+                        <p className="mt-0 text-[13.5px] text-muted">{i.member_name} · due {fmtDate(i.due_on)}{i.days_late > 0 ? ` · ${i.days_late} day(s) late` : ""}</p>
+                        <form action={returnBook} className="flex flex-col gap-3">
+                          <input type="hidden" name="back" value={back} /><input type="hidden" name="id" value={i.id} />
+                          <Input label="Fine (₹)" name="fine" type="number" min={0} step="1" defaultValue={i.fine_now} hint="Calculated from the loan rules — change it if needed" />
+                          <label className="flex items-center gap-2 text-[14px]"><input type="checkbox" name="lost" /> The book is lost (adds the book&apos;s price, removes one copy)</label>
+                          <label className="flex items-center gap-2 text-[14px]"><input type="checkbox" name="waive" /> Waive the fine</label>
+                          <Submit>Confirm return</Submit>
+                        </form>
+                      </Modal>
+                    )}
+                    {open && edit && <form action={renewBook}><input type="hidden" name="back" value={back} /><input type="hidden" name="id" value={i.id} /><button className="cursor-pointer border-0 bg-transparent p-0 text-[13px] text-blue underline">Renew</button></form>}
+                    {remind && <a href={remind} target="_blank" rel="noopener noreferrer">WhatsApp parent</a>}
+                    {!open && i.fine > 0 && !i.fine_paid_on && edit && (
+                      <form action={collectLibraryFine} className="flex items-center gap-1.5">
+                        <input type="hidden" name="back" value={back} /><input type="hidden" name="id" value={i.id} />
+                        <select name="mode" className="input !min-h-8 !py-1 text-[13px]" aria-label="Payment mode"><option value="cash">Cash</option><option value="upi">UPI</option><option value="cheque">Cheque</option></select>
+                        <button className="cursor-pointer border-0 bg-transparent p-0 font-semibold text-[#15803d] underline">Collect</button>
                       </form>
-                    </td>
-                  )}
-                  <td className={`${td} whitespace-nowrap text-[13px]`}>
-                    {can("library.circulation.edit") && <form action={renewBook}><input type="hidden" name="id" value={i.id} /><input type="hidden" name="due_on" value={i.due_on} /><button className="cursor-pointer border-0 bg-transparent p-0 text-[13px] text-blue underline">Renew 7 days</button></form>}
-                    {d > 0 && remind && <a href={remind} target="_blank" rel="noopener noreferrer" className="mt-1 block">WhatsApp parent</a>}
-                  </td>
-                </tr>
-              );
-            })}
-          </Table>
-        ) : <Empty>{overdueOnly ? "No overdue books." : "No books are out."}</Empty>}
-      </Card>
-
-      {(returned ?? []).length > 0 && (
-        <Card title="Recently returned">
-          <ul className="m-0 list-none p-0 text-[14px]">
-            {((returned ?? []) as unknown as Issue[]).map((i) => (
-              <li key={i.id} className="flex flex-wrap justify-between gap-2 border-t border-line py-2 first:border-0">
-                <span><b className="text-ink">{i.library_books?.title}</b> · {i.students ? fullName(i.students) : i.staff?.name}</span>
-                <span className="text-muted">{fmtDate(i.returned_on)}{Number(i.fine) > 0 ? ` · fine ${money(i.fine)}` : ""}</span>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
+                    )}
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </Table>
+      ) : <Empty>{q || member || from || to ? "No loan matches these filters." : state === "overdue" ? "No overdue books." : state === "out" ? "No books are out." : "Nothing here yet."}</Empty>}
+      <Pagination total={total} page={page} size={size} basePath="/app/library" params={params} />
     </div>
   );
 }

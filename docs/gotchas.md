@@ -78,3 +78,10 @@ Things that have already bitten this project. Check here before debugging someth
 
 ## Device endpoints are service-role only
 `device_scan` / `device_info` are granted to `service_role` only and checked with `is_service()`; the browser never calls them. The kiosk page and machines go through `/api/attendance/punch` with the device token.
+
+## Steps 29–33 traps (15 Oct 2026)
+- **Seed variables shadow table aliases.** `demo_scale.sql` declares `r`, `k`, `i` at the top; a subquery alias `r` or a `generate_series(...) k` inside it fails with "record r has no field" / "column k is ambiguous". Use distinct aliases (`hr`, `kk`) in new seed blocks.
+- **Scoped permissions and report functions.** `has_perm_school()` is true only for school scope; `has_perm()` is true for any scope. A report function that must also serve an "assigned" teacher uses `has_perm()` and filters rows with `_report_class_ok()`; otherwise the page passes `requirePerm` and the RPC raises.
+- **Pickers need their own lookup.** A librarian or warden has no access to the student profile, so `/api/lookup?kind=student` goes through the security-definer `student_lookup()` (each permission checked with its own scope) instead of reading `students` under RLS.
+- **Several pickers with the same `name`.** An empty `EntityPicker` still submits `name=""`; when pairing rows with a role field (discipline incident), pair by position and drop empty ids afterwards.
+- **`date`/`time` render rule.** `Date.now()` in a server page is flagged by the React purity lint; use `todayIST()` / `nowMs()` from `lib/format`.

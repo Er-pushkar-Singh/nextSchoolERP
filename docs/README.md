@@ -31,7 +31,10 @@ The top-level [`README.md`](../README.md) is the product / setup guide; these do
 | 13 | Homework & study material | [modules/homework.md](modules/homework.md) | `homework.*` | Built (step 5) |
 | 14 | Transport | [modules/transport.md](modules/transport.md) | `transport.*` | Built (step 5; GPS tracking: not yet) |
 | 15 | Staff & payroll (HR) | [modules/hr-payroll.md](modules/hr-payroll.md) | `hr.*` | Built (step 5) |
-| 16 | Library | [modules/library.md](modules/library.md) | `library.*` | Built (step 5) |
+| 16 | Library | [modules/library.md](modules/library.md) | `library.*` | Built (step 5; v2 step 30: card issue, rules, reservations, fines → day book) |
+| 27 | Health & discipline | [modules/health-discipline.md](modules/health-discipline.md) | `wellbeing.*` | Built (step 31) |
+| 28 | Hostel | [modules/hostel.md](modules/hostel.md) | `hostel.*` | Built (step 32) |
+| 29 | Reports & analysis | [modules/reports.md](modules/reports.md) | `reports.*` | Built (step 33) |
 | 17 | Help & support desk | [modules/support.md](modules/support.md) | `support.tickets` | Built |
 | 18 | UP Board registration (Class 9-12) | [modules/board-registration.md](modules/board-registration.md) | `students.board_reg` | Built (step 6; no direct portal submission) |
 | 19 | Certificates (old fixed layouts) | [modules/certificates.md](modules/certificates.md) | `students.certificates` | Built (step 7) — superseded by 20 |
@@ -42,7 +45,7 @@ The top-level [`README.md`](../README.md) is the product / setup guide; these do
 | 22 | Accounts (day book & vouchers) | [modules/accounts.md](modules/accounts.md) | `accounts.*` | Built (step 20) |
 | 21 | Template studio (visual designer, gallery, module registry) | [modules/templates.md](modules/templates.md) | `documents.templates` | Built (step 16) |
 
-Not built yet (permissions exist, no screens): Accounts, Hostel, Inventory & sales, Health & discipline, Timetable, Syllabus, and the sub-modules marked "not yet" above — see [roadmap.md](roadmap.md).
+Not built yet (permissions exist, no screens): Inventory & sales, UDISE+ file export, parent / student logins, automatic messaging, and the sub-modules marked "not yet" above — see [roadmap.md](roadmap.md).
 
 ## Each module doc has the same sections
 
@@ -64,3 +67,9 @@ Not built yet (permissions exist, no screens): Accounts, Hostel, Inventory & sal
 - Dates: write absolute dates (e.g. 12 Oct 2026), never "last week".
 
 _Last full review: 12 Oct 2026 (after step 24 — front office, academic setup, payroll v2)._
+
+## Demo data
+- `supabase/seed/demo_data.sql` — admissions, fee structure, ~40 students, receipts, staff, transport, attendance, accounts, timetable, front office (run first).
+- `supabase/seed/demo_scale.sql` — ~30 students per class (set `per_class`), dues and payments, 30 days of attendance, exams with marks, homework, notices, library issues and reservations, health records / visits / check-ups, discipline incidents and counselling notes, two hostels with boarders / roll call / outpass / mess menu, staff leave and attendance, last month's draft payroll, visitors, calls, enquiries, vouchers.
+- `supabase/seed/demo_remove.sql` — removes both (students, receipts, exams, library, health, discipline, hostels, vouchers, visitors, demo staff and draft payroll). Never run the seeds against a real school.
+- Next modules: [plans/next-modules.md](plans/next-modules.md).

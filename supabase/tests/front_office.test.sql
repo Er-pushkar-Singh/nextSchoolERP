@@ -21,7 +21,7 @@ insert into public.platform_admins (user_id, role) values ('d4d4d4d4-0000-0000-0
 do $$
 declare ow uuid := 'd4d4d4d4-0000-0000-0000-000000000001'; pr uuid := 'd4d4d4d4-0000-0000-0000-000000000002'; fd uuid := 'd4d4d4d4-0000-0000-0000-000000000003';
   te uuid := 'd4d4d4d4-0000-0000-0000-000000000004'; ot uuid := 'd4d4d4d4-0000-0000-0000-000000000005';
-  a uuid; b uuid; cls uuid; stu uuid; v1 uuid; v2 uuid; g1 uuid; g2 uuid; n int; j jsonb; c1 uuid; sfx text := substr(md5(random()::text), 1, 6); d date := public.today_ist();
+  a uuid; b uuid; cls uuid; stu uuid; v1 uuid; v2 uuid; g1 uuid; g2 uuid; n int; j jsonb; c1 uuid; tk text; stf uuid; stu2 uuid; g3 uuid; sfx text := substr(md5(random()::text), 1, 6); d date := public.today_ist();
 begin
   perform pg_temp.act_as(ow);
   a := public.create_school('FO A', 'foa-' || sfx);
@@ -84,6 +84,52 @@ begin
   exception when others then perform pg_temp.check(sqlerrm like '%reason%', 'refusing a pass needs a reason'); end;
   perform public.gate_pass_decide(g2, false, 'No guardian consent');
   perform pg_temp.check((select status = 'rejected' and decided_by_name = 'Principal' from public.gate_passes where id = g2), 'the principal can refuse a pass');
+
+  -- call follow-up statuses
+  perform pg_temp.act_as(fd);
+  insert into public.phone_calls (school_id, direction, name, purpose, follow_up_on) values (a, 'incoming', 'Mr Rao', 'fees', d) returning id into c1;
+  perform public.call_set_followup(c1, 'no_answer', d + 2, 'Phone off');
+  perform pg_temp.check((select follow_status = 'pending' and follow_up_on = d + 2 and follow_note = 'Phone off' from public.phone_calls where id = c1), 'no answer keeps the call pending with a new date');
+  begin perform public.call_set_followup(c1, 'rescheduled', null, null); perform pg_temp.check(false, 'nodate');
+  exception when others then perform pg_temp.check(sqlerrm like '%next follow-up date%', 'rescheduling needs the next date'); end;
+  perform public.call_set_followup(c1, 'dropped', null, 'Joined another school');
+  perform pg_temp.check((select follow_status = 'dropped' and followed_up_at is not null from public.phone_calls where id = c1), 'a dropped follow-up is closed');
+  perform pg_temp.check((public.frontdesk_today(a) ->> 'followups_due')::int = 0, 'closed follow-ups are not due');
+
+  -- gate pass picked up by a staff member
+  perform pg_temp.act_admin();
+  insert into public.staff (school_id, name, designation, phone) values (a, 'Meena Rao', 'Teacher', '9811100099') returning id into stf;
+  insert into public.students (school_id, admission_no, first_name, class_id) values (a, 'F2', 'Diya', cls) returning id into stu2;
+  perform pg_temp.act_as(fd);
+  g3 := public.gate_pass_request(a, stu2, 'Escorted to a match', null, null, null, stf);
+  perform pg_temp.check((select pickup_name = 'Meena Rao' and pickup_staff_id = stf and pickup_relation = 'Teacher' from public.gate_passes where id = g3), 'a staff pick-up fills the name from the staff record');
+  begin perform public.gate_pass_request(a, stu, 'x', null, null, null, gen_random_uuid()); perform pg_temp.check(false, 'nostaff');
+  exception when others then perform pg_temp.check(sqlerrm like '%working staff member%' or sqlerrm like '%already an open%', 'an unknown staff member is refused'); end;
+  perform pg_temp.check(exists (select 1 from public.staff_lookup(a, 'meen')), 'the front desk can look staff up by name');
+
+  -- visitor QR self check-in (service role only)
+  tk := public.visit_token(a);
+  perform pg_temp.check(tk ~ '^[0-9a-f]{24}$', 'the school has a private visitor QR token');
+  begin perform public.visit_token(b); perform pg_temp.check(false, 'othertoken');
+  exception when others then perform pg_temp.check(sqlerrm like '%not allowed%', 'another school cannot read our visitor token'); end;
+  begin perform public.visitor_self_checkin(tk, 'Walk In', '9811100055', 'meeting', null, null, 1, null, null); perform pg_temp.check(false, 'user qr');
+  exception when others then perform pg_temp.check(sqlerrm like '%not allowed%' or sqlerrm like '%permission denied%', 'a signed-in user cannot call the public check-in directly'); end;
+  perform pg_temp.act_admin();
+  execute 'set local role service_role';
+  perform set_config('request.jwt.claims', '{"role":"service_role"}', true);
+  j := public.visitor_self_checkin(tk, 'Walk In', '9811100055', 'meeting', 'Principal', null, 2, null, null);
+  perform pg_temp.check(j ->> 'pass_no' like 'V-%', 'a visitor checks in from the QR and gets a pass number');
+  begin perform public.visitor_self_checkin(tk, 'Walk In', '9811100055', 'meeting', null, null, 1, null, null); perform pg_temp.check(false, 'dup');
+  exception when others then perform pg_temp.check(sqlerrm like '%already checked in%', 'the same mobile cannot check in twice within 30 minutes'); end;
+  begin perform public.visitor_self_checkin(tk, 'Walk In', 'abc', 'meeting', null, null, 1, null, null); perform pg_temp.check(false, 'phone');
+  exception when others then perform pg_temp.check(sqlerrm like '%valid mobile%', 'a bad mobile number is refused'); end;
+  begin perform public.visitor_self_checkin('deadbeefdeadbeefdeadbeef', 'X', '9811100056', 'meeting', null, null, 1, null, null); perform pg_temp.check(false, 'badtok');
+  exception when others then perform pg_temp.check(sqlerrm like '%not valid%', 'an unknown QR token is refused'); end;
+  perform pg_temp.act_admin();
+  perform pg_temp.check((select source = 'qr' and out_at is null from public.visitors where phone = '9811100055' and school_id = a), 'the self check-in is recorded with source QR and inside');
+  perform pg_temp.act_as(fd);
+  perform public.visitor_update((select id from public.visitors where phone = '9811100055' and school_id = a), 'Walk In Kumar', '9811100055', 'parent', 'Class teacher', null, 1, null, null, 'Edited by desk');
+  perform pg_temp.check((select name = 'Walk In Kumar' and purpose = 'parent' from public.visitors where phone = '9811100055' and school_id = a), 'the front desk can edit a visit');
 
   -- isolation
   perform pg_temp.act_as(ot);

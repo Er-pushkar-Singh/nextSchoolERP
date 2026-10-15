@@ -29,3 +29,6 @@ Everything that says how the school's academic year is organised: which subjects
 
 ## Gaps & ideas
 Weekly lesson plans with homework link, syllabus completion shown to parents, curriculum drives the timetable's subject list and exam subjects, house system, subject groups / streams for Class 11–12, auto-roll of allocation into the next session.
+
+## Refinements (step 25)
+- Curriculum: **+ Add subject** per class (pick an existing subject or create a new one by name, with periods a week and optional flag).

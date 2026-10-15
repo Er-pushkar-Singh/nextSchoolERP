@@ -6,6 +6,7 @@ import { getClasses } from "@/lib/erp";
 import { sanitizeHtml, withPhoto } from "@/lib/html-sanitize";
 import { withQr } from "@/lib/qr";
 import { signedPhotoUrls } from "@/lib/doc-photo";
+import { getBranding, withBrand } from "@/lib/branding";
 import { issueBulk } from "../../_actions/documents";
 
 export default async function Bulk({ searchParams }: { searchParams: Promise<{ template?: string; class_id?: string; section_id?: string; ok?: string; error?: string }> }) {
@@ -29,6 +30,7 @@ export default async function Bulk({ searchParams }: { searchParams: Promise<{ t
     docs = (data ?? []) as unknown as typeof docs;
   }
   const photos = await signedPhotoUrls(school.id, docs.map((d) => d.student_id).filter(Boolean) as string[]);
+  const branding = await getBranding(supabase, school.id);
   const cw = tpl?.page_size === "card" ? `${tpl.card_width_mm ?? 86}mm` : undefined;
 
   return (
@@ -58,7 +60,7 @@ export default async function Bulk({ searchParams }: { searchParams: Promise<{ t
         <div className="flex flex-wrap gap-[4mm] print:gap-[3mm]">
           {docs.map((d) => (
             <div key={d.id} className="break-inside-avoid" style={cw ? { width: cw } : { width: "100%" }}
-              dangerouslySetInnerHTML={{ __html: withQr(withPhoto(sanitizeHtml(d.html), d.student_id ? photos.get(d.student_id) ?? null : null)) }} />
+              dangerouslySetInnerHTML={{ __html: withBrand(withQr(withPhoto(sanitizeHtml(d.html), d.student_id ? photos.get(d.student_id) ?? null : null)), branding) }} />
           ))}
         </div>
       ) : tpl ? <div className="print:hidden"><Empty>Nothing issued yet for this selection.</Empty></div> : null}

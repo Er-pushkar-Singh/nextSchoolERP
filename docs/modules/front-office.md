@@ -30,3 +30,11 @@ One desk for everything that walks, calls or arrives at the school: visitors wit
 
 ## Gaps & ideas
 Visitor photo / ID scan upload, pre-registered visitors with a QR pass, SMS to the parent on gate-pass release, convert a call or visitor to an enquiry with one click, complaint / grievance register, school-bus-late alerts from the call log.
+
+## Refinements (step 25, migration `0027_front_office_v2.sql`)
+- **Front desk page is the visitor register**: stat tiles, filters (dates, purpose, inside / left, source QR / staff, search), table with pagination, **Add visitor in a modal** (student picked by name search), edit in a modal, delete, check-out. `/app/frontdesk/visitors` redirects here.
+- **Visitor QR**: the school has a private QR (`front_office_settings.visit_token`); visitors scan it, fill name / mobile / purpose on `/visit/<token>` and get a pass number; the entry appears as **Inside** with source QR. Rate-limited (60 / hour per school), duplicate mobile within 30 minutes refused, honeypot field; the QR can be regenerated.
+- **Call log**: add / edit in a modal, delete, **follow-up status**: pending, done, no answer (call again on …), rescheduled (new date), dropped; filters for type, about, status, due.
+- **Gate pass**: student chosen by name search (this school only), "taken by" is either a **staff member searched from the staff list** or a guardian typed in.
+- **Admissions enquiries / follow-ups**: new enquiry and follow-up in modals; filters, sort and pagination; status quick-change, edit, delete (not when an application exists), reschedule / complete / delete follow-ups.
+- **Type-ahead pickers**: `/api/lookup?kind=student|staff|applicant|member` (current school only, permission-checked).

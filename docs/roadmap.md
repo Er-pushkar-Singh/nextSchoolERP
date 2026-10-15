@@ -97,3 +97,9 @@ Still open:
 - Put the project under **git** (snapshots are only `.tgz` files today).
 - Apply `setup.sql` (includes the 12 Oct 2026 security fix) to the production Supabase project, then click-test every module.
 - Dashboard widgets for step-5 modules; README screenshots / user guide for schools.
+
+## Done in step 29–33 (15 Oct 2026)
+School branding (principal's signature, seal, watermark) and the mandatory-documents checklist with marksheet / report card / result certificate / DOB / migration templates; photographs that really print; **Library v2**, **Health & discipline**, **Hostel**, and **Reports & analysis** (principal dashboard, enrolment, attendance, fees, exam analysis, UDISE strength, CSV). Apply migrations `0027` … `0035` in order on production (or re-run `setup.sql`).
+
+## Done in step 25–28
+Front desk with visitor QR, call follow-up statuses, staff / student pickers, modal forms and table features across admissions, students, documents and certificates; student row actions (move, promote, block); curriculum add-subject; timetable busy-teacher validation and manual cover; **exams v2: offline result declaration, report-card data, online examination with question bank and a secured student portal**.

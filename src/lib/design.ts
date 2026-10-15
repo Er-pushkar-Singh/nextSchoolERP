@@ -6,7 +6,7 @@
  * placeholders its data builder supplies, and (optionally) starter designs in PRESETS.
  */
 
-export type ItemType = "text" | "rect" | "ellipse" | "line" | "image" | "photo" | "logo" | "qr";
+export type ItemType = "text" | "rect" | "ellipse" | "line" | "image" | "photo" | "logo" | "qr" | "signature" | "seal";
 export type Item = {
   id: string; type: ItemType;
   x: number; y: number; w: number; h: number; rot: number;     // mm, mm, mm, mm, degrees
@@ -44,7 +44,7 @@ export function normalizeDesign(raw: unknown): Design {
   const items = (Array.isArray(d.items) ? d.items : []).slice(0, 200).flatMap((it): Item[] => {
     const o = (it && typeof it === "object" ? it : {}) as Record<string, unknown>;
     const type = o.type as ItemType;
-    if (!["text", "rect", "ellipse", "line", "image", "photo", "logo", "qr"].includes(type)) return [];
+    if (!["text", "rect", "ellipse", "line", "image", "photo", "logo", "qr", "signature", "seal"].includes(type)) return [];
     const base: Item = {
       id: typeof o.id === "string" && /^[a-z0-9_-]{1,24}$/i.test(o.id) ? o.id : `i${Math.random().toString(36).slice(2, 9)}`, type,
       x: r2(clamp(o.x, -300, 600)), y: r2(clamp(o.y, -300, 600)), w: r2(clamp(o.w, 0.5, 600, 20)), h: r2(clamp(o.h, 0.2, 600, 10)), rot: r2(clamp(o.rot, -360, 360)),
@@ -59,7 +59,7 @@ export function normalizeDesign(raw: unknown): Design {
         fill: colour(o.fill, "transparent"), radius: clamp(o.radius, 0, 100, 0) }];
     }
     if (type === "image") return [{ ...base, src: https(o.src), fit: o.fit === "contain" ? "contain" : "cover", radius: clamp(o.radius, 0, 100, 0) }];
-    if (type === "photo" || type === "logo" || type === "qr") return [{ ...base, ...(type === "qr" ? { text: o.text === "staff.qr" ? "staff.qr" : "student.qr" } : {}), radius: clamp(o.radius, 0, 100, 0), stroke: colour(o.stroke, "transparent"), sw: clamp(o.sw, 0, 5, 0) }];
+    if (type === "photo" || type === "logo" || type === "qr" || type === "signature" || type === "seal") return [{ ...base, ...(type === "qr" ? { text: o.text === "staff.qr" ? "staff.qr" : "student.qr" } : {}), radius: clamp(o.radius, 0, 100, 0), stroke: colour(o.stroke, "transparent"), sw: clamp(o.sw, 0, 5, 0) }];
     return [{ ...base, fill: colour(o.fill, type === "line" ? "transparent" : "#e5e7eb"), stroke: colour(o.stroke, type === "line" ? "#111111" : "transparent"), sw: clamp(o.sw, 0, 20, type === "line" ? 0.4 : 0),
       radius: clamp(o.radius, 0, 100, 0) }];
   });
@@ -90,7 +90,7 @@ export function compileDesign(input: unknown): string {
       return `<div style="${pos}overflow:hidden;${i.radius ? `border-radius:${i.radius}mm;` : ""}">${i.src ? `<img src="${esc(i.src)}" alt="" style="width:100%;height:100%;object-fit:${i.fit}">` : ""}</div>`;
     }
     const border = i.sw ? `border:${i.sw}mm solid ${i.stroke};` : "";
-    return `<div style="${pos}overflow:hidden;${border}${i.radius ? `border-radius:${i.radius}mm;` : ""}">${i.type === "photo" ? "{{student.photo}}" : i.type === "qr" ? (i.text === "staff.qr" ? "{{staff.qr}}" : "{{student.qr}}") : "{{school.logo}}"}</div>`;
+    return `<div style="${pos}overflow:hidden;${border}${i.radius ? `border-radius:${i.radius}mm;` : ""}">${i.type === "photo" ? "{{student.photo}}" : i.type === "signature" ? "{{school.signature}}" : i.type === "seal" ? "{{school.seal}}" : i.type === "qr" ? (i.text === "staff.qr" ? "{{staff.qr}}" : "{{student.qr}}") : "{{school.logo}}"}</div>`;
   });
   const bgi = d.bgImage ? `background-image:url('${esc(d.bgImage)}');background-size:cover;background-position:center;` : "";
   return `<div style="position:relative;width:${d.w}mm;height:${d.h}mm;background:${d.bg};${bgi}overflow:hidden;box-sizing:border-box;margin:0 auto">${parts.join("")}</div>`;
@@ -127,6 +127,12 @@ const SAMPLE: Record<string, string> = {
   "fee.dues_html": '<table style="width:100%;border-collapse:collapse;font-size:11px"><tr><td style="border:1px solid #444;padding:3px 6px">Tuition Fee · Sep 2026</td><td style="border:1px solid #444;padding:3px 6px">10/09/2026</td><td style="border:1px solid #444;padding:3px 6px;text-align:right">₹3,000.00</td></tr><tr><td style="border:1px solid #444;padding:3px 6px">Tuition Fee · Oct 2026</td><td style="border:1px solid #444;padding:3px 6px">10/10/2026</td><td style="border:1px solid #444;padding:3px 6px;text-align:right">₹3,000.00</td></tr></table>',
   "fee.receipts_html": '<table style="width:100%;border-collapse:collapse;font-size:11px"><tr><td style="border:1px solid #444;padding:3px 6px">R00101</td><td style="border:1px solid #444;padding:3px 6px">05/04/2026</td><td style="border:1px solid #444;padding:3px 6px;text-align:right">₹9,000.00</td></tr></table>',
 };
+Object.assign(SAMPLE, {
+  "exam.name": "Half Yearly Examination", "exam.session": "2026-27", "exam.class": "5", "exam.total": "412", "exam.max_total": "500", "exam.percent": "82.4%", "exam.grade": "A2",
+  "exam.rank": "3", "exam.strength": "38", "exam.result": "PASS", "exam.failed_subjects": "0", "exam.remark": "Good progress. Keep it up.", "exam.declared_on": "30/09/2026", "exam.attendance": "172 / 180 days",
+  "exam.marks_html": '<table style="width:100%;border-collapse:collapse;font-size:11px"><tr style="background:#eef1f6"><th style="border:1px solid #444;padding:4px 8px;text-align:left">Subject</th><th style="border:1px solid #444;padding:4px">Max</th><th style="border:1px solid #444;padding:4px">Pass</th><th style="border:1px solid #444;padding:4px">Marks</th><th style="border:1px solid #444;padding:4px">Grade</th></tr><tr><td style="border:1px solid #444;padding:4px 8px">English</td><td style="border:1px solid #444;text-align:center">100</td><td style="border:1px solid #444;text-align:center">33</td><td style="border:1px solid #444;text-align:center">84</td><td style="border:1px solid #444;text-align:center">A2</td></tr><tr><td style="border:1px solid #444;padding:4px 8px">Mathematics</td><td style="border:1px solid #444;text-align:center">100</td><td style="border:1px solid #444;text-align:center">33</td><td style="border:1px solid #444;text-align:center">79</td><td style="border:1px solid #444;text-align:center">B1</td></tr></table>',
+  "exam.all_html": '<table style="width:100%;border-collapse:collapse;font-size:11px"><tr><th style="border:1px solid #444;padding:4px 8px;text-align:left">Subject</th><th style="border:1px solid #444;padding:4px">Unit Test</th><th style="border:1px solid #444;padding:4px">Half Yearly</th></tr><tr><td style="border:1px solid #444;padding:4px 8px">English</td><td style="border:1px solid #444;text-align:center">21/25</td><td style="border:1px solid #444;text-align:center">84/100</td></tr></table>',
+});
 const human = (k: string) => k.split(".").pop()!.replace(/_/g, " ");
 
 /** Replaces {{placeholders}} with sample values (for the designer and the gallery thumbnails). */
@@ -134,6 +140,8 @@ export function withSample(html: string): string {
   return html.replace(/\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/g, (_, k: string) => {
     if (k === "student.photo") return `<div style="width:100%;height:100%;background:linear-gradient(135deg,#cbd5e1,#94a3b8);display:flex;align-items:flex-end;justify-content:center"><div style="width:44%;height:44%;border-radius:50%;background:#e2e8f0;margin-bottom:12%"></div></div>`;
     if (k === "student.qr" || k === "staff.qr") return `<div style="width:100%;height:100%;background:repeating-conic-gradient(#111 0 25%,#fff 0 50%) 0 0/20% 20%;border:2px solid #111;box-sizing:border-box"></div>`;
+    if (k === "school.signature") return `<div style="width:100%;height:100%;display:flex;align-items:flex-end;justify-content:center;font-family:cursive;font-size:16px;color:#1e3a8a;border-bottom:1px solid #94a3b8">Signature</div>`;
+    if (k === "school.seal") return `<div style="width:100%;height:100%;border:2px dashed #1d4ed8;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;color:#1d4ed8;font-weight:700">SEAL</div>`;
     if (k === "school.logo") return `<div style="width:100%;height:100%;border-radius:50%;background:#1d4ed8;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:10px">SPS</div>`;
     if (k.endsWith("_html")) return SAMPLE[k] ?? "";
     const v = SAMPLE[k] ?? `‹${human(k)}›`;
@@ -150,6 +158,8 @@ const R = (x: number, y: number, w: number, h: number, fill: string, o: Partial<
 const L = (x: number, y: number, w: number, o: Partial<Item> = {}): Item => ({ id: uid(), type: "line", x, y, w, h: 0.4, rot: 0, stroke: "#111111", sw: 0.4, ...o });
 const PH = (x: number, y: number, w: number, h: number, o: Partial<Item> = {}): Item => ({ id: uid(), type: "photo", x, y, w, h, rot: 0, radius: 2, stroke: "#ffffff", sw: 0.6, ...o });
 const QR = (x: number, y: number, w: number, o: Partial<Item> = {}): Item => ({ id: uid(), type: "qr", x, y, w, h: w, rot: 0, text: "student.qr", ...o });
+const SG = (x: number, y: number, w: number, h: number, o: Partial<Item> = {}): Item => ({ id: uid(), type: "signature", x, y, w, h, rot: 0, ...o });
+const SL = (x: number, y: number, w: number, h: number, o: Partial<Item> = {}): Item => ({ id: uid(), type: "seal", x, y, w, h, rot: 0, ...o });
 const LG = (x: number, y: number, w: number, h: number, o: Partial<Item> = {}): Item => ({ id: uid(), type: "logo", x, y, w, h, rot: 0, ...o });
 
 const letterhead = (w: number, brand = "#1d4ed8"): Item[] => [
@@ -163,7 +173,7 @@ export type Preset = {
   key: string; name: string; module: string; kind: string; description: string;
   category: "certificate" | "id_card" | "letter" | "fees" | "other"; audience: "student" | "staff";
   target?: string;                    // apply to the school's existing template with this code (fee templates)
-  fields?: { key: string; label: string; type: "text" | "date" | "number"; required?: boolean }[];
+  fields?: { key: string; label: string; type: "text" | "date" | "number" | "exam"; required?: boolean }[];
   build: () => Design;
 };
 
@@ -239,7 +249,7 @@ export const PRESETS: Preset[] = [
       PH(160, 54, 34, 42, { radius: 1.5, stroke: "#444444", sw: 0.3 }),
       T(14, 56, 140, 40, "Name: {{student.name}}\nClass / section: {{student.class_section}}\nRoll no.: {{student.roll_no}}\nAdmission no.: {{student.admission_no}}\nFather: {{student.father_name}}\nCentre: {{extra.centre}}", { size: 11, lh: 1.7 }),
       T(14, 112, 90, 22, "Instructions: bring this card to every paper; no electronic devices; report 20 minutes early.", { size: 8, color: "#555555" }),
-      L(140, 128, 56), T(140, 129.5, 56, 5, "Principal", { size: 8, align: "center" }),
+      SG(150, 114, 36, 13), L(140, 128, 56), T(140, 129.5, 56, 5, "Principal", { size: 8, align: "center" }),
     ] }),
   },
   {
@@ -251,7 +261,7 @@ export const PRESETS: Preset[] = [
       T(12, 36, 90, 6, "No.: {{doc.no}}", { size: 10, weight: 700 }), T(110, 36, 88, 6, "Date: {{doc.date}}", { size: 10, weight: 700, align: "right" }),
       T(12, 50, 186, 12, "BONAFIDE CERTIFICATE", { size: 20, weight: 800, align: "center", underline: true, valign: "middle" }),
       T(20, 75, 170, 70, "This is to certify that {{student.name}}, {{student.son_daughter}} of {{student.father_name}} and {{student.mother_name}}, is a bonafide student of this school, studying in Class {{student.class_section}} for the session {{doc.session}} (Admission no. {{student.admission_no}}).\n\nAccording to the school records {{student.his_her}} date of birth is {{student.dob}}.\n\nThis certificate is issued on the request of the parent{{extra.purpose}}.", { size: 13, lh: 1.9, align: "justify" }),
-      L(130, 240, 62), T(130, 242, 62, 12, "Principal\n{{school.name}}", { size: 10, align: "center", lh: 1.4 }),
+      SG(138, 222, 46, 16), SL(20, 218, 26, 26), L(130, 240, 62), T(130, 242, 62, 12, "Principal\n{{school.name}}", { size: 10, align: "center", lh: 1.4 }),
     ] }),
   },
   {
@@ -261,6 +271,85 @@ export const PRESETS: Preset[] = [
       ...letterhead(210), T(12, 36, 186, 6, "Date: {{doc.date}}", { size: 10, align: "right" }),
       T(12, 48, 186, 200, "Write the letter here…", { size: 12, lh: 1.7 }),
       L(12, 280, 186, { stroke: "#cbd5e1", sw: 0.3 }), T(12, 282, 186, 6, "{{school.name}} · {{school.phone}} · {{school.email}}", { size: 8, align: "center", color: "#64748b" }),
+    ] }),
+  },
+  {
+    key: "marksheet", name: "Marksheet (single exam)", module: "exams", kind: "marksheet", category: "certificate", audience: "student",
+    description: "A4 marksheet: photo, subject-wise marks, total, percentage, grade, rank and result. Issued after the result is declared.",
+    fields: [{ key: "exam_id", label: "Examination", type: "exam", required: true }],
+    build: () => ({ v: 1, w: 210, h: 297, bg: "#ffffff", items: [
+      R(6, 6, 198, 285, "transparent", { stroke: "#1d4ed8", sw: 0.8 }), R(8.5, 8.5, 193, 280, "transparent", { stroke: "#93c5fd", sw: 0.3 }),
+      LG(14, 14, 20, 20), T(38, 14, 120, 10, "{{school.name}}", { size: 18, weight: 800, color: "#1d4ed8", upper: true }),
+      T(38, 24, 130, 10, "{{school.address}}, {{school.city}} {{school.pincode}}\n{{school.board}} · Aff. No. {{school.affiliation_no}} · {{school.phone}}", { size: 8.5, color: "#444444", lh: 1.35 }),
+      PH(166, 14, 28, 34, { radius: 1.5, stroke: "#444444", sw: 0.3 }),
+      L(14, 52, 180, { stroke: "#1d4ed8", sw: 0.8 }),
+      T(14, 56, 180, 9, "STATEMENT OF MARKS", { size: 16, weight: 800, align: "center", ls: 30, valign: "middle" }),
+      T(14, 66, 180, 6, "{{exam.name}} · Session {{exam.session}}", { size: 11, align: "center", color: "#444444" }),
+      T(16, 78, 176, 30, "Name of student: {{student.name}}\nFather's name: {{student.father_name}}      Mother's name: {{student.mother_name}}\nClass: {{student.class_section}}      Roll no.: {{student.roll_no}}      Admission no.: {{student.admission_no}}\nDate of birth: {{student.dob}}", { size: 11, lh: 1.7 }),
+      T(16, 112, 176, 90, "{{exam.marks_html}}", { size: 11 }),
+      T(16, 206, 176, 26, "Percentage: {{exam.percent}}      Grade: {{exam.grade}}      Rank: {{exam.rank}} of {{exam.strength}}\nResult: {{exam.result}}      Attendance: {{exam.attendance}}\nRemark: {{exam.remark}}", { size: 11.5, weight: 700, lh: 1.8 }),
+      T(16, 246, 70, 6, "Date: {{exam.declared_on}}", { size: 10 }), T(16, 252, 70, 6, "Document no.: {{doc.no}}", { size: 9, color: "#555555" }),
+      L(20, 276, 44), T(20, 277.5, 44, 5, "Class teacher", { size: 8.5, align: "center" }),
+      SL(84, 256, 26, 26), SG(138, 258, 52, 16), L(138, 276, 52), T(138, 277.5, 52, 10, "Principal\n{{school.principal_name}}", { size: 8.5, align: "center", lh: 1.35 }),
+    ] }),
+  },
+  {
+    key: "report_card_design", name: "Report card (whole session)", module: "exams", kind: "report_card", category: "certificate", audience: "student",
+    description: "A4 report card with every exam of the session side by side, rank, result, attendance and remark.",
+    fields: [{ key: "exam_id", label: "Report up to this examination", type: "exam", required: true }],
+    build: () => ({ v: 1, w: 210, h: 297, bg: "#ffffff", items: [
+      R(6, 6, 198, 285, "transparent", { stroke: "#0f766e", sw: 0.8 }),
+      LG(14, 14, 20, 20), T(38, 14, 120, 10, "{{school.name}}", { size: 18, weight: 800, color: "#0f766e", upper: true }),
+      T(38, 24, 130, 10, "{{school.address}}, {{school.city}} {{school.pincode}}\n{{school.board}} · Aff. No. {{school.affiliation_no}}", { size: 8.5, color: "#444444", lh: 1.35 }),
+      PH(166, 14, 28, 34, { radius: 1.5, stroke: "#444444", sw: 0.3 }),
+      L(14, 52, 180, { stroke: "#0f766e", sw: 0.8 }),
+      T(14, 56, 180, 9, "PROGRESS REPORT CARD", { size: 16, weight: 800, align: "center", ls: 30, valign: "middle" }),
+      T(14, 66, 180, 6, "Academic session {{exam.session}}", { size: 11, align: "center", color: "#444444" }),
+      T(16, 78, 176, 30, "Name: {{student.name}}      Class: {{student.class_section}}      Roll no.: {{student.roll_no}}\nFather: {{student.father_name}}      Mother: {{student.mother_name}}\nAdmission no.: {{student.admission_no}}      Date of birth: {{student.dob}}", { size: 11, lh: 1.7 }),
+      T(16, 112, 176, 80, "{{exam.all_html}}", { size: 11 }),
+      T(16, 198, 176, 30, "Total ({{exam.name}}): {{exam.total}} / {{exam.max_total}}      Percentage: {{exam.percent}}      Grade: {{exam.grade}}\nRank: {{exam.rank}} of {{exam.strength}}      Result: {{exam.result}}\nAttendance: {{exam.attendance}}", { size: 11.5, weight: 700, lh: 1.8 }),
+      T(16, 232, 176, 16, "Class teacher's remark: {{exam.remark}}", { size: 11, lh: 1.5 }),
+      L(20, 276, 44), T(20, 277.5, 44, 5, "Class teacher", { size: 8.5, align: "center" }),
+      L(84, 276, 44), T(84, 277.5, 44, 5, "Parent", { size: 8.5, align: "center" }),
+      SL(84, 256, 26, 26), SG(138, 258, 52, 16), L(138, 276, 52), T(138, 277.5, 52, 10, "Principal\n{{school.principal_name}}", { size: 8.5, align: "center", lh: 1.35 }),
+    ] }),
+  },
+  {
+    key: "result_certificate", name: "Result / pass certificate", module: "exams", kind: "result_certificate", category: "certificate", audience: "student",
+    description: "A4 certificate stating that the student passed the examination, with percentage, grade and rank.",
+    fields: [{ key: "exam_id", label: "Examination", type: "exam", required: true }],
+    build: () => ({ v: 1, w: 297, h: 210, bg: "#fffdf5", items: [
+      R(8, 8, 281, 194, "transparent", { stroke: "#b45309", sw: 1.4 }), R(11, 11, 275, 188, "transparent", { stroke: "#d97706", sw: 0.4 }),
+      LG(130, 16, 36, 36), T(20, 54, 257, 12, "{{school.name}}", { size: 24, weight: 800, align: "center", color: "#92400e", upper: true }),
+      T(20, 66, 257, 6, "{{school.address}}, {{school.city}} · {{school.board}} Aff. No. {{school.affiliation_no}}", { size: 10, align: "center", color: "#555555" }),
+      T(20, 80, 257, 14, "CERTIFICATE OF MERIT", { size: 26, weight: 800, align: "center", ls: 30, color: "#b45309", valign: "middle" }),
+      T(30, 100, 237, 50, "This is to certify that {{student.name}}, {{student.son_daughter}} of {{student.father_name}}, a student of Class {{student.class_section}} (Admission no. {{student.admission_no}}), has successfully passed the {{exam.name}} of the session {{exam.session}} securing {{exam.total}} out of {{exam.max_total}} marks ({{exam.percent}}) with grade {{exam.grade}} and rank {{exam.rank}} in the class.\n\nResult: {{exam.result}}", { size: 14, lh: 1.9, align: "center" }),
+      T(24, 166, 80, 6, "Date: {{exam.declared_on}}", { size: 10.5 }), T(24, 173, 80, 6, "No.: {{doc.no}}", { size: 9, color: "#666666" }),
+      SL(132, 158, 32, 32), SG(205, 156, 62, 18), L(205, 176, 62), T(205, 178, 62, 10, "Principal\n{{school.principal_name}}", { size: 10, align: "center", lh: 1.4 }),
+    ] }),
+  },
+  {
+    key: "dob_certificate", name: "Date-of-birth certificate", module: "students", kind: "certificate", category: "certificate", audience: "student",
+    description: "A4 certificate of the date of birth as recorded in the school register.",
+    build: () => ({ v: 1, w: 210, h: 297, bg: "#ffffff", items: [
+      ...letterhead(210),
+      T(12, 36, 90, 6, "No.: {{doc.no}}", { size: 10, weight: 700 }), T(110, 36, 88, 6, "Date: {{doc.date}}", { size: 10, weight: 700, align: "right" }),
+      T(12, 50, 186, 12, "DATE OF BIRTH CERTIFICATE", { size: 20, weight: 800, align: "center", underline: true, valign: "middle" }),
+      PH(160, 66, 32, 40, { radius: 1.5, stroke: "#444444", sw: 0.3 }),
+      T(20, 75, 135, 80, "This is to certify that, according to the admission register of this school, the date of birth of {{student.name}}, {{student.son_daughter}} of {{student.father_name}} and {{student.mother_name}}, is\n\n{{student.dob}}  ({{student.dob_words}}).\n\n{{student.he_she}} is a student of Class {{student.class_section}} (Admission no. {{student.admission_no}}).", { size: 13, lh: 1.9, align: "justify" }),
+      SG(138, 222, 46, 16), SL(20, 218, 26, 26), L(130, 240, 62), T(130, 242, 62, 12, "Principal\n{{school.name}}", { size: 10, align: "center", lh: 1.4 }),
+    ] }),
+  },
+  {
+    key: "migration_certificate", name: "Migration certificate", module: "students", kind: "certificate", category: "certificate", audience: "student",
+    description: "A4 migration certificate for a student moving to another board or institution.",
+    fields: [{ key: "reason", label: "Reason / institution moving to", type: "text" }, { key: "last_exam", label: "Last examination passed", type: "text" }],
+    build: () => ({ v: 1, w: 210, h: 297, bg: "#ffffff", items: [
+      ...letterhead(210),
+      T(12, 36, 90, 6, "No.: {{doc.no}}", { size: 10, weight: 700 }), T(110, 36, 88, 6, "Date: {{doc.date}}", { size: 10, weight: 700, align: "right" }),
+      T(12, 50, 186, 12, "MIGRATION CERTIFICATE", { size: 20, weight: 800, align: "center", underline: true, valign: "middle" }),
+      T(20, 75, 170, 90, "This is to certify that {{student.name}}, {{student.son_daughter}} of {{student.father_name}}, bearing Admission no. {{student.admission_no}}, was a student of this school and last studied in Class {{student.class_section}}. {{student.he_she}} passed {{extra.last_exam}} and has been granted migration for {{extra.reason}}.\n\nThe school has no objection to {{student.his_her}} admission elsewhere.", { size: 13, lh: 1.9, align: "justify" }),
+      SG(138, 222, 46, 16), SL(20, 218, 26, 26), L(130, 240, 62), T(130, 242, 62, 12, "Principal\n{{school.name}}", { size: 10, align: "center", lh: 1.4 }),
     ] }),
   },
   {
@@ -313,7 +402,7 @@ export type TemplateKind = { key: string; name: string; ready: boolean; note?: s
 export const TEMPLATE_MODULES: { module: string; name: string; icon: string; kinds: TemplateKind[] }[] = [
   { module: "students", name: "Students", icon: "students", kinds: [
     { key: "id_card", name: "ID card", ready: true, presets: ["id_student_portrait", "id_student_landscape"] },
-    { key: "certificate", name: "Certificates (bonafide, character, TC…)", ready: true, presets: ["bonafide"] },
+    { key: "certificate", name: "Certificates (bonafide, DOB, migration…)", ready: true, presets: ["bonafide", "dob_certificate", "migration_certificate"] },
     { key: "letter", name: "Letters & notices", ready: true, presets: ["letterhead"] },
   ] },
   { module: "staff", name: "Staff & HR", icon: "hr", kinds: [
@@ -328,7 +417,9 @@ export const TEMPLATE_MODULES: { module: string; name: string; icon: string; kin
   ] },
   { module: "exams", name: "Exams", icon: "exams", kinds: [
     { key: "admit_card", name: "Admit card", ready: true, presets: ["admit_card"] },
-    { key: "report_card", name: "Report card layout", ready: false, presets: [], note: "Planned — report cards are generated by the results module today." },
+    { key: "marksheet", name: "Marksheet (single exam)", ready: true, presets: ["marksheet"] },
+    { key: "report_card", name: "Report card (whole session)", ready: true, presets: ["report_card_design"] },
+    { key: "result_certificate", name: "Result / pass certificate", ready: true, presets: ["result_certificate"] },
   ] },
   { module: "library", name: "Library", icon: "library", kinds: [
     { key: "library_card", name: "Library member card", ready: true, presets: ["library_card"] },

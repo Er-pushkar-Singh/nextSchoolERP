@@ -16,10 +16,30 @@ begin
   -- students created by "Admit" from demo applications, then the seeded ones
   -- receipts first: they are not removed automatically with a student
   delete from public.fee_receipts where school_id = sid and student_id in (
-    select id from public.students where school_id = sid and (admission_no like 'DEMO-%' or application_id in (select id from public.admission_applications where school_id = sid and form ? 'demo')));
-  delete from public.students where school_id = sid and (admission_no like 'DEMO-%' or application_id in (select id from public.admission_applications where school_id = sid and form ? 'demo'));
+    select id from public.students where school_id = sid and ((admission_no like 'DEMO-%' or admission_no like 'SCALE-%') or application_id in (select id from public.admission_applications where school_id = sid and form ? 'demo')));
+  delete from public.students where school_id = sid and ((admission_no like 'DEMO-%' or admission_no like 'SCALE-%') or application_id in (select id from public.admission_applications where school_id = sid and form ? 'demo'));
   delete from public.admission_applications where school_id = sid and form ? 'demo';
   delete from public.enquiries where school_id = sid and notes like 'DEMO%';
+  -- demo payroll (draft months only), then the demo staff
+  delete from public.payslips p using public.payroll_runs r
+   where p.run_id = r.id and r.school_id = sid and r.status = 'draft' and p.staff_id in (select id from public.staff where school_id = sid and emp_code like 'DEMO-E%');
+  delete from public.payroll_runs r where r.school_id = sid and r.status = 'draft' and not exists (select 1 from public.payslips p where p.run_id = r.id);
+  delete from public.discipline_incidents where school_id = sid and reported_by_name = 'DEMO';
+  delete from public.counselling_notes where school_id = sid and by_name = 'DEMO';
+  delete from public.health_visits where school_id = sid and attended_by_name = 'DEMO';
+  delete from public.health_checkups where school_id = sid and by_name = 'DEMO';
+  delete from public.hostel_visitors where school_id = sid and by_name = 'DEMO';
+  delete from public.hostels h where h.school_id = sid and h.name like 'DEMO %'
+     and not exists (select 1 from public.hostel_rooms r join public.hostel_allocations a on a.room_id = r.id where r.hostel_id = h.id);
+  delete from public.library_issues where school_id = sid and issued_by_name = 'DEMO';
+  delete from public.library_books where school_id = sid and accession_no like 'DEMO-B%';
+  delete from public.online_exams where school_id = sid and created_by_name = 'DEMO';
+  delete from public.question_bank where school_id = sid and created_by_name = 'DEMO';
+  delete from public.exams where school_id = sid and name like '%[demo]';
+  delete from public.homework where school_id = sid and created_by_name = 'DEMO';
+  delete from public.notices where school_id = sid and title like '[Demo]%';
+  delete from public.vouchers where school_id = sid and (no like 'PV-S%' or no like '__-D____');
+  delete from public.visitors where school_id = sid and pass_no like 'V-S-%';
   delete from public.staff where school_id = sid and emp_code like 'DEMO-E%';
   delete from public.transport_routes where school_id = sid and name like 'DEMO Route%';
   delete from public.attendance_devices where school_id = sid and name like 'DEMO %';

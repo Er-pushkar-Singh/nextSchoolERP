@@ -1,4 +1,4 @@
--- School ERP: full database setup (migrations 0001–0026 combined).
+-- School ERP: full database setup (migrations 0001–0035 combined).
 -- Paste into Supabase SQL Editor and Run. Safe to run again; existing data and members are kept.
 -- Works in its own Supabase project or next to the CodersDuniya website/CRM tables (no name clashes).
 
@@ -730,15 +730,18 @@ insert into public.erp_submodules (code, module_code, name, built, sort) values
   ('transport.tracking', 'transport', 'GPS tracking', true, 2),
   ('library.catalogue', 'library', 'Book catalogue', true, 0),
   ('library.circulation', 'library', 'Issue & return', true, 1),
-  ('hostel.rooms', 'hostel', 'Rooms & beds', false, 0),
-  ('hostel.allocation', 'hostel', 'Resident allocation', false, 1),
+  ('hostel.rooms', 'hostel', 'Hostels, rooms & beds', true, 0),
+  ('hostel.allocation', 'hostel', 'Bed allocation & hostel fee', true, 1),
+  ('hostel.rollcall', 'hostel', 'Night roll call & outpass', true, 2),
+  ('hostel.mess', 'hostel', 'Mess menu & visitors', true, 3),
   ('inventory.items', 'inventory', 'Items & stock', false, 0),
   ('inventory.sales', 'inventory', 'Uniform & book sales', false, 1),
-  ('wellbeing.medical', 'wellbeing', 'Medical records', false, 0),
-  ('wellbeing.discipline', 'wellbeing', 'Incidents & counselling', false, 1),
+  ('wellbeing.medical', 'wellbeing', 'Health records & medical room', true, 0),
+  ('wellbeing.discipline', 'wellbeing', 'Discipline & counselling', true, 1),
   ('reports.fees', 'reports', 'Fee reports', true, 0),
   ('reports.academic', 'reports', 'Academic reports', true, 1),
   ('reports.udise', 'reports', 'UDISE+ export', false, 2),
+  ('reports.overview', 'reports', 'Principal dashboard & analytics', true, 3),
   ('settings.school', 'settings', 'School profile & numbering', true, 0),
   ('settings.billing', 'settings', 'Subscription & billing', true, 1),
   ('settings.users', 'settings', 'Staff logins', true, 2),
@@ -946,6 +949,13 @@ insert into public.erp_permissions (key, submodule_code, module_code, action) va
   ('hostel.allocation.create', 'hostel.allocation', 'hostel', 'create'),
   ('hostel.allocation.edit', 'hostel.allocation', 'hostel', 'edit'),
   ('hostel.allocation.delete', 'hostel.allocation', 'hostel', 'delete'),
+  ('hostel.rollcall.view', 'hostel.rollcall', 'hostel', 'view'),
+  ('hostel.rollcall.create', 'hostel.rollcall', 'hostel', 'create'),
+  ('hostel.rollcall.edit', 'hostel.rollcall', 'hostel', 'edit'),
+  ('hostel.rollcall.approve', 'hostel.rollcall', 'hostel', 'approve'),
+  ('hostel.mess.view', 'hostel.mess', 'hostel', 'view'),
+  ('hostel.mess.create', 'hostel.mess', 'hostel', 'create'),
+  ('hostel.mess.edit', 'hostel.mess', 'hostel', 'edit'),
   ('inventory.items.view', 'inventory.items', 'inventory', 'view'),
   ('inventory.items.create', 'inventory.items', 'inventory', 'create'),
   ('inventory.items.edit', 'inventory.items', 'inventory', 'edit'),
@@ -956,14 +966,19 @@ insert into public.erp_permissions (key, submodule_code, module_code, action) va
   ('wellbeing.medical.view', 'wellbeing.medical', 'wellbeing', 'view'),
   ('wellbeing.medical.create', 'wellbeing.medical', 'wellbeing', 'create'),
   ('wellbeing.medical.edit', 'wellbeing.medical', 'wellbeing', 'edit'),
+  ('wellbeing.medical.delete', 'wellbeing.medical', 'wellbeing', 'delete'),
   ('wellbeing.discipline.view', 'wellbeing.discipline', 'wellbeing', 'view'),
   ('wellbeing.discipline.create', 'wellbeing.discipline', 'wellbeing', 'create'),
   ('wellbeing.discipline.edit', 'wellbeing.discipline', 'wellbeing', 'edit'),
+  ('wellbeing.discipline.delete', 'wellbeing.discipline', 'wellbeing', 'delete'),
+  ('wellbeing.discipline.approve', 'wellbeing.discipline', 'wellbeing', 'approve'),
   ('reports.fees.view', 'reports.fees', 'reports', 'view'),
   ('reports.fees.export', 'reports.fees', 'reports', 'export'),
   ('reports.academic.view', 'reports.academic', 'reports', 'view'),
   ('reports.academic.export', 'reports.academic', 'reports', 'export'),
   ('reports.udise.export', 'reports.udise', 'reports', 'export'),
+  ('reports.overview.view', 'reports.overview', 'reports', 'view'),
+  ('reports.overview.export', 'reports.overview', 'reports', 'export'),
   ('settings.school.view', 'settings.school', 'settings', 'view'),
   ('settings.school.edit', 'settings.school', 'settings', 'edit'),
   ('settings.billing.view', 'settings.billing', 'settings', 'view'),
@@ -984,8 +999,8 @@ insert into public.erp_permissions (key, submodule_code, module_code, action) va
   ('support.tickets.view', 'support.tickets', 'support', 'view'),
   ('support.tickets.create', 'support.tickets', 'support', 'create')
 on conflict (key) do nothing;
-delete from public.erp_permissions where key not in ('dashboard.overview.view', 'frontdesk.enquiries.view', 'frontdesk.enquiries.create', 'frontdesk.enquiries.edit', 'frontdesk.enquiries.delete', 'frontdesk.enquiries.export', 'frontdesk.admissions.view', 'frontdesk.admissions.create', 'frontdesk.admissions.edit', 'frontdesk.admissions.approve', 'frontdesk.admissions.export', 'frontdesk.online_form.view', 'frontdesk.online_form.edit', 'frontdesk.visitors.view', 'frontdesk.visitors.create', 'frontdesk.visitors.edit', 'frontdesk.visitors.delete', 'students.profile.view', 'students.profile.create', 'students.profile.edit', 'students.profile.delete', 'students.profile.export', 'students.profile.print', 'students.profile.block', 'students.sensitive.view', 'students.sensitive.edit', 'students.import.create', 'students.promotion.view', 'students.promotion.create', 'students.certificates.view', 'students.certificates.create', 'students.certificates.print', 'students.certificates.approve', 'students.parent_link.view', 'students.parent_link.edit', 'students.documents.view', 'students.documents.create', 'students.documents.edit', 'students.documents.delete', 'students.documents.approve', 'students.board_reg.view', 'students.board_reg.create', 'students.board_reg.edit', 'students.board_reg.approve', 'students.board_reg.export', 'documents.templates.view', 'documents.templates.create', 'documents.templates.edit', 'documents.templates.delete', 'documents.issue.view', 'documents.issue.create', 'documents.issue.print', 'documents.issue.approve', 'documents.issue.export', 'academics.setup.view', 'academics.setup.create', 'academics.setup.edit', 'academics.setup.delete', 'academics.allocation.view', 'academics.allocation.create', 'academics.allocation.edit', 'academics.allocation.delete', 'academics.timetable.view', 'academics.timetable.create', 'academics.timetable.edit', 'academics.timetable.delete', 'academics.timetable.print', 'academics.syllabus.view', 'academics.syllabus.create', 'academics.syllabus.edit', 'academics.syllabus.delete', 'academics.syllabus.approve', 'homework.homework.view', 'homework.homework.create', 'homework.homework.edit', 'homework.homework.delete', 'homework.material.view', 'homework.material.create', 'homework.material.edit', 'homework.material.delete', 'attendance.students.view', 'attendance.students.create', 'attendance.students.edit', 'attendance.students.export', 'attendance.students.print', 'attendance.leave.view', 'attendance.leave.create', 'attendance.leave.approve', 'attendance.staff.view', 'attendance.staff.create', 'attendance.staff.edit', 'attendance.staff.export', 'exams.setup.view', 'exams.setup.create', 'exams.setup.edit', 'exams.setup.delete', 'exams.marks.view', 'exams.marks.create', 'exams.marks.edit', 'exams.marks.approve', 'exams.results.view', 'exams.results.print', 'exams.results.publish', 'exams.admit_cards.view', 'exams.admit_cards.create', 'exams.admit_cards.print', 'fees.structure.view', 'fees.structure.create', 'fees.structure.edit', 'fees.structure.delete', 'fees.dues.view', 'fees.dues.create', 'fees.collection.view', 'fees.collection.create', 'fees.collection.print', 'fees.collection.export', 'fees.receipts.view', 'fees.receipts.print', 'fees.receipts.export', 'fees.receipts.approve', 'fees.concessions.view', 'fees.concessions.create', 'fees.concessions.delete', 'fees.concessions.approve', 'fees.defaulters.view', 'fees.defaulters.create', 'fees.defaulters.export', 'fees.online.view', 'fees.online.create', 'fees.refunds.view', 'fees.refunds.create', 'fees.refunds.approve', 'accounts.vouchers.view', 'accounts.vouchers.create', 'accounts.vouchers.edit', 'accounts.vouchers.delete', 'accounts.vouchers.approve', 'accounts.vouchers.export', 'accounts.books.view', 'accounts.books.export', 'accounts.books.print', 'hr.staff.view', 'hr.staff.create', 'hr.staff.edit', 'hr.staff.delete', 'hr.staff.export', 'hr.staff.block', 'hr.leave.view', 'hr.leave.create', 'hr.leave.approve', 'hr.payroll.view', 'hr.payroll.create', 'hr.payroll.edit', 'hr.payroll.approve', 'hr.payroll.export', 'hr.payroll.print', 'comms.notices.view', 'comms.notices.create', 'comms.notices.edit', 'comms.notices.delete', 'comms.notices.publish', 'comms.broadcast.create', 'comms.templates.view', 'comms.templates.create', 'comms.templates.edit', 'comms.templates.delete', 'comms.calendar.view', 'comms.calendar.create', 'comms.calendar.edit', 'comms.calendar.delete', 'comms.messages.view', 'comms.messages.create', 'transport.routes.view', 'transport.routes.create', 'transport.routes.edit', 'transport.routes.delete', 'transport.allocation.view', 'transport.allocation.create', 'transport.allocation.edit', 'transport.allocation.delete', 'transport.tracking.view', 'library.catalogue.view', 'library.catalogue.create', 'library.catalogue.edit', 'library.catalogue.delete', 'library.circulation.view', 'library.circulation.create', 'library.circulation.edit', 'hostel.rooms.view', 'hostel.rooms.create', 'hostel.rooms.edit', 'hostel.rooms.delete', 'hostel.allocation.view', 'hostel.allocation.create', 'hostel.allocation.edit', 'hostel.allocation.delete', 'inventory.items.view', 'inventory.items.create', 'inventory.items.edit', 'inventory.items.delete', 'inventory.sales.view', 'inventory.sales.create', 'inventory.sales.print', 'wellbeing.medical.view', 'wellbeing.medical.create', 'wellbeing.medical.edit', 'wellbeing.discipline.view', 'wellbeing.discipline.create', 'wellbeing.discipline.edit', 'reports.fees.view', 'reports.fees.export', 'reports.academic.view', 'reports.academic.export', 'reports.udise.export', 'settings.school.view', 'settings.school.edit', 'settings.billing.view', 'settings.billing.create', 'settings.users.view', 'settings.users.create', 'settings.users.edit', 'settings.users.delete', 'settings.roles.view', 'settings.roles.create', 'settings.roles.edit', 'settings.roles.delete', 'settings.integrations.view', 'settings.integrations.edit', 'settings.backups.view', 'settings.backups.create', 'settings.audit.view', 'support.tickets.view', 'support.tickets.create');
-delete from public.erp_submodules where code not in ('dashboard.overview', 'frontdesk.enquiries', 'frontdesk.admissions', 'frontdesk.online_form', 'frontdesk.visitors', 'students.profile', 'students.sensitive', 'students.import', 'students.promotion', 'students.certificates', 'students.parent_link', 'students.documents', 'students.board_reg', 'documents.templates', 'documents.issue', 'academics.setup', 'academics.allocation', 'academics.timetable', 'academics.syllabus', 'homework.homework', 'homework.material', 'attendance.students', 'attendance.leave', 'attendance.staff', 'exams.setup', 'exams.marks', 'exams.results', 'exams.admit_cards', 'fees.structure', 'fees.dues', 'fees.collection', 'fees.receipts', 'fees.concessions', 'fees.defaulters', 'fees.online', 'fees.refunds', 'accounts.vouchers', 'accounts.books', 'hr.staff', 'hr.leave', 'hr.payroll', 'comms.notices', 'comms.broadcast', 'comms.templates', 'comms.calendar', 'comms.messages', 'transport.routes', 'transport.allocation', 'transport.tracking', 'library.catalogue', 'library.circulation', 'hostel.rooms', 'hostel.allocation', 'inventory.items', 'inventory.sales', 'wellbeing.medical', 'wellbeing.discipline', 'reports.fees', 'reports.academic', 'reports.udise', 'settings.school', 'settings.billing', 'settings.users', 'settings.roles', 'settings.integrations', 'settings.backups', 'settings.audit', 'support.tickets');
+delete from public.erp_permissions where key not in ('dashboard.overview.view', 'frontdesk.enquiries.view', 'frontdesk.enquiries.create', 'frontdesk.enquiries.edit', 'frontdesk.enquiries.delete', 'frontdesk.enquiries.export', 'frontdesk.admissions.view', 'frontdesk.admissions.create', 'frontdesk.admissions.edit', 'frontdesk.admissions.approve', 'frontdesk.admissions.export', 'frontdesk.online_form.view', 'frontdesk.online_form.edit', 'frontdesk.visitors.view', 'frontdesk.visitors.create', 'frontdesk.visitors.edit', 'frontdesk.visitors.delete', 'students.profile.view', 'students.profile.create', 'students.profile.edit', 'students.profile.delete', 'students.profile.export', 'students.profile.print', 'students.profile.block', 'students.sensitive.view', 'students.sensitive.edit', 'students.import.create', 'students.promotion.view', 'students.promotion.create', 'students.certificates.view', 'students.certificates.create', 'students.certificates.print', 'students.certificates.approve', 'students.parent_link.view', 'students.parent_link.edit', 'students.documents.view', 'students.documents.create', 'students.documents.edit', 'students.documents.delete', 'students.documents.approve', 'students.board_reg.view', 'students.board_reg.create', 'students.board_reg.edit', 'students.board_reg.approve', 'students.board_reg.export', 'documents.templates.view', 'documents.templates.create', 'documents.templates.edit', 'documents.templates.delete', 'documents.issue.view', 'documents.issue.create', 'documents.issue.print', 'documents.issue.approve', 'documents.issue.export', 'academics.setup.view', 'academics.setup.create', 'academics.setup.edit', 'academics.setup.delete', 'academics.allocation.view', 'academics.allocation.create', 'academics.allocation.edit', 'academics.allocation.delete', 'academics.timetable.view', 'academics.timetable.create', 'academics.timetable.edit', 'academics.timetable.delete', 'academics.timetable.print', 'academics.syllabus.view', 'academics.syllabus.create', 'academics.syllabus.edit', 'academics.syllabus.delete', 'academics.syllabus.approve', 'homework.homework.view', 'homework.homework.create', 'homework.homework.edit', 'homework.homework.delete', 'homework.material.view', 'homework.material.create', 'homework.material.edit', 'homework.material.delete', 'attendance.students.view', 'attendance.students.create', 'attendance.students.edit', 'attendance.students.export', 'attendance.students.print', 'attendance.leave.view', 'attendance.leave.create', 'attendance.leave.approve', 'attendance.staff.view', 'attendance.staff.create', 'attendance.staff.edit', 'attendance.staff.export', 'exams.setup.view', 'exams.setup.create', 'exams.setup.edit', 'exams.setup.delete', 'exams.marks.view', 'exams.marks.create', 'exams.marks.edit', 'exams.marks.approve', 'exams.results.view', 'exams.results.print', 'exams.results.publish', 'exams.admit_cards.view', 'exams.admit_cards.create', 'exams.admit_cards.print', 'fees.structure.view', 'fees.structure.create', 'fees.structure.edit', 'fees.structure.delete', 'fees.dues.view', 'fees.dues.create', 'fees.collection.view', 'fees.collection.create', 'fees.collection.print', 'fees.collection.export', 'fees.receipts.view', 'fees.receipts.print', 'fees.receipts.export', 'fees.receipts.approve', 'fees.concessions.view', 'fees.concessions.create', 'fees.concessions.delete', 'fees.concessions.approve', 'fees.defaulters.view', 'fees.defaulters.create', 'fees.defaulters.export', 'fees.online.view', 'fees.online.create', 'fees.refunds.view', 'fees.refunds.create', 'fees.refunds.approve', 'accounts.vouchers.view', 'accounts.vouchers.create', 'accounts.vouchers.edit', 'accounts.vouchers.delete', 'accounts.vouchers.approve', 'accounts.vouchers.export', 'accounts.books.view', 'accounts.books.export', 'accounts.books.print', 'hr.staff.view', 'hr.staff.create', 'hr.staff.edit', 'hr.staff.delete', 'hr.staff.export', 'hr.staff.block', 'hr.leave.view', 'hr.leave.create', 'hr.leave.approve', 'hr.payroll.view', 'hr.payroll.create', 'hr.payroll.edit', 'hr.payroll.approve', 'hr.payroll.export', 'hr.payroll.print', 'comms.notices.view', 'comms.notices.create', 'comms.notices.edit', 'comms.notices.delete', 'comms.notices.publish', 'comms.broadcast.create', 'comms.templates.view', 'comms.templates.create', 'comms.templates.edit', 'comms.templates.delete', 'comms.calendar.view', 'comms.calendar.create', 'comms.calendar.edit', 'comms.calendar.delete', 'comms.messages.view', 'comms.messages.create', 'transport.routes.view', 'transport.routes.create', 'transport.routes.edit', 'transport.routes.delete', 'transport.allocation.view', 'transport.allocation.create', 'transport.allocation.edit', 'transport.allocation.delete', 'transport.tracking.view', 'library.catalogue.view', 'library.catalogue.create', 'library.catalogue.edit', 'library.catalogue.delete', 'library.circulation.view', 'library.circulation.create', 'library.circulation.edit', 'hostel.rooms.view', 'hostel.rooms.create', 'hostel.rooms.edit', 'hostel.rooms.delete', 'hostel.allocation.view', 'hostel.allocation.create', 'hostel.allocation.edit', 'hostel.allocation.delete', 'hostel.rollcall.view', 'hostel.rollcall.create', 'hostel.rollcall.edit', 'hostel.rollcall.approve', 'hostel.mess.view', 'hostel.mess.create', 'hostel.mess.edit', 'inventory.items.view', 'inventory.items.create', 'inventory.items.edit', 'inventory.items.delete', 'inventory.sales.view', 'inventory.sales.create', 'inventory.sales.print', 'wellbeing.medical.view', 'wellbeing.medical.create', 'wellbeing.medical.edit', 'wellbeing.medical.delete', 'wellbeing.discipline.view', 'wellbeing.discipline.create', 'wellbeing.discipline.edit', 'wellbeing.discipline.delete', 'wellbeing.discipline.approve', 'reports.fees.view', 'reports.fees.export', 'reports.academic.view', 'reports.academic.export', 'reports.udise.export', 'reports.overview.view', 'reports.overview.export', 'settings.school.view', 'settings.school.edit', 'settings.billing.view', 'settings.billing.create', 'settings.users.view', 'settings.users.create', 'settings.users.edit', 'settings.users.delete', 'settings.roles.view', 'settings.roles.create', 'settings.roles.edit', 'settings.roles.delete', 'settings.integrations.view', 'settings.integrations.edit', 'settings.backups.view', 'settings.backups.create', 'settings.audit.view', 'support.tickets.view', 'support.tickets.create');
+delete from public.erp_submodules where code not in ('dashboard.overview', 'frontdesk.enquiries', 'frontdesk.admissions', 'frontdesk.online_form', 'frontdesk.visitors', 'students.profile', 'students.sensitive', 'students.import', 'students.promotion', 'students.certificates', 'students.parent_link', 'students.documents', 'students.board_reg', 'documents.templates', 'documents.issue', 'academics.setup', 'academics.allocation', 'academics.timetable', 'academics.syllabus', 'homework.homework', 'homework.material', 'attendance.students', 'attendance.leave', 'attendance.staff', 'exams.setup', 'exams.marks', 'exams.results', 'exams.admit_cards', 'fees.structure', 'fees.dues', 'fees.collection', 'fees.receipts', 'fees.concessions', 'fees.defaulters', 'fees.online', 'fees.refunds', 'accounts.vouchers', 'accounts.books', 'hr.staff', 'hr.leave', 'hr.payroll', 'comms.notices', 'comms.broadcast', 'comms.templates', 'comms.calendar', 'comms.messages', 'transport.routes', 'transport.allocation', 'transport.tracking', 'library.catalogue', 'library.circulation', 'hostel.rooms', 'hostel.allocation', 'hostel.rollcall', 'hostel.mess', 'inventory.items', 'inventory.sales', 'wellbeing.medical', 'wellbeing.discipline', 'reports.fees', 'reports.academic', 'reports.udise', 'reports.overview', 'settings.school', 'settings.billing', 'settings.users', 'settings.roles', 'settings.integrations', 'settings.backups', 'settings.audit', 'support.tickets');
 
 insert into public.role_templates (code, name, kind, description, locked, sort) values
   ('principal', 'Principal / School Admin', 'staff', 'Every permission in this school.', true, 0),
@@ -1200,6 +1215,13 @@ insert into public.role_template_permissions (template_code, perm_key, scope) va
   ('principal', 'hostel.allocation.create', 'school'),
   ('principal', 'hostel.allocation.edit', 'school'),
   ('principal', 'hostel.allocation.delete', 'school'),
+  ('principal', 'hostel.rollcall.view', 'school'),
+  ('principal', 'hostel.rollcall.create', 'school'),
+  ('principal', 'hostel.rollcall.edit', 'school'),
+  ('principal', 'hostel.rollcall.approve', 'school'),
+  ('principal', 'hostel.mess.view', 'school'),
+  ('principal', 'hostel.mess.create', 'school'),
+  ('principal', 'hostel.mess.edit', 'school'),
   ('principal', 'inventory.items.view', 'school'),
   ('principal', 'inventory.items.create', 'school'),
   ('principal', 'inventory.items.edit', 'school'),
@@ -1210,14 +1232,19 @@ insert into public.role_template_permissions (template_code, perm_key, scope) va
   ('principal', 'wellbeing.medical.view', 'school'),
   ('principal', 'wellbeing.medical.create', 'school'),
   ('principal', 'wellbeing.medical.edit', 'school'),
+  ('principal', 'wellbeing.medical.delete', 'school'),
   ('principal', 'wellbeing.discipline.view', 'school'),
   ('principal', 'wellbeing.discipline.create', 'school'),
   ('principal', 'wellbeing.discipline.edit', 'school'),
+  ('principal', 'wellbeing.discipline.delete', 'school'),
+  ('principal', 'wellbeing.discipline.approve', 'school'),
   ('principal', 'reports.fees.view', 'school'),
   ('principal', 'reports.fees.export', 'school'),
   ('principal', 'reports.academic.view', 'school'),
   ('principal', 'reports.academic.export', 'school'),
   ('principal', 'reports.udise.export', 'school'),
+  ('principal', 'reports.overview.view', 'school'),
+  ('principal', 'reports.overview.export', 'school'),
   ('principal', 'settings.school.view', 'school'),
   ('principal', 'settings.school.edit', 'school'),
   ('principal', 'settings.billing.view', 'school'),
@@ -1311,6 +1338,9 @@ insert into public.role_template_permissions (template_code, perm_key, scope) va
   ('vice_principal', 'transport.routes.view', 'school'),
   ('vice_principal', 'library.catalogue.view', 'school'),
   ('vice_principal', 'hostel.rooms.view', 'school'),
+  ('vice_principal', 'hostel.rooms.create', 'school'),
+  ('vice_principal', 'hostel.rooms.edit', 'school'),
+  ('vice_principal', 'hostel.rooms.delete', 'school'),
   ('vice_principal', 'reports.academic.view', 'school'),
   ('vice_principal', 'reports.academic.export', 'school'),
   ('vice_principal', 'support.tickets.view', 'own'),
@@ -1332,6 +1362,21 @@ insert into public.role_template_permissions (template_code, perm_key, scope) va
   ('vice_principal', 'documents.issue.export', 'school'),
   ('vice_principal', 'frontdesk.online_form.view', 'school'),
   ('vice_principal', 'frontdesk.online_form.edit', 'school'),
+  ('vice_principal', 'wellbeing.medical.view', 'school'),
+  ('vice_principal', 'wellbeing.medical.create', 'school'),
+  ('vice_principal', 'wellbeing.medical.edit', 'school'),
+  ('vice_principal', 'wellbeing.medical.delete', 'school'),
+  ('vice_principal', 'wellbeing.discipline.view', 'school'),
+  ('vice_principal', 'wellbeing.discipline.create', 'school'),
+  ('vice_principal', 'wellbeing.discipline.edit', 'school'),
+  ('vice_principal', 'wellbeing.discipline.delete', 'school'),
+  ('vice_principal', 'wellbeing.discipline.approve', 'school'),
+  ('vice_principal', 'hostel.allocation.view', 'school'),
+  ('vice_principal', 'hostel.rollcall.view', 'school'),
+  ('vice_principal', 'hostel.mess.view', 'school'),
+  ('vice_principal', 'reports.overview.view', 'school'),
+  ('vice_principal', 'reports.overview.export', 'school'),
+  ('vice_principal', 'library.circulation.view', 'school'),
   ('accountant', 'dashboard.overview.view', 'school'),
   ('accountant', 'frontdesk.enquiries.view', 'school'),
   ('accountant', 'students.profile.view', 'school'),
@@ -1379,6 +1424,8 @@ insert into public.role_template_permissions (template_code, perm_key, scope) va
   ('accountant', 'settings.school.view', 'school'),
   ('accountant', 'support.tickets.view', 'own'),
   ('accountant', 'support.tickets.create', 'own'),
+  ('accountant', 'hostel.allocation.view', 'school'),
+  ('accountant', 'reports.overview.view', 'school'),
   ('front_office', 'dashboard.overview.view', 'school'),
   ('front_office', 'frontdesk.enquiries.view', 'school'),
   ('front_office', 'frontdesk.enquiries.create', 'school'),
@@ -1464,6 +1511,9 @@ insert into public.role_template_permissions (template_code, perm_key, scope) va
   ('office_admin', 'documents.issue.view', 'school'),
   ('office_admin', 'documents.issue.create', 'school'),
   ('office_admin', 'documents.issue.print', 'school'),
+  ('office_admin', 'wellbeing.medical.view', 'school'),
+  ('office_admin', 'wellbeing.medical.create', 'school'),
+  ('office_admin', 'wellbeing.medical.edit', 'school'),
   ('class_teacher', 'dashboard.overview.view', 'school'),
   ('class_teacher', 'students.profile.view', 'assigned'),
   ('class_teacher', 'students.profile.edit', 'assigned'),
@@ -1506,6 +1556,9 @@ insert into public.role_template_permissions (template_code, perm_key, scope) va
   ('class_teacher', 'support.tickets.view', 'own'),
   ('class_teacher', 'support.tickets.create', 'own'),
   ('class_teacher', 'students.sensitive.view', 'assigned'),
+  ('class_teacher', 'wellbeing.medical.view', 'assigned'),
+  ('class_teacher', 'wellbeing.discipline.view', 'assigned'),
+  ('class_teacher', 'wellbeing.discipline.create', 'assigned'),
   ('subject_teacher', 'dashboard.overview.view', 'school'),
   ('subject_teacher', 'students.profile.view', 'assigned'),
   ('subject_teacher', 'academics.setup.view', 'school'),
@@ -1537,6 +1590,8 @@ insert into public.role_template_permissions (template_code, perm_key, scope) va
   ('subject_teacher', 'reports.academic.view', 'assigned'),
   ('subject_teacher', 'support.tickets.view', 'own'),
   ('subject_teacher', 'support.tickets.create', 'own'),
+  ('subject_teacher', 'wellbeing.discipline.view', 'assigned'),
+  ('subject_teacher', 'wellbeing.discipline.create', 'assigned'),
   ('librarian', 'dashboard.overview.view', 'school'),
   ('librarian', 'students.profile.view', 'school'),
   ('librarian', 'library.catalogue.view', 'school'),
@@ -1552,6 +1607,7 @@ insert into public.role_template_permissions (template_code, perm_key, scope) va
   ('librarian', 'hr.leave.create', 'own'),
   ('librarian', 'support.tickets.view', 'own'),
   ('librarian', 'support.tickets.create', 'own'),
+  ('librarian', 'reports.overview.view', 'school'),
   ('transport_manager', 'dashboard.overview.view', 'school'),
   ('transport_manager', 'students.profile.view', 'school'),
   ('transport_manager', 'transport.routes.view', 'school'),
@@ -1585,6 +1641,14 @@ insert into public.role_template_permissions (template_code, perm_key, scope) va
   ('hostel_warden', 'hr.leave.create', 'own'),
   ('hostel_warden', 'support.tickets.view', 'own'),
   ('hostel_warden', 'support.tickets.create', 'own'),
+  ('hostel_warden', 'hostel.rollcall.view', 'school'),
+  ('hostel_warden', 'hostel.rollcall.create', 'school'),
+  ('hostel_warden', 'hostel.rollcall.edit', 'school'),
+  ('hostel_warden', 'hostel.rollcall.approve', 'school'),
+  ('hostel_warden', 'hostel.mess.view', 'school'),
+  ('hostel_warden', 'hostel.mess.create', 'school'),
+  ('hostel_warden', 'hostel.mess.edit', 'school'),
+  ('hostel_warden', 'wellbeing.medical.view', 'school'),
   ('parent', 'dashboard.overview.view', 'child'),
   ('parent', 'students.profile.view', 'child'),
   ('parent', 'attendance.students.view', 'child'),
@@ -10843,4 +10907,2319 @@ begin
     execute format('drop trigger if exists audit_%1$s on public.%1$I', t);
     execute format('create trigger audit_%1$s after insert or update or delete on public.%1$I for each row execute function public.audit_row()', t);
   end loop;
+end $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Step 25: front office refinements — visitors can check themselves in by scanning the school's QR, call follow-up statuses,
+--          gate pass picked up by a staff member chosen from the staff list, staff look-up for pickers.
+-- Safe to run again.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- ───────────── Visitors: QR self check-in ─────────────
+alter table public.visitors add column if not exists source text not null default 'manual';
+alter table public.visitors drop constraint if exists visitors_source_check;
+alter table public.visitors add constraint visitors_source_check check (source in ('manual', 'qr'));
+
+alter table public.front_office_settings add column if not exists visit_token text;
+update public.front_office_settings set visit_token = encode(gen_random_bytes(12), 'hex') where visit_token is null;
+create unique index if not exists front_office_visit_token on public.front_office_settings (visit_token);
+
+-- the school's visitor QR token (created on first use); only front-office staff can read it
+create or replace function public.visit_token(sid uuid) returns text
+language plpgsql security definer set search_path = public as $$
+declare t text;
+begin
+  if auth.uid() is null or not public.has_perm_school(sid, 'frontdesk.visitors.view') then raise exception 'not allowed'; end if;
+  insert into public.front_office_settings (school_id, visit_token) values (sid, encode(gen_random_bytes(12), 'hex')) on conflict (school_id) do nothing;
+  update public.front_office_settings set visit_token = encode(gen_random_bytes(12), 'hex') where school_id = sid and visit_token is null;
+  select visit_token into t from public.front_office_settings where school_id = sid;
+  return t;
+end $$;
+
+create or replace function public.rotate_visit_token(sid uuid) returns text
+language plpgsql security definer set search_path = public as $$
+declare t text := encode(gen_random_bytes(12), 'hex');
+begin
+  if auth.uid() is null or not public.has_perm_school(sid, 'frontdesk.visitors.edit') then raise exception 'not allowed'; end if;
+  insert into public.front_office_settings (school_id, visit_token) values (sid, t) on conflict (school_id) do update set visit_token = excluded.visit_token;
+  return t;
+end $$;
+
+-- public page: which school is this?
+create or replace function public.visit_school(p_token text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare s record;
+begin
+  if not public.is_service() then raise exception 'not allowed'; end if;
+  select sc.name, sc.logo_url into s from public.front_office_settings f join public.schools sc on sc.id = f.school_id where f.visit_token = p_token and sc.status = 'active';
+  if s.name is null then raise exception 'This visitor link is not valid.'; end if;
+  return jsonb_build_object('school', s.name, 'logo', s.logo_url);
+end $$;
+revoke execute on function public.visit_school(text) from public, anon, authenticated;
+grant execute on function public.visit_school(text) to service_role;
+
+-- a visitor checks in from their own phone (service role only; the app server adds nothing but the token)
+create or replace function public.visitor_self_checkin(p_token text, p_name text, p_phone text, p_purpose text, p_to_meet text, p_org text, p_people int, p_vehicle text, p_note text)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare f record; i uuid; no text; recent int;
+begin
+  if not public.is_service() then raise exception 'not allowed'; end if;
+  select school_id into f from public.front_office_settings where visit_token = p_token;
+  if f.school_id is null or not exists (select 1 from public.schools where id = f.school_id and status = 'active') then raise exception 'This visitor link is not valid.'; end if;
+  if coalesce(btrim(p_name), '') = '' then raise exception 'Please enter your name.'; end if;
+  if length(btrim(p_name)) > 80 then raise exception 'That name is too long.'; end if;
+  if coalesce(btrim(p_phone), '') !~ '^[0-9+() -]{8,20}$' then raise exception 'Please enter a valid mobile number.'; end if;
+  select count(*) into recent from public.visitors where school_id = f.school_id and source = 'qr' and in_at > now() - interval '1 hour';
+  if recent >= 60 then raise exception 'Too many check-ins right now. Please ask at the front desk.'; end if;
+  if exists (select 1 from public.visitors where school_id = f.school_id and source = 'qr' and phone = btrim(p_phone) and out_at is null and in_at > now() - interval '30 minutes') then
+    raise exception 'You are already checked in. Please show your pass at the front desk.'; end if;
+  no := public._fo_number(f.school_id, 'visitor');
+  insert into public.visitors (school_id, pass_no, name, phone, purpose, to_meet, organisation, people, vehicle_no, note, source, created_by_name)
+  values (f.school_id, no, left(btrim(p_name), 80), btrim(p_phone), coalesce(nullif(p_purpose, ''), 'meeting'), nullif(left(btrim(coalesce(p_to_meet, '')), 80), ''),
+          nullif(left(btrim(coalesce(p_org, '')), 80), ''), least(greatest(coalesce(p_people, 1), 1), 20), nullif(left(btrim(coalesce(p_vehicle, '')), 20), ''),
+          nullif(left(btrim(coalesce(p_note, '')), 300), ''), 'qr', 'Self check-in')
+  returning id into i;
+  return jsonb_build_object('pass_no', no, 'id', i);
+end $$;
+revoke execute on function public.visitor_self_checkin(text, text, text, text, text, text, int, text, text) from public, anon, authenticated;
+grant execute on function public.visitor_self_checkin(text, text, text, text, text, text, int, text, text) to service_role;
+
+-- edit a visit (front desk): everything but the pass number and the in-time
+create or replace function public.visitor_update(vid uuid, p_name text, p_phone text, p_purpose text, p_to_meet text, p_org text, p_people int, p_vehicle text, p_id_proof text, p_note text) returns void
+language plpgsql security definer set search_path = public as $$
+declare v public.visitors;
+begin
+  select * into v from public.visitors where id = vid;
+  if v.id is null or auth.uid() is null or not public.has_perm_school(v.school_id, 'frontdesk.visitors.edit') then raise exception 'not allowed'; end if;
+  if coalesce(btrim(p_name), '') = '' then raise exception 'Enter the visitor''s name.'; end if;
+  if p_purpose not in ('meeting', 'admission', 'parent', 'vendor', 'official', 'interview', 'delivery', 'other') then raise exception 'Unknown purpose.'; end if;
+  update public.visitors set name = left(btrim(p_name), 80), phone = nullif(btrim(coalesce(p_phone, '')), ''), purpose = p_purpose, to_meet = nullif(left(btrim(coalesce(p_to_meet, '')), 80), ''),
+         organisation = nullif(left(btrim(coalesce(p_org, '')), 80), ''), people = least(greatest(coalesce(p_people, 1), 1), 50), vehicle_no = nullif(left(btrim(coalesce(p_vehicle, '')), 20), ''),
+         id_proof = nullif(left(btrim(coalesce(p_id_proof, '')), 60), ''), note = nullif(left(btrim(coalesce(p_note, '')), 300), '')
+   where id = vid;
+end $$;
+
+-- the list now also reports where the visit came from and the id (for edit / delete)
+drop function if exists public.visitor_list(uuid, date, date, text, text, boolean, int, int);
+create or replace function public.visitor_list(sid uuid, d1 date, d2 date, p_q text default null, p_purpose text default null, p_inside boolean default null,
+                                               p_limit int default 25, p_offset int default 0, p_source text default null)
+returns table (id uuid, pass_no text, name text, phone text, purpose text, to_meet text, student_name text, organisation text, id_proof text, people int, vehicle_no text, note text,
+               in_at timestamptz, out_at timestamptz, created_by_name text, source text, total bigint)
+language sql stable security definer set search_path = public as $$
+  select v.id, v.pass_no, v.name, v.phone, v.purpose, v.to_meet, btrim(concat_ws(' ', s.first_name, s.last_name)), v.organisation, v.id_proof, v.people, v.vehicle_no, v.note,
+         v.in_at, v.out_at, v.created_by_name, v.source, count(*) over ()
+    from public.visitors v left join public.students s on s.id = v.student_id
+   where v.school_id = sid and public.has_perm_school(sid, 'frontdesk.visitors.view')
+     and (v.in_at at time zone 'Asia/Kolkata')::date between d1 and d2
+     and (p_purpose is null or v.purpose = p_purpose) and (p_source is null or v.source = p_source)
+     and (p_inside is null or (p_inside and v.out_at is null) or (not p_inside and v.out_at is not null))
+     and (nullif(btrim(coalesce(p_q, '')), '') is null or concat_ws(' ', v.name, v.phone, v.pass_no, v.to_meet, v.organisation, v.vehicle_no) ilike public.like_escape(btrim(p_q)))
+   order by v.in_at desc
+   limit least(greatest(coalesce(p_limit, 25), 1), 200) offset greatest(coalesce(p_offset, 0), 0);
+$$;
+
+-- ───────────── Calls: follow-up status ─────────────
+alter table public.phone_calls add column if not exists follow_status text not null default 'pending';
+alter table public.phone_calls drop constraint if exists phone_calls_follow_status_check;
+alter table public.phone_calls add constraint phone_calls_follow_status_check check (follow_status in ('pending', 'done', 'no_answer', 'rescheduled', 'dropped'));
+alter table public.phone_calls add column if not exists follow_note text;
+update public.phone_calls set follow_status = 'done' where followed_up_at is not null and follow_status = 'pending';
+
+create or replace function public.call_set_followup(cid uuid, p_status text, p_next date default null, p_note text default null) returns void
+language plpgsql security definer set search_path = public as $$
+declare c public.phone_calls;
+begin
+  select * into c from public.phone_calls where id = cid;
+  if c.id is null or auth.uid() is null or not public.has_perm_school(c.school_id, 'frontdesk.visitors.edit') then raise exception 'not allowed'; end if;
+  if p_status not in ('pending', 'done', 'no_answer', 'rescheduled', 'dropped') then raise exception 'Unknown status.'; end if;
+  if p_status in ('rescheduled', 'no_answer') and p_next is null then raise exception 'Choose the next follow-up date.'; end if;
+  if p_next is not null and p_next < public.today_ist() - 1 then raise exception 'The next follow-up date cannot be in the past.'; end if;
+  update public.phone_calls set follow_status = case when p_status in ('rescheduled', 'no_answer') then 'pending' else p_status end,
+         follow_up_on = case when p_status in ('done', 'dropped') then follow_up_on else p_next end,
+         followed_up_at = case when p_status in ('done', 'dropped') then now() else null end,
+         follow_note = nullif(left(btrim(coalesce(p_note, '')), 200), '')
+   where id = cid;
+end $$;
+
+-- the old "mark done" keeps working
+create or replace function public.call_followup_done(cid uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  perform public.call_set_followup(cid, 'done', null, null);
+end $$;
+
+-- ───────────── Gate pass: pick-up by staff ─────────────
+alter table public.gate_passes add column if not exists pickup_staff_id uuid references public.staff(id) on delete set null;
+
+drop function if exists public.gate_pass_request(uuid, uuid, text, text, text, text);
+create or replace function public.gate_pass_request(sid uuid, p_student uuid, p_reason text, p_pickup text, p_relation text, p_phone text, p_pickup_staff uuid default null) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare st record; i uuid; me text; auto boolean; stf record; pname text; prel text; pphone text;
+begin
+  if auth.uid() is null or not public.has_perm_school(sid, 'frontdesk.visitors.create') then raise exception 'not allowed'; end if;
+  select id, status into st from public.students where id = p_student and school_id = sid;
+  if st.id is null then raise exception 'Student not found.'; end if;
+  if st.status <> 'active' then raise exception 'This student is not on roll.'; end if;
+  if coalesce(btrim(p_reason), '') = '' then raise exception 'Give the reason for leaving early.'; end if;
+  if p_pickup_staff is not null then
+    select id, name, phone, designation into stf from public.staff where id = p_pickup_staff and school_id = sid and status = 'active';
+    if stf.id is null then raise exception 'Choose a working staff member.'; end if;
+    pname := stf.name; prel := coalesce(stf.designation, 'Staff'); pphone := stf.phone;
+  else
+    if coalesce(btrim(p_pickup), '') = '' then raise exception 'Name the person who will take the child.'; end if;
+    pname := left(btrim(p_pickup), 80); prel := nullif(left(btrim(coalesce(p_relation, '')), 40), ''); pphone := nullif(left(btrim(coalesce(p_phone, '')), 20), '');
+  end if;
+  if exists (select 1 from public.gate_passes where student_id = p_student and leave_on = public.today_ist() and status in ('requested', 'approved')) then
+    raise exception 'There is already an open gate pass for this student today.'; end if;
+  select name into me from public.school_members where school_id = sid and user_id = auth.uid();
+  auto := public.has_perm_school(sid, 'frontdesk.visitors.edit');
+  insert into public.gate_passes (school_id, pass_no, student_id, reason, pickup_name, pickup_relation, pickup_phone, pickup_staff_id, status, requested_by_name, decided_by_name, decided_at)
+  values (sid, public._fo_number(sid, 'pass'), p_student, left(btrim(p_reason), 200), pname, prel, pphone, p_pickup_staff, case when auto then 'approved' else 'requested' end,
+          coalesce(me, 'User'), case when auto then coalesce(me, 'User') end, case when auto then now() end)
+  returning id into i;
+  return i;
+end $$;
+
+-- ───────────── Staff look-up for pickers ─────────────
+create or replace function public.staff_lookup(sid uuid, p_q text) returns table (id uuid, name text, designation text, emp_code text)
+language sql stable security definer set search_path = public as $$
+  select s.id, s.name, s.designation, s.emp_code
+    from public.staff s
+   where s.school_id = sid and s.status = 'active'
+     and (public.has_perm(sid, 'hr.staff.view') or public.has_perm(sid, 'frontdesk.visitors.view') or public.has_perm(sid, 'academics.timetable.view'))
+     and concat_ws(' ', s.name, s.emp_code, s.designation) ilike public.like_escape(btrim(coalesce(p_q, '')))
+   order by s.name limit 10;
+$$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Step 26: one-student actions from the students table — move to another section / class, promote to another class.
+-- The class history (student_enrolments) is written by the existing trigger; the outcome says why it changed.
+-- Safe to run again.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+create or replace function public.move_student(sid uuid, p_student uuid, p_class uuid, p_section uuid, p_kind text default 'move') returns void
+language plpgsql security definer set search_path = public as $$
+declare st public.students; sec record;
+begin
+  if auth.uid() is null then raise exception 'not allowed'; end if;
+  if p_kind not in ('move', 'promote') then raise exception 'Unknown action.'; end if;
+  if not public.has_perm_school(sid, case when p_kind = 'promote' then 'students.promotion.create' else 'students.profile.edit' end) then raise exception 'not allowed'; end if;
+  select * into st from public.students where id = p_student and school_id = sid;
+  if st.id is null then raise exception 'Student not found.'; end if;
+  if st.status <> 'active' then raise exception 'Only a student on roll can be moved.'; end if;
+  select s.id, s.class_id into sec from public.sections s where s.id = p_section and s.school_id = sid and s.class_id = p_class;
+  if sec.id is null then raise exception 'Choose a section of the selected class.'; end if;
+  if st.class_id = p_class and st.section_id = p_section then raise exception 'The student is already there.'; end if;
+  perform set_config('app.enrol_outcome', case when p_kind = 'promote' then 'promoted' else 'changed' end, true);
+  update public.students set class_id = p_class, section_id = p_section, roll_no = case when p_class is distinct from st.class_id then null else roll_no end where id = p_student;
+  perform set_config('app.enrol_outcome', '', true);
+end $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Step 27: Exams (offline) refined — date sheet and pass marks per subject, marks-entry progress and lock per class,
+--          one-button result declaration (totals, percent, grade, rank, pass / fail, withheld), teacher remarks,
+--          marksheet data that is frozen once declared.
+-- Safe to run again.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+alter table public.exam_subjects add column if not exists exam_date date;
+alter table public.exam_subjects add column if not exists start_time time;
+alter table public.exam_subjects add column if not exists end_time time;
+alter table public.exam_subjects add column if not exists room text;
+alter table public.exam_subjects add column if not exists pass_marks numeric(6,2) check (pass_marks is null or pass_marks >= 0);
+alter table public.exams add column if not exists end_date date;
+alter table public.exams add column if not exists instructions text;
+
+-- per class: marks entry lock and declaration
+create table if not exists public.exam_class_status (
+  id               uuid primary key default gen_random_uuid(),
+  school_id        uuid not null references public.schools(id) on delete cascade,
+  exam_id          uuid not null references public.exams(id) on delete cascade,
+  class_id         uuid not null references public.classes(id) on delete cascade,
+  marks_locked     boolean not null default false,
+  declared_at      timestamptz,
+  declared_by_name text,
+  unique (exam_id, class_id)
+);
+
+create table if not exists public.exam_results (
+  id              uuid primary key default gen_random_uuid(),
+  school_id       uuid not null references public.schools(id) on delete cascade,
+  exam_id         uuid not null references public.exams(id) on delete cascade,
+  student_id      uuid not null references public.students(id) on delete cascade,
+  class_id        uuid not null references public.classes(id) on delete cascade,
+  total           numeric(8,2) not null default 0,
+  max_total       numeric(8,2) not null default 0,
+  percent         numeric(5,2) not null default 0,
+  grade           text,
+  rank            int,
+  result          text not null check (result in ('pass', 'fail', 'absent', 'withheld')),
+  failed_subjects int not null default 0,
+  remark          text,
+  withheld_reason text,
+  declared_at     timestamptz not null default now(),
+  unique (exam_id, student_id)
+);
+create index if not exists exam_results_class on public.exam_results (exam_id, class_id, rank);
+
+alter table public.exam_class_status enable row level security;
+alter table public.exam_results enable row level security;
+drop policy if exists "read" on public.exam_class_status;
+create policy "read" on public.exam_class_status for select to authenticated using (public.is_member(school_id));
+drop policy if exists "read" on public.exam_results;
+create policy "read" on public.exam_results for select to authenticated
+  using (public.has_perm_school(school_id, 'exams.results.view') or public.can_student(school_id, 'exams.results.view', student_id));
+-- written by the functions below only
+
+-- ───────────── Marks entry is closed once the class is locked ─────────────
+create or replace function public.marks_lock_guard() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare cls uuid; locked boolean;
+begin
+  if coalesce(current_setting('app.marks_bypass', true), '') = '1' then return coalesce(new, old); end if;
+  select class_id into cls from public.students where id = coalesce(new.student_id, old.student_id);
+  select marks_locked into locked from public.exam_class_status where exam_id = coalesce(new.exam_id, old.exam_id) and class_id = cls;
+  if coalesce(locked, false) then raise exception 'Marks of this class are locked for this exam (result declared or locked). Unlock to change them.'; end if;
+  return coalesce(new, old);
+end $$;
+drop trigger if exists marks_lock_guard on public.marks;
+create trigger marks_lock_guard before insert or update or delete on public.marks for each row execute function public.marks_lock_guard();
+
+-- ───────────── Progress of marks entry ─────────────
+create or replace function public.exam_marks_progress(sid uuid, p_exam uuid)
+returns table (class_id uuid, class_name text, class_sort int, students bigint, subjects bigint, expected bigint, entered bigint, absent bigint, missing bigint, locked boolean, declared_at timestamptz, results bigint)
+language sql stable security definer set search_path = public as $$
+  select c.id, c.name, c.sort,
+         (select count(*) from public.students s where s.class_id = c.id and s.school_id = sid and s.status = 'active'),
+         count(es.id),
+         count(es.id) * (select count(*) from public.students s where s.class_id = c.id and s.school_id = sid and s.status = 'active'),
+         (select count(*) from public.marks m join public.students s on s.id = m.student_id
+           where m.exam_id = p_exam and s.class_id = c.id and s.status = 'active' and (m.marks is not null or m.absent)
+             and exists (select 1 from public.exam_subjects x where x.exam_id = p_exam and x.class_id = c.id and x.subject_id = m.subject_id)),
+         (select count(*) from public.marks m join public.students s on s.id = m.student_id where m.exam_id = p_exam and s.class_id = c.id and s.status = 'active' and m.absent),
+         0::bigint,
+         coalesce(st.marks_locked, false), st.declared_at,
+         (select count(*) from public.exam_results r where r.exam_id = p_exam and r.class_id = c.id)
+    from public.exam_subjects es
+    join public.classes c on c.id = es.class_id
+    left join public.exam_class_status st on st.exam_id = es.exam_id and st.class_id = c.id
+   where es.exam_id = p_exam and es.school_id = sid and public.is_member(sid)
+   group by c.id, c.name, c.sort, st.marks_locked, st.declared_at
+   order by c.sort, c.name;
+$$;
+
+create or replace function public.set_marks_lock(sid uuid, p_exam uuid, p_class uuid, p_lock boolean) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null or not (public.has_perm_school(sid, 'exams.results.publish') or public.has_perm_school(sid, 'exams.setup.edit')) then raise exception 'not allowed'; end if;
+  if not exists (select 1 from public.exams where id = p_exam and school_id = sid) then raise exception 'Exam not found.'; end if;
+  insert into public.exam_class_status (school_id, exam_id, class_id, marks_locked) values (sid, p_exam, p_class, p_lock)
+  on conflict (exam_id, class_id) do update set marks_locked = excluded.marks_locked;
+end $$;
+
+-- ───────────── Declaring the result ─────────────
+create or replace function public.declare_exam_result(sid uuid, p_exam uuid, p_class uuid default null, p_force boolean default false) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare cls record; scale jsonb; me text; st record; missing bigint; n_cls int := 0; n_stu int := 0; n_pass int := 0; n_fail int := 0; ex public.exams;
+begin
+  if auth.uid() is null or not public.has_perm_school(sid, 'exams.results.publish') then raise exception 'not allowed'; end if;
+  select * into ex from public.exams where id = p_exam and school_id = sid;
+  if ex.id is null then raise exception 'Exam not found.'; end if;
+  select grade_scale into scale from public.schools where id = sid;
+  select name into me from public.school_members where school_id = sid and user_id = auth.uid();
+
+  for cls in select distinct es.class_id from public.exam_subjects es where es.exam_id = p_exam and (p_class is null or es.class_id = p_class) loop
+    -- every active student × subject must have marks or AB
+    select count(*) into missing
+      from public.students s cross join public.exam_subjects es
+     where s.school_id = sid and s.class_id = cls.class_id and s.status = 'active' and es.exam_id = p_exam and es.class_id = cls.class_id
+       and not exists (select 1 from public.marks m where m.exam_id = p_exam and m.student_id = s.id and m.subject_id = es.subject_id and (m.marks is not null or m.absent));
+    if missing > 0 and not p_force then
+      raise exception 'Marks are missing for % entries in a class (e.g. Class %). Enter them, or declare anyway to count them as zero.', missing, (select name from public.classes where id = cls.class_id);
+    end if;
+
+    perform set_config('app.marks_bypass', '1', true);
+    delete from public.exam_results r where r.exam_id = p_exam and r.class_id = cls.class_id and r.result <> 'withheld';
+    with per as (
+      select s.id as student_id,
+             sum(case when coalesce(m.absent, false) then 0 else coalesce(m.marks, 0) end) as total,
+             sum(es.max_marks) as mx,
+             count(*) filter (where coalesce(m.absent, false) or coalesce(m.marks, 0) < coalesce(es.pass_marks, round(es.max_marks * 0.33, 2))) as failed,
+             count(*) filter (where coalesce(m.absent, false)) as absent_n,
+             count(*) as subjects
+        from public.students s
+        join public.exam_subjects es on es.exam_id = p_exam and es.class_id = s.class_id
+        left join public.marks m on m.exam_id = p_exam and m.student_id = s.id and m.subject_id = es.subject_id
+       where s.school_id = sid and s.class_id = cls.class_id and s.status = 'active'
+       group by s.id
+    ), calc as (
+      select per.*, case when mx > 0 then round(100.0 * total / mx, 2) else 0 end as pct,
+             (select g ->> 'grade' from jsonb_array_elements(scale) g where (g ->> 'min')::numeric <= case when mx > 0 then 100.0 * total / mx else 0 end order by (g ->> 'min')::numeric desc limit 1) as grade
+        from per
+    )
+    insert into public.exam_results (school_id, exam_id, student_id, class_id, total, max_total, percent, grade, rank, result, failed_subjects)
+    select sid, p_exam, c.student_id, cls.class_id, c.total, c.mx, c.pct, c.grade,
+           rank() over (order by c.total desc), case when c.absent_n = c.subjects then 'absent' when c.failed > 0 then 'fail' else 'pass' end, c.failed
+      from calc c
+     where not exists (select 1 from public.exam_results w where w.exam_id = p_exam and w.student_id = c.student_id and w.result = 'withheld');
+    perform set_config('app.marks_bypass', '', true);
+
+    -- withheld students keep their row but are not ranked with the others
+    insert into public.exam_class_status (school_id, exam_id, class_id, marks_locked, declared_at, declared_by_name)
+    values (sid, p_exam, cls.class_id, true, now(), coalesce(me, 'User'))
+    on conflict (exam_id, class_id) do update set marks_locked = true, declared_at = now(), declared_by_name = coalesce(me, 'User');
+    n_cls := n_cls + 1;
+  end loop;
+  if n_cls = 0 then raise exception 'Add subjects and marks for the class before declaring the result.'; end if;
+  select count(*), count(*) filter (where result = 'pass'), count(*) filter (where result in ('fail', 'absent'))
+    into n_stu, n_pass, n_fail from public.exam_results where exam_id = p_exam and (p_class is null or class_id = p_class);
+  return jsonb_build_object('classes', n_cls, 'students', n_stu, 'passed', n_pass, 'failed', n_fail);
+end $$;
+
+create or replace function public.undo_exam_declaration(sid uuid, p_exam uuid, p_class uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null or not public.has_perm_school(sid, 'exams.results.publish') then raise exception 'not allowed'; end if;
+  if not exists (select 1 from public.exams where id = p_exam and school_id = sid) then raise exception 'Exam not found.'; end if;
+  delete from public.exam_results where exam_id = p_exam and class_id = p_class and school_id = sid;
+  update public.exam_class_status set declared_at = null, declared_by_name = null, marks_locked = false where exam_id = p_exam and class_id = p_class;
+end $$;
+
+create or replace function public.withhold_result(sid uuid, p_exam uuid, p_student uuid, p_reason text, p_release boolean default false) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null or not public.has_perm_school(sid, 'exams.results.publish') then raise exception 'not allowed'; end if;
+  if not p_release and coalesce(btrim(p_reason), '') = '' then raise exception 'Write the reason for withholding.'; end if;
+  if p_release then
+    update public.exam_results set result = case when failed_subjects > 0 then 'fail' else 'pass' end, withheld_reason = null where exam_id = p_exam and student_id = p_student and school_id = sid and result = 'withheld';
+  else
+    update public.exam_results set result = 'withheld', withheld_reason = left(btrim(p_reason), 200) where exam_id = p_exam and student_id = p_student and school_id = sid;
+    if not found then raise exception 'Declare the result first.'; end if;
+  end if;
+end $$;
+
+create or replace function public.set_result_remark(sid uuid, p_exam uuid, p_student uuid, p_remark text) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null or not (public.has_perm_school(sid, 'exams.results.publish') or public.can_student(sid, 'exams.marks.edit', p_student)) then raise exception 'not allowed'; end if;
+  update public.exam_results set remark = nullif(left(btrim(coalesce(p_remark, '')), 300), '') where exam_id = p_exam and student_id = p_student and school_id = sid;
+end $$;
+
+-- copy the subjects (with dates and pass marks) of one exam into another
+create or replace function public.copy_exam_subjects(sid uuid, from_exam uuid, to_exam uuid) returns int
+language plpgsql security definer set search_path = public as $$
+declare n int;
+begin
+  if auth.uid() is null or not public.has_perm_school(sid, 'exams.setup.create') then raise exception 'not allowed'; end if;
+  if from_exam = to_exam then raise exception 'Choose two different exams.'; end if;
+  if (select count(*) from public.exams where id in (from_exam, to_exam) and school_id = sid) <> 2 then raise exception 'Exam not found.'; end if;
+  insert into public.exam_subjects (school_id, exam_id, class_id, subject_id, max_marks, pass_marks)
+  select sid, to_exam, class_id, subject_id, max_marks, pass_marks from public.exam_subjects where exam_id = from_exam
+  on conflict (exam_id, class_id, subject_id) do nothing;
+  get diagnostics n = row_count;
+  return n;
+end $$;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['exam_class_status'] loop
+    execute format('drop trigger if exists audit_%1$s on public.%1$I', t);
+    execute format('create trigger audit_%1$s after insert or update or delete on public.%1$I for each row execute function public.audit_row()', t);
+  end loop;
+end $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Step 28: Online examinations — question bank per class and subject, scheduled online exams (fixed or randomly drawn paper,
+--          timed, shuffled), a secured student side (admission no. + date of birth, one device, server-side clock,
+--          answers never sent to the browser, tab-switch / fullscreen monitoring, auto-submit), grading, result declaration
+--          and optional push of the score into the offline exam's marks.
+-- Students have no database access: the student side talks to the service-role functions below through /api/exam.
+-- Safe to run again.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- ───────────── Question bank ─────────────
+create table if not exists public.question_bank (
+  id              uuid primary key default gen_random_uuid(),
+  school_id       uuid not null references public.schools(id) on delete cascade,
+  class_id        uuid not null references public.classes(id) on delete cascade,
+  subject_id      uuid not null references public.subjects(id) on delete cascade,
+  kind            text not null default 'single' check (kind in ('single', 'multi', 'truefalse')),
+  text            text not null check (length(btrim(text)) between 1 and 2000),
+  options         jsonb not null default '[]',          -- [{"id":"a","text":"…"}]
+  answer          jsonb not null default '[]',          -- ["a"] (ids of the correct options)
+  marks           numeric(5,2) not null default 1 check (marks > 0),
+  negative_marks  numeric(5,2) not null default 0 check (negative_marks >= 0),
+  difficulty      text not null default 'medium' check (difficulty in ('easy', 'medium', 'hard')),
+  chapter         text,
+  explanation     text,
+  active          boolean not null default true,
+  created_by_name text,
+  created_at      timestamptz not null default now(),
+  check (jsonb_typeof(options) = 'array' and jsonb_typeof(answer) = 'array')
+);
+create index if not exists question_bank_idx on public.question_bank (school_id, class_id, subject_id, active);
+
+-- ───────────── Online exams ─────────────
+create table if not exists public.online_exams (
+  id               uuid primary key default gen_random_uuid(),
+  school_id        uuid not null references public.schools(id) on delete cascade,
+  session_id       uuid references public.sessions(id) on delete set null,
+  exam_id          uuid references public.exams(id) on delete set null,       -- the offline exam whose marks this feeds (optional)
+  class_id         uuid not null references public.classes(id) on delete cascade,
+  subject_id       uuid not null references public.subjects(id) on delete cascade,
+  title            text not null check (length(btrim(title)) between 1 and 120),
+  instructions     text,
+  duration_min     int not null default 30 check (duration_min between 1 and 360),
+  starts_at        timestamptz,
+  ends_at          timestamptz,
+  status           text not null default 'draft' check (status in ('draft', 'scheduled', 'closed', 'declared')),
+  pool_mode        text not null default 'fixed' check (pool_mode in ('fixed', 'random')),
+  random_count     int check (random_count is null or random_count between 1 and 300),
+  pool_filter      jsonb not null default '{}',                               -- {"chapter":"…","difficulty":"easy"}
+  shuffle_questions boolean not null default true,
+  shuffle_options  boolean not null default true,
+  negative_marking boolean not null default false,
+  pass_percent     numeric(5,2) not null default 33 check (pass_percent between 0 and 100),
+  max_tab_switches int not null default 3 check (max_tab_switches between 0 and 20),
+  require_fullscreen boolean not null default true,
+  access_code      text,
+  show_result      text not null default 'after_declare' check (show_result in ('immediately', 'after_declare', 'never')),
+  show_answers     boolean not null default false,
+  total_marks      numeric(8,2) not null default 0,
+  public_token     text not null unique default encode(gen_random_bytes(12), 'hex'),
+  created_by_name  text,
+  created_at       timestamptz not null default now(),
+  check (ends_at is null or starts_at is null or ends_at > starts_at)
+);
+create index if not exists online_exams_idx on public.online_exams (school_id, class_id, status);
+
+create table if not exists public.online_exam_questions (
+  exam_id     uuid not null references public.online_exams(id) on delete cascade,
+  question_id uuid not null references public.question_bank(id) on delete restrict,
+  marks       numeric(5,2) not null default 1 check (marks > 0),
+  sort        int not null default 0,
+  primary key (exam_id, question_id)
+);
+
+create table if not exists public.online_attempts (
+  id           uuid primary key default gen_random_uuid(),
+  school_id    uuid not null references public.schools(id) on delete cascade,
+  exam_id      uuid not null references public.online_exams(id) on delete cascade,
+  student_id   uuid not null references public.students(id) on delete cascade,
+  started_at   timestamptz not null default now(),
+  deadline_at  timestamptz not null,
+  submitted_at timestamptz,
+  status       text not null default 'in_progress' check (status in ('in_progress', 'submitted', 'auto_submitted', 'terminated')),
+  questions    jsonb not null default '[]',      -- the paper this student got, in order: [{id, kind, text, marks, neg, options:[{id,text}]}]
+  key          jsonb not null default '{}',      -- {questionId: [correct option ids]}  (never leaves the database)
+  answers      jsonb not null default '{}',      -- {questionId: [chosen option ids]}
+  score        numeric(8,2),
+  max_score    numeric(8,2),
+  correct      int,
+  wrong        int,
+  skipped      int,
+  tab_switches int not null default 0,
+  events       jsonb not null default '[]',
+  ip           text,
+  user_agent   text,
+  last_seen_at timestamptz,
+  unique (exam_id, student_id)
+);
+create index if not exists online_attempts_exam on public.online_attempts (exam_id, status);
+
+-- student sessions (token is stored only as a hash)
+create table if not exists public.exam_sessions (
+  token_hash text primary key,
+  school_id  uuid not null references public.schools(id) on delete cascade,
+  student_id uuid not null references public.students(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null,
+  ip         text
+);
+create index if not exists exam_sessions_student on public.exam_sessions (student_id);
+create table if not exists public.exam_login_failures (
+  id        bigint generated always as identity primary key,
+  school_id uuid,
+  key       text not null,
+  at        timestamptz not null default now()
+);
+create index if not exists exam_login_failures_key on public.exam_login_failures (key, at desc);
+
+alter table public.question_bank enable row level security;
+alter table public.online_exams enable row level security;
+alter table public.online_exam_questions enable row level security;
+alter table public.online_attempts enable row level security;
+alter table public.exam_sessions enable row level security;
+alter table public.exam_login_failures enable row level security;
+
+-- may this user manage questions of this class + subject?
+create or replace function public.can_question(sid uuid, p_class uuid, p_subject uuid, pkey text default 'exams.marks.create') returns boolean
+language plpgsql stable security definer set search_path = public as $$
+begin
+  return public.has_perm_school(sid, 'exams.setup.create') or public.can_syllabus(sid, p_class, p_subject, pkey);
+end $$;
+
+drop policy if exists "read" on public.question_bank;
+create policy "read" on public.question_bank for select to authenticated
+  using (public.has_perm_school(school_id, 'exams.setup.view') or public.can_syllabus(school_id, class_id, subject_id, 'exams.marks.view'));
+drop policy if exists "create" on public.question_bank;
+create policy "create" on public.question_bank for insert to authenticated with check (public.can_question(school_id, class_id, subject_id, 'exams.marks.create'));
+drop policy if exists "edit" on public.question_bank;
+create policy "edit" on public.question_bank for update to authenticated
+  using (public.can_question(school_id, class_id, subject_id, 'exams.marks.edit')) with check (public.can_question(school_id, class_id, subject_id, 'exams.marks.edit'));
+drop policy if exists "delete" on public.question_bank;
+create policy "delete" on public.question_bank for delete to authenticated using (public.can_question(school_id, class_id, subject_id, 'exams.marks.edit'));
+
+drop policy if exists "read" on public.online_exams;
+create policy "read" on public.online_exams for select to authenticated
+  using (public.has_perm_school(school_id, 'exams.setup.view') or public.can_syllabus(school_id, class_id, subject_id, 'exams.marks.view'));
+drop policy if exists "create" on public.online_exams;
+create policy "create" on public.online_exams for insert to authenticated with check (public.can_question(school_id, class_id, subject_id, 'exams.marks.create'));
+drop policy if exists "edit" on public.online_exams;
+create policy "edit" on public.online_exams for update to authenticated
+  using (public.can_question(school_id, class_id, subject_id, 'exams.marks.edit')) with check (public.can_question(school_id, class_id, subject_id, 'exams.marks.edit'));
+drop policy if exists "delete" on public.online_exams;
+create policy "delete" on public.online_exams for delete to authenticated using (public.has_perm_school(school_id, 'exams.setup.delete'));
+
+drop policy if exists "read" on public.online_exam_questions;
+create policy "read" on public.online_exam_questions for select to authenticated
+  using (exists (select 1 from public.online_exams e where e.id = online_exam_questions.exam_id));
+drop policy if exists "write" on public.online_exam_questions;
+create policy "write" on public.online_exam_questions for all to authenticated
+  using (exists (select 1 from public.online_exams e where e.id = online_exam_questions.exam_id and public.can_question(e.school_id, e.class_id, e.subject_id, 'exams.marks.edit') and e.status = 'draft'))
+  with check (exists (select 1 from public.online_exams e where e.id = online_exam_questions.exam_id and public.can_question(e.school_id, e.class_id, e.subject_id, 'exams.marks.edit') and e.status = 'draft'));
+
+drop policy if exists "read" on public.online_attempts;
+create policy "read" on public.online_attempts for select to authenticated
+  using (public.has_perm_school(school_id, 'exams.results.view')
+         or exists (select 1 from public.online_exams e where e.id = online_attempts.exam_id and public.can_syllabus(e.school_id, e.class_id, e.subject_id, 'exams.marks.view')));
+-- attempts are written only by the student-side functions
+
+-- ───────────── Helpers ─────────────
+create or replace function public._exam_hash(p_token text) returns text
+language sql immutable as $$ select encode(sha256(convert_to(coalesce(p_token, ''), 'UTF8')), 'hex') $$;
+
+-- the student behind a session token (sliding 4 hours); raises when the session is gone
+create or replace function public._exam_student(p_token text) returns public.students
+language plpgsql security definer set search_path = public as $$
+declare es public.exam_sessions; s public.students;
+begin
+  select * into es from public.exam_sessions where token_hash = public._exam_hash(p_token);
+  if es.token_hash is null or es.expires_at < now() then raise exception 'Your session has ended. Please sign in again.'; end if;
+  select * into s from public.students where id = es.student_id and status = 'active';
+  if s.id is null then raise exception 'Your session has ended. Please sign in again.'; end if;
+  update public.exam_sessions set expires_at = now() + interval '4 hours' where token_hash = es.token_hash and expires_at < now() + interval '3 hours';
+  return s;
+end $$;
+revoke execute on function public._exam_hash(text) from public, anon, authenticated;
+revoke execute on function public._exam_student(text) from public, anon, authenticated;
+
+-- scores one attempt from its own snapshot (paper, key, answers)
+create or replace function public._grade_attempt(aid uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare a public.online_attempts; q jsonb; chosen jsonb; correct_ids jsonb; sc numeric := 0; mx numeric := 0; nc int := 0; nw int := 0; ns int := 0; neg boolean; marks numeric; negm numeric;
+begin
+  select * into a from public.online_attempts where id = aid;
+  select negative_marking into neg from public.online_exams where id = a.exam_id;
+  for q in select * from jsonb_array_elements(a.questions) loop
+    marks := coalesce((q ->> 'marks')::numeric, 0);
+    negm := case when neg then coalesce((q ->> 'neg')::numeric, 0) else 0 end;
+    mx := mx + marks;
+    chosen := coalesce(a.answers -> (q ->> 'id'), '[]'::jsonb);
+    correct_ids := coalesce(a.key -> (q ->> 'id'), '[]'::jsonb);
+    if jsonb_array_length(chosen) = 0 then ns := ns + 1;
+    elsif (select coalesce(jsonb_agg(x order by x), '[]') from jsonb_array_elements_text(chosen) x) = (select coalesce(jsonb_agg(x order by x), '[]') from jsonb_array_elements_text(correct_ids) x) then
+      sc := sc + marks; nc := nc + 1;
+    else sc := sc - negm; nw := nw + 1; end if;
+  end loop;
+  update public.online_attempts set score = greatest(sc, 0), max_score = mx, correct = nc, wrong = nw, skipped = ns where id = aid;
+end $$;
+revoke execute on function public._grade_attempt(uuid) from public, anon, authenticated;
+
+-- finishes an attempt (once)
+create or replace function public._finish_attempt(aid uuid, p_status text) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  update public.online_attempts set status = p_status, submitted_at = least(now(), deadline_at + interval '30 seconds') where id = aid and status = 'in_progress';
+  if found then perform public._grade_attempt(aid); end if;
+end $$;
+revoke execute on function public._finish_attempt(uuid, text) from public, anon, authenticated;
+
+-- ───────────── Teacher side ─────────────
+create or replace function public.question_pool_size(sid uuid, p_class uuid, p_subject uuid, p_chapter text default null, p_difficulty text default null) returns int
+language sql stable security definer set search_path = public as $$
+  select count(*)::int from public.question_bank q
+   where q.school_id = sid and q.class_id = p_class and q.subject_id = p_subject and q.active
+     and (nullif(btrim(coalesce(p_chapter, '')), '') is null or q.chapter = p_chapter)
+     and (nullif(p_difficulty, '') is null or q.difficulty = p_difficulty)
+     and (public.has_perm_school(sid, 'exams.setup.view') or public.can_syllabus(sid, p_class, p_subject, 'exams.marks.view'));
+$$;
+
+create or replace function public.online_exam_schedule(sid uuid, p_exam uuid, p_starts timestamptz, p_ends timestamptz) returns void
+language plpgsql security definer set search_path = public as $$
+declare e public.online_exams; n int; pool int; tm numeric;
+begin
+  select * into e from public.online_exams where id = p_exam and school_id = sid;
+  if e.id is null or auth.uid() is null or not public.can_question(sid, e.class_id, e.subject_id, 'exams.marks.edit') then raise exception 'not allowed'; end if;
+  if e.status not in ('draft', 'scheduled') then raise exception 'This exam is already %.', e.status; end if;
+  if p_starts is null or p_ends is null or p_ends <= p_starts then raise exception 'Choose a start and an end time (end after start).'; end if;
+  if p_ends < now() then raise exception 'The end time is already over.'; end if;
+  if p_ends - p_starts < make_interval(mins => e.duration_min) then raise exception 'The window is shorter than the exam duration (% minutes).', e.duration_min; end if;
+  if e.pool_mode = 'fixed' then
+    select count(*), coalesce(sum(marks), 0) into n, tm from public.online_exam_questions where exam_id = p_exam;
+    if n = 0 then raise exception 'Add at least one question.'; end if;
+  else
+    if e.random_count is null then raise exception 'Say how many questions to draw at random.'; end if;
+    pool := public.question_pool_size(sid, e.class_id, e.subject_id, e.pool_filter ->> 'chapter', e.pool_filter ->> 'difficulty');
+    if pool < e.random_count then raise exception 'Only % questions match the pool but % are to be drawn. Add questions or reduce the count.', pool, e.random_count; end if;
+    select coalesce(avg(marks), 1) * e.random_count into tm from public.question_bank q
+     where q.school_id = sid and q.class_id = e.class_id and q.subject_id = e.subject_id and q.active
+       and (nullif(e.pool_filter ->> 'chapter', '') is null or q.chapter = e.pool_filter ->> 'chapter')
+       and (nullif(e.pool_filter ->> 'difficulty', '') is null or q.difficulty = e.pool_filter ->> 'difficulty');
+  end if;
+  update public.online_exams set starts_at = p_starts, ends_at = p_ends, status = 'scheduled', total_marks = round(tm, 2) where id = p_exam;
+end $$;
+
+create or replace function public.online_exam_unschedule(sid uuid, p_exam uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare e public.online_exams;
+begin
+  select * into e from public.online_exams where id = p_exam and school_id = sid;
+  if e.id is null or auth.uid() is null or not public.can_question(sid, e.class_id, e.subject_id, 'exams.marks.edit') then raise exception 'not allowed'; end if;
+  if e.status <> 'scheduled' then raise exception 'Only a scheduled exam can go back to draft.'; end if;
+  if exists (select 1 from public.online_attempts where exam_id = p_exam) then raise exception 'Students have already started this exam.'; end if;
+  update public.online_exams set status = 'draft' where id = p_exam;
+end $$;
+
+-- ends the exam: whatever is still running is submitted
+create or replace function public.online_exam_close(sid uuid, p_exam uuid) returns int
+language plpgsql security definer set search_path = public as $$
+declare e public.online_exams; a record; n int := 0;
+begin
+  select * into e from public.online_exams where id = p_exam and school_id = sid;
+  if e.id is null or auth.uid() is null or not public.can_question(sid, e.class_id, e.subject_id, 'exams.marks.edit') then raise exception 'not allowed'; end if;
+  if e.status not in ('scheduled', 'closed') then raise exception 'This exam is %.', e.status; end if;
+  for a in select id from public.online_attempts where exam_id = p_exam and status = 'in_progress' loop
+    perform public._finish_attempt(a.id, 'auto_submitted'); n := n + 1;
+  end loop;
+  update public.online_exams set status = 'closed', ends_at = least(coalesce(ends_at, now()), now()) where id = p_exam;
+  return n;
+end $$;
+
+-- declares the result: students can see their score; with push, the score becomes the subject mark of the linked offline exam
+create or replace function public.online_exam_declare(sid uuid, p_exam uuid, p_push boolean default false) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare e public.online_exams; a record; es public.exam_subjects; pushed int := 0; absent_n int := 0; sub int;
+begin
+  select * into e from public.online_exams where id = p_exam and school_id = sid;
+  if e.id is null or auth.uid() is null or not public.has_perm_school(sid, 'exams.results.publish') then raise exception 'not allowed'; end if;
+  if e.status = 'draft' then raise exception 'Schedule and run the exam first.'; end if;
+  if e.status = 'scheduled' and coalesce(e.ends_at, now()) > now() then raise exception 'The exam window is still open. Close the exam first.'; end if;
+  for a in select id from public.online_attempts where exam_id = p_exam and status = 'in_progress' loop perform public._finish_attempt(a.id, 'auto_submitted'); end loop;
+  update public.online_exams set status = 'declared' where id = p_exam;
+  if p_push then
+    if e.exam_id is null then raise exception 'Link this online exam to an offline exam to push marks.'; end if;
+    select * into es from public.exam_subjects where exam_id = e.exam_id and class_id = e.class_id and subject_id = e.subject_id;
+    if es.id is null then raise exception 'The linked exam has no % subject for this class.', 'matching'; end if;
+    perform set_config('app.marks_bypass', '1', true);
+    for a in select at.student_id, at.score, at.max_score from public.online_attempts at where at.exam_id = p_exam and at.status <> 'in_progress' loop
+      insert into public.marks (school_id, exam_id, student_id, subject_id, marks, absent, entered_by, updated_at)
+      values (sid, e.exam_id, a.student_id, e.subject_id, round(case when a.max_score > 0 then es.max_marks * a.score / a.max_score else 0 end, 1), false, 'Online exam', now())
+      on conflict (exam_id, student_id, subject_id) do update set marks = excluded.marks, absent = false, entered_by = 'Online exam', updated_at = now();
+      pushed := pushed + 1;
+    end loop;
+    insert into public.marks (school_id, exam_id, student_id, subject_id, marks, absent, entered_by, updated_at)
+    select sid, e.exam_id, s.id, e.subject_id, null, true, 'Online exam', now()
+      from public.students s where s.school_id = sid and s.class_id = e.class_id and s.status = 'active'
+       and not exists (select 1 from public.online_attempts at where at.exam_id = p_exam and at.student_id = s.id)
+    on conflict (exam_id, student_id, subject_id) do nothing;
+    get diagnostics absent_n = row_count;
+    perform set_config('app.marks_bypass', '', true);
+  end if;
+  return jsonb_build_object('graded', (select count(*) from public.online_attempts where exam_id = p_exam), 'pushed', pushed, 'absent', absent_n);
+end $$;
+
+-- who is taking the exam, with search / filter / paging
+create or replace function public.online_attempt_list(sid uuid, p_exam uuid, p_q text default null, p_status text default null, p_limit int default 25, p_offset int default 0)
+returns table (attempt_id uuid, student_id uuid, admission_no text, student_name text, section_name text, status text, started_at timestamptz, submitted_at timestamptz,
+               score numeric, max_score numeric, correct int, wrong int, skipped int, tab_switches int, ip text, rank bigint, total bigint)
+language sql stable security definer set search_path = public as $$
+  select a.id, s.id, s.admission_no, btrim(concat_ws(' ', s.first_name, s.middle_name, s.last_name)), sec.name, a.status, a.started_at, a.submitted_at,
+         a.score, a.max_score, a.correct, a.wrong, a.skipped, a.tab_switches, a.ip,
+         case when a.score is not null then rank() over (order by a.score desc nulls last) end, count(*) over ()
+    from public.online_attempts a
+    join public.students s on s.id = a.student_id
+    join public.online_exams oe on oe.id = a.exam_id
+    left join public.sections sec on sec.id = s.section_id
+   where a.exam_id = p_exam and a.school_id = sid
+     and (public.has_perm_school(sid, 'exams.results.view') or public.can_syllabus(sid, oe.class_id, oe.subject_id, 'exams.marks.view'))
+     and (p_status is null or a.status = p_status)
+     and (nullif(btrim(coalesce(p_q, '')), '') is null or concat_ws(' ', s.first_name, s.last_name, s.admission_no) ilike public.like_escape(btrim(p_q)))
+   order by a.score desc nulls last, s.first_name
+   limit least(greatest(coalesce(p_limit, 25), 1), 200) offset greatest(coalesce(p_offset, 0), 0);
+$$;
+
+-- ───────────── Student side (service role only) ─────────────
+create or replace function public.exam_public_info(p_token text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare e record;
+begin
+  if not public.is_service() then raise exception 'not allowed'; end if;
+  select e0.title, e0.status, sc.name as school, sc.code, sc.logo_url into e from public.online_exams e0 join public.schools sc on sc.id = e0.school_id where e0.public_token = p_token;
+  if e.title is null then raise exception 'This exam link is not valid.'; end if;
+  return jsonb_build_object('title', e.title, 'school', e.school, 'school_code', e.code, 'logo', e.logo_url);
+end $$;
+
+create or replace function public.exam_login(p_school_code text, p_adm text, p_dob date, p_ip text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare sc public.schools; s public.students; tok text; k text; fails int;
+begin
+  if not public.is_service() then raise exception 'not allowed'; end if;
+  select * into sc from public.schools where lower(code) = lower(btrim(coalesce(p_school_code, ''))) and status = 'active';
+  k := lower(coalesce(sc.code, 'x')) || ':' || lower(btrim(coalesce(p_adm, ''))) ;
+  -- locked when this admission number OR this address failed 8 times in 15 minutes
+  select max(c) into fails from (select count(*) c from public.exam_login_failures where key in (k, 'ip:' || coalesce(p_ip, '')) and at > now() - interval '15 minutes' group by key) x;
+  if coalesce(fails, 0) >= 8 then return jsonb_build_object('error', 'Too many wrong attempts. Please wait 15 minutes and try again.'); end if;
+  if sc.id is not null then
+    select * into s from public.students where school_id = sc.id and lower(admission_no) = lower(btrim(coalesce(p_adm, ''))) and dob = p_dob and status = 'active';
+  end if;
+  if s.id is null then
+    -- not an exception: the failure must be kept (a raised error would roll the insert back)
+    insert into public.exam_login_failures (school_id, key) values (sc.id, k), (sc.id, 'ip:' || coalesce(p_ip, ''));
+    return jsonb_build_object('error', 'Admission number or date of birth is not correct.');
+  end if;
+  delete from public.exam_sessions where student_id = s.id;                                   -- one device at a time
+  tok := encode(gen_random_bytes(24), 'hex');
+  insert into public.exam_sessions (token_hash, school_id, student_id, expires_at, ip) values (public._exam_hash(tok), sc.id, s.id, now() + interval '4 hours', left(p_ip, 60));
+  return jsonb_build_object('token', tok, 'name', btrim(concat_ws(' ', s.first_name, s.last_name)), 'school', sc.name);
+end $$;
+
+create or replace function public.exam_logout(p_token text) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_service() then raise exception 'not allowed'; end if;
+  delete from public.exam_sessions where token_hash = public._exam_hash(p_token);
+end $$;
+
+-- the student's exams: upcoming, live, finished
+create or replace function public.exam_portal(p_token text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare s public.students; sc text; cn text;
+begin
+  if not public.is_service() then raise exception 'not allowed'; end if;
+  s := public._exam_student(p_token);
+  select name into sc from public.schools where id = s.school_id;
+  select name into cn from public.classes where id = s.class_id;
+  return jsonb_build_object(
+    'student', btrim(concat_ws(' ', s.first_name, s.last_name)), 'school', sc, 'class', cn,
+    'exams', coalesce((
+      select jsonb_agg(jsonb_build_object(
+          'id', e.id, 'title', e.title, 'subject', sb.name, 'duration_min', e.duration_min, 'starts_at', e.starts_at, 'ends_at', e.ends_at, 'total_marks', e.total_marks,
+          'needs_code', e.access_code is not null, 'status', e.status,
+          'state', case when a.id is not null and a.status = 'in_progress' and a.deadline_at > now() then 'running'
+                        when a.id is not null then 'done'
+                        when e.status = 'scheduled' and now() < e.starts_at then 'upcoming'
+                        when e.status = 'scheduled' and now() <= e.ends_at then 'open'
+                        else 'missed' end,
+          'score', case when a.status <> 'in_progress' and (e.show_result = 'immediately' or (e.show_result = 'after_declare' and e.status = 'declared')) then a.score end,
+          'max_score', case when a.status <> 'in_progress' and (e.show_result = 'immediately' or (e.show_result = 'after_declare' and e.status = 'declared')) then a.max_score end
+        ) order by e.starts_at desc)
+      from public.online_exams e
+      join public.subjects sb on sb.id = e.subject_id
+      left join public.online_attempts a on a.exam_id = e.id and a.student_id = s.id
+     where e.school_id = s.school_id and e.class_id = s.class_id and e.status in ('scheduled', 'closed', 'declared')
+       and (e.starts_at is null or e.starts_at > now() - interval '60 days')), '[]'::jsonb));
+end $$;
+
+-- begins (or resumes) the attempt and returns the paper — without answers
+create or replace function public.exam_start(p_token text, p_exam uuid, p_code text, p_ip text, p_ua text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare s public.students; e public.online_exams; a public.online_attempts; qs jsonb := '[]'; key jsonb := '{}'; r record; opts jsonb; n int;
+begin
+  if not public.is_service() then raise exception 'not allowed'; end if;
+  s := public._exam_student(p_token);
+  select * into e from public.online_exams where id = p_exam and school_id = s.school_id and class_id = s.class_id;
+  if e.id is null then raise exception 'This exam is not available for you.'; end if;
+  select * into a from public.online_attempts where exam_id = p_exam and student_id = s.id;
+  if a.id is not null then
+    if a.status = 'in_progress' and a.deadline_at > now() then
+      update public.online_attempts set last_seen_at = now(), ip = coalesce(left(p_ip, 60), ip) where id = a.id;
+      return public.exam_state(p_token, p_exam);
+    end if;
+    if a.status = 'in_progress' then perform public._finish_attempt(a.id, 'auto_submitted'); end if;
+    raise exception 'You have already taken this exam.';
+  end if;
+  if e.status <> 'scheduled' then raise exception 'This exam is not open.'; end if;
+  if now() < e.starts_at then raise exception 'The exam has not started yet.'; end if;
+  if now() > e.ends_at then raise exception 'The exam window has closed.'; end if;
+  if e.access_code is not null and lower(btrim(coalesce(p_code, ''))) <> lower(e.access_code) then raise exception 'The exam code is not correct. Ask your teacher.'; end if;
+
+  if e.pool_mode = 'fixed' then
+    for r in select q.*, oq.marks as em from public.online_exam_questions oq join public.question_bank q on q.id = oq.question_id where oq.exam_id = p_exam
+             order by case when e.shuffle_questions then random() else oq.sort end, oq.sort loop
+      opts := r.options;
+      if e.shuffle_options and r.kind <> 'truefalse' then select coalesce(jsonb_agg(o order by random()), '[]') into opts from jsonb_array_elements(r.options) o; end if;
+      qs := qs || jsonb_build_array(jsonb_build_object('id', r.id, 'kind', r.kind, 'text', r.text, 'marks', r.em, 'neg', r.negative_marks, 'options', opts));
+      key := key || jsonb_build_object(r.id::text, r.answer);
+    end loop;
+  else
+    for r in select q.* from public.question_bank q
+              where q.school_id = e.school_id and q.class_id = e.class_id and q.subject_id = e.subject_id and q.active
+                and (nullif(e.pool_filter ->> 'chapter', '') is null or q.chapter = e.pool_filter ->> 'chapter')
+                and (nullif(e.pool_filter ->> 'difficulty', '') is null or q.difficulty = e.pool_filter ->> 'difficulty')
+              order by random() limit e.random_count loop
+      opts := r.options;
+      if e.shuffle_options and r.kind <> 'truefalse' then select coalesce(jsonb_agg(o order by random()), '[]') into opts from jsonb_array_elements(r.options) o; end if;
+      qs := qs || jsonb_build_array(jsonb_build_object('id', r.id, 'kind', r.kind, 'text', r.text, 'marks', r.marks, 'neg', r.negative_marks, 'options', opts));
+      key := key || jsonb_build_object(r.id::text, r.answer);
+    end loop;
+  end if;
+  n := jsonb_array_length(qs);
+  if n = 0 then raise exception 'This exam has no questions yet. Please tell your teacher.'; end if;
+
+  insert into public.online_attempts (school_id, exam_id, student_id, deadline_at, questions, key, ip, user_agent, last_seen_at)
+  values (s.school_id, p_exam, s.id, least(now() + make_interval(mins => e.duration_min), e.ends_at), qs, key, left(p_ip, 60), left(p_ua, 200), now());
+  return public.exam_state(p_token, p_exam);
+end $$;
+
+-- current paper, answers so far and the seconds left on the server's clock
+create or replace function public.exam_state(p_token text, p_exam uuid) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare s public.students; a public.online_attempts; e public.online_exams;
+begin
+  if not public.is_service() then raise exception 'not allowed'; end if;
+  s := public._exam_student(p_token);
+  select * into a from public.online_attempts where exam_id = p_exam and student_id = s.id;
+  if a.id is null then raise exception 'You have not started this exam.'; end if;
+  select * into e from public.online_exams where id = p_exam;
+  if a.status = 'in_progress' and a.deadline_at <= now() then
+    perform public._finish_attempt(a.id, 'auto_submitted');
+    select * into a from public.online_attempts where id = a.id;
+  end if;
+  return jsonb_build_object(
+    'exam', jsonb_build_object('id', e.id, 'title', e.title, 'instructions', e.instructions, 'duration_min', e.duration_min, 'max_tab_switches', e.max_tab_switches,
+                               'require_fullscreen', e.require_fullscreen, 'total_marks', e.total_marks, 'negative_marking', e.negative_marking),
+    'status', a.status,
+    'remaining_s', case when a.status = 'in_progress' then greatest(extract(epoch from a.deadline_at - now()), 0)::int else 0 end,
+    'questions', case when a.status = 'in_progress' then a.questions else '[]'::jsonb end,
+    'answers', case when a.status = 'in_progress' then a.answers else '{}'::jsonb end,
+    'tab_switches', a.tab_switches);
+end $$;
+
+create or replace function public.exam_answer(p_token text, p_exam uuid, p_question uuid, p_ans jsonb) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare s public.students; a public.online_attempts; q jsonb; valid jsonb;
+begin
+  if not public.is_service() then raise exception 'not allowed'; end if;
+  s := public._exam_student(p_token);
+  select * into a from public.online_attempts where exam_id = p_exam and student_id = s.id for update;
+  if a.id is null or a.status <> 'in_progress' then raise exception 'This exam is already submitted.'; end if;
+  if a.deadline_at <= now() then perform public._finish_attempt(a.id, 'auto_submitted'); raise exception 'Time is over. Your answers were submitted.'; end if;
+  select x into q from jsonb_array_elements(a.questions) x where x ->> 'id' = p_question::text;
+  if q is null then raise exception 'Unknown question.'; end if;
+  if jsonb_typeof(coalesce(p_ans, '[]'::jsonb)) <> 'array' then raise exception 'Bad answer.'; end if;
+  select coalesce(jsonb_agg(v), '[]') into valid from jsonb_array_elements_text(coalesce(p_ans, '[]'::jsonb)) v
+   where exists (select 1 from jsonb_array_elements(q -> 'options') o where o ->> 'id' = v);
+  if q ->> 'kind' in ('single', 'truefalse') and jsonb_array_length(valid) > 1 then valid := jsonb_build_array(valid -> 0); end if;
+  update public.online_attempts set answers = jsonb_set(answers, array[p_question::text], valid, true), last_seen_at = now() where id = a.id;
+  return jsonb_build_object('saved', true, 'remaining_s', greatest(extract(epoch from a.deadline_at - now()), 0)::int);
+end $$;
+
+create or replace function public.exam_event(p_token text, p_exam uuid, p_kind text, p_detail text default null) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare s public.students; a public.online_attempts; e public.online_exams; sw int; over boolean := false;
+begin
+  if not public.is_service() then raise exception 'not allowed'; end if;
+  s := public._exam_student(p_token);
+  select * into a from public.online_attempts where exam_id = p_exam and student_id = s.id for update;
+  if a.id is null or a.status <> 'in_progress' then return jsonb_build_object('status', coalesce(a.status, 'none')); end if;
+  select * into e from public.online_exams where id = p_exam;
+  p_kind := left(coalesce(p_kind, 'event'), 30);
+  sw := a.tab_switches + case when p_kind in ('tab_hidden', 'window_blur', 'fullscreen_exit') then 1 else 0 end;
+  update public.online_attempts set tab_switches = sw, last_seen_at = now(),
+         events = case when jsonb_array_length(events) < 200 then events || jsonb_build_array(jsonb_build_object('t', now(), 'k', p_kind, 'd', left(p_detail, 80))) else events end
+   where id = a.id;
+  if e.max_tab_switches > 0 and sw > e.max_tab_switches then
+    perform public._finish_attempt(a.id, 'terminated'); over := true;
+  end if;
+  return jsonb_build_object('tab_switches', sw, 'limit', e.max_tab_switches, 'terminated', over);
+end $$;
+
+create or replace function public.exam_submit(p_token text, p_exam uuid) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare s public.students; a public.online_attempts;
+begin
+  if not public.is_service() then raise exception 'not allowed'; end if;
+  s := public._exam_student(p_token);
+  select * into a from public.online_attempts where exam_id = p_exam and student_id = s.id;
+  if a.id is null then raise exception 'You have not started this exam.'; end if;
+  perform public._finish_attempt(a.id, 'submitted');
+  return public.exam_result(p_token, p_exam);
+end $$;
+
+-- what the student may see after finishing
+create or replace function public.exam_result(p_token text, p_exam uuid) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare s public.students; a public.online_attempts; e public.online_exams; show boolean; rev jsonb := '[]'::jsonb;
+begin
+  if not public.is_service() then raise exception 'not allowed'; end if;
+  s := public._exam_student(p_token);
+  select * into a from public.online_attempts where exam_id = p_exam and student_id = s.id;
+  select * into e from public.online_exams where id = p_exam;
+  if a.id is null then raise exception 'You have not taken this exam.'; end if;
+  show := a.status <> 'in_progress' and (e.show_result = 'immediately' or (e.show_result = 'after_declare' and e.status = 'declared'));
+  if show and e.show_answers then
+    select coalesce(jsonb_agg(jsonb_build_object('text', q ->> 'text', 'options', q -> 'options', 'chosen', coalesce(a.answers -> (q ->> 'id'), '[]'::jsonb),
+                                                 'correct', a.key -> (q ->> 'id'), 'explanation', (select explanation from public.question_bank b where b.id = (q ->> 'id')::uuid))), '[]')
+      into rev from jsonb_array_elements(a.questions) q;
+  end if;
+  return jsonb_build_object('title', e.title, 'status', a.status, 'submitted', a.status <> 'in_progress', 'shown', show,
+    'score', case when show then a.score end, 'max_score', case when show then a.max_score end, 'correct', case when show then a.correct end,
+    'wrong', case when show then a.wrong end, 'skipped', case when show then a.skipped end,
+    'passed', case when show and a.max_score > 0 then 100.0 * a.score / a.max_score >= e.pass_percent end, 'review', rev,
+    'terminated', a.status = 'terminated');
+end $$;
+
+do $$
+declare f text;
+begin
+  foreach f in array array['exam_public_info(text)', 'exam_login(text, text, date, text)', 'exam_logout(text)', 'exam_portal(text)', 'exam_start(text, uuid, text, text, text)',
+                           'exam_state(text, uuid)', 'exam_answer(text, uuid, uuid, jsonb)', 'exam_event(text, uuid, text, text)', 'exam_submit(text, uuid)', 'exam_result(text, uuid)'] loop
+    execute format('revoke execute on function public.%s from public, anon, authenticated', f);
+    execute format('grant execute on function public.%s to service_role', f);
+  end loop;
+end $$;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['online_exams', 'question_bank'] loop
+    execute format('drop trigger if exists audit_%1$s on public.%1$I', t);
+    execute format('create trigger audit_%1$s after insert or update or delete on public.%1$I for each row execute function public.audit_row()', t);
+  end loop;
+end $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Step 29: Document branding and exam documents — principal's signature, school seal and a watermark kept in settings,
+--          marksheet / report card / result data for templates ({{exam.*}}), placeholders {{school.signature}} {{school.seal}}.
+-- Safe to run again.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+create table if not exists public.school_branding (
+  school_id         uuid primary key references public.schools(id) on delete cascade,
+  signature         text,
+  seal              text,
+  watermark_mode    text not null default 'logo' check (watermark_mode in ('none', 'logo', 'text')),
+  watermark_text    text,
+  watermark_opacity int  not null default 10 check (watermark_opacity between 3 and 30),
+  updated_at        timestamptz not null default now(),
+  check (signature is null or (signature ~ '^data:image/(png|jpeg|webp);base64,' and length(signature) <= 450000)),
+  check (seal is null or (seal ~ '^data:image/(png|jpeg|webp);base64,' and length(seal) <= 450000))
+);
+alter table public.school_branding enable row level security;
+drop policy if exists "read" on public.school_branding;
+create policy "read" on public.school_branding for select to authenticated using (public.is_member(school_id));
+drop policy if exists "write" on public.school_branding;
+create policy "write" on public.school_branding for all to authenticated
+  using (public.has_perm_school(school_id, 'settings.school.edit')) with check (public.has_perm_school(school_id, 'settings.school.edit'));
+
+do $$
+begin
+  execute 'drop trigger if exists audit_school_branding on public.school_branding';
+  execute 'create trigger audit_school_branding after insert or update or delete on public.school_branding for each row execute function public.audit_row()';
+end $$;
+
+-- ───────────── Exam block for marksheets ─────────────
+create or replace function public._exam_doc_block(sid uuid, stu uuid, p_exam uuid) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare ex public.exams; r public.exam_results; scale jsonb; sess text; cname text; strength int; rows text := ''; pass_mark numeric; pct numeric; g text;
+        allh text := ''; hdr text := ''; x record; sub record; cell text; ex_ids uuid[]; att_p int; att_t int; th text := 'border:1px solid #444;padding:4px 8px';
+begin
+  select * into ex from public.exams where id = p_exam and school_id = sid;
+  if ex.id is null then raise exception 'Choose the examination.'; end if;
+  select * into r from public.exam_results where exam_id = p_exam and student_id = stu;
+  if r.id is null then raise exception 'The result of this exam is not declared for this student''s class yet.'; end if;
+  select grade_scale into scale from public.schools where id = sid;
+  select name into sess from public.sessions where id = ex.session_id;
+  select name into cname from public.classes where id = r.class_id;
+  select count(*) into strength from public.exam_results where exam_id = p_exam and class_id = r.class_id;
+
+  for sub in
+    select sb.name, es.max_marks, es.pass_marks, m.marks, coalesce(m.absent, false) as absent
+      from public.exam_subjects es join public.subjects sb on sb.id = es.subject_id
+      left join public.marks m on m.exam_id = es.exam_id and m.student_id = stu and m.subject_id = es.subject_id
+     where es.exam_id = p_exam and es.class_id = r.class_id order by sb.sort, sb.name
+  loop
+    pct := case when sub.max_marks > 0 and sub.marks is not null then 100.0 * sub.marks / sub.max_marks else 0 end;
+    select gg ->> 'grade' into g from jsonb_array_elements(scale) gg where (gg ->> 'min')::numeric <= pct order by (gg ->> 'min')::numeric desc limit 1;
+    pass_mark := coalesce(sub.pass_marks, round(sub.max_marks * 0.33, 2));
+    rows := rows || '<tr><td style="' || th || '">' || public.html_escape(sub.name) || '</td><td style="' || th || ';text-align:center">' || sub.max_marks::text
+         || '</td><td style="' || th || ';text-align:center">' || pass_mark::text || '</td><td style="' || th || ';text-align:center;font-weight:bold">'
+         || case when sub.absent then 'AB' when sub.marks is null then '—' else trim(trailing '.' from trim(trailing '0' from sub.marks::text)) end
+         || '</td><td style="' || th || ';text-align:center">' || case when sub.absent or sub.marks is null then '—' else coalesce(g, '') end || '</td></tr>';
+  end loop;
+
+  -- every declared exam of the session up to this one, side by side
+  select array_agg(e.id order by e.sort, e.start_date) into ex_ids from public.exams e
+   where e.session_id = ex.session_id and e.sort <= ex.sort and exists (select 1 from public.exam_results z where z.exam_id = e.id and z.student_id = stu);
+  if ex_ids is not null then
+    for x in select e.id, e.name from public.exams e where e.id = any(ex_ids) order by e.sort, e.start_date loop
+      hdr := hdr || '<th style="' || th || ';text-align:center">' || public.html_escape(x.name) || '</th>';
+    end loop;
+    for sub in select distinct sb.id, sb.name, sb.sort from public.exam_subjects es join public.subjects sb on sb.id = es.subject_id
+                where es.exam_id = any(ex_ids) and es.class_id = r.class_id order by sb.sort, sb.name loop
+      allh := allh || '<tr><td style="' || th || '">' || public.html_escape(sub.name) || '</td>';
+      for x in select e.id from public.exams e where e.id = any(ex_ids) order by e.sort, e.start_date loop
+        select case when m.absent then 'AB' when m.marks is null then '—' else trim(trailing '.' from trim(trailing '0' from m.marks::text)) || '/' || trim(trailing '.' from trim(trailing '0' from es.max_marks::text)) end
+          into cell from public.exam_subjects es left join public.marks m on m.exam_id = es.exam_id and m.student_id = stu and m.subject_id = es.subject_id
+         where es.exam_id = x.id and es.class_id = r.class_id and es.subject_id = sub.id;
+        allh := allh || '<td style="' || th || ';text-align:center">' || coalesce(public.html_escape(cell), '') || '</td>';
+      end loop;
+      allh := allh || '</tr>';
+    end loop;
+    allh := '<table style="width:100%;border-collapse:collapse;font-size:11px"><tr><th style="' || th || ';text-align:left">Subject</th>' || hdr || '</tr>' || allh || '</table>';
+  end if;
+
+  select count(*) filter (where status in ('P', 'L', 'H')), count(*) into att_p, att_t from public.attendance a
+   where a.student_id = stu and a.date between (select start_date from public.sessions where id = ex.session_id) and (select end_date from public.sessions where id = ex.session_id);
+
+  return jsonb_build_object(
+    'name', ex.name, 'session', sess, 'class', cname, 'total', trim(trailing '.' from trim(trailing '0' from r.total::text)), 'max_total', trim(trailing '.' from trim(trailing '0' from r.max_total::text)),
+    'percent', r.percent::text || '%', 'grade', coalesce(r.grade, ''), 'rank', coalesce(r.rank::text, ''), 'strength', strength::text,
+    'result', case r.result when 'pass' then 'PASS' when 'fail' then 'FAIL' when 'absent' then 'ABSENT' else 'WITHHELD' end,
+    'failed_subjects', r.failed_subjects::text, 'remark', coalesce(r.remark, ''), 'declared_on', to_char(r.declared_at at time zone 'Asia/Kolkata', 'DD/MM/YYYY'),
+    'attendance', case when att_t > 0 then att_p || ' / ' || att_t || ' days' else '' end,
+    'marks_html', '<table style="width:100%;border-collapse:collapse;font-size:12px"><tr style="background:#eef1f6"><th style="' || th || ';text-align:left">Subject</th><th style="' || th || '">Max</th><th style="' || th
+                  || '">Pass</th><th style="' || th || '">Marks</th><th style="' || th || '">Grade</th></tr>' || rows
+                  || '<tr style="font-weight:bold"><td style="' || th || '">Total</td><td style="' || th || ';text-align:center">' || trim(trailing '.' from trim(trailing '0' from r.max_total::text))
+                  || '</td><td style="' || th || '"></td><td style="' || th || ';text-align:center">' || trim(trailing '.' from trim(trailing '0' from r.total::text))
+                  || '</td><td style="' || th || ';text-align:center">' || coalesce(r.grade, '') || '</td></tr></table>',
+    'all_html', allh);
+end $$;
+revoke execute on function public._exam_doc_block(uuid, uuid, uuid) from public, anon, authenticated;
+
+-- ───────────── document_data now carries the exam block and the branding flags ─────────────
+do $$
+begin
+  if exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'document_data')
+     and not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'document_data_att') then
+    alter function public.document_data(uuid, uuid, uuid, text, date, date, jsonb) rename to document_data_att;
+  end if;
+end $$;
+create or replace function public.document_data(sid uuid, stu uuid, stf uuid, doc_no text, on_day date, valid_until date, p_extra jsonb)
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare d jsonb; eid uuid;
+begin
+  d := public.document_data_att(sid, stu, stf, doc_no, on_day, valid_until, p_extra);
+  if stu is not null and coalesce(p_extra ->> 'exam_id', '') ~ '^[0-9a-f-]{36}$' then
+    eid := (p_extra ->> 'exam_id')::uuid;
+    if p_extra ->> 'exam_id' like '[%' then null; end if;
+    d := d || jsonb_build_object('exam', public._exam_doc_block(sid, stu, eid));
+  end if;
+  return d;
+end $$;
+revoke execute on function public.document_data(uuid, uuid, uuid, text, date, date, jsonb) from public, anon, authenticated;
+revoke execute on function public.document_data_att(uuid, uuid, uuid, text, date, date, jsonb) from public, anon, authenticated;
+
+-- preview with a placeholder exam must not fail: preview_document passes '[Examination]' which is not a uuid, so no block is built.
+
+-- ───────────── renderer: signature, seal and exam tables ─────────────
+create or replace function public.render_document(body text, data jsonb) returns text
+language plpgsql immutable as $$
+declare out text := regexp_replace(coalesce(body, ''), '\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}', '{{\1}}', 'g'); k text; v text;
+begin
+  for k in select distinct t.m[1] from regexp_matches(out, '\{\{([a-zA-Z0-9_.]+)\}\}', 'g') as t(m) loop
+    v := data #>> string_to_array(k, '.');
+    if k = 'student.photo' then
+      out := replace(out, '{{' || k || '}}', '<img class="doc-photo" data-photo="1" src="" alt="Photograph" style="width:100%;height:100%;object-fit:cover">');
+    elsif k = 'school.logo' then
+      out := replace(out, '{{' || k || '}}', case when v ~* '^https://' then '<img class="doc-logo" src="' || public.html_escape(v) || '" alt="Logo" style="width:100%;height:100%;object-fit:contain">' else '' end);
+    elsif k in ('school.signature', 'school.seal') then
+      out := replace(out, '{{' || k || '}}', '<img class="doc-brand" data-brand="' || split_part(k, '.', 2) || '" src="" alt="' || case when k = 'school.seal' then 'School seal' else 'Principal signature' end
+                                             || '" style="width:100%;height:100%;object-fit:contain">');
+    elsif k in ('student.qr', 'staff.qr') then
+      v := data #>> string_to_array(case when k = 'student.qr' then 'student.att_code' else 'staff.att_code' end, '.');
+      out := replace(out, '{{' || k || '}}', case when v ~ '^[0-9a-f]{12}$' then '<img class="doc-qr" data-qr="' || v || '" src="" alt="QR" style="width:100%;height:100%;object-fit:contain">' else '' end);
+    elsif k ~ '^(fee|exam)\.[a-z_]+_html$' then
+      out := replace(out, '{{' || k || '}}', coalesce(v, ''));
+    else
+      out := replace(out, '{{' || k || '}}', public.html_escape(v));
+    end if;
+  end loop;
+  return out;
+end $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Step 30: Library, the modern way — loan rules (days, limits, fine per day, renewals), reservations, issue by scanning the member's
+--          card (QR / admission no. / employee code), lost books, fine collection into the day book, paged lists and a dashboard.
+-- Safe to run again.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+create table if not exists public.library_settings (
+  school_id         uuid primary key references public.schools(id) on delete cascade,
+  loan_days_student int not null default 14 check (loan_days_student between 1 and 90),
+  loan_days_staff   int not null default 30 check (loan_days_staff between 1 and 180),
+  max_books_student int not null default 3 check (max_books_student between 1 and 20),
+  max_books_staff   int not null default 5 check (max_books_staff between 1 and 40),
+  fine_per_day      numeric(6,2) not null default 1 check (fine_per_day >= 0),
+  grace_days        int not null default 0 check (grace_days between 0 and 14),
+  max_renewals      int not null default 2 check (max_renewals between 0 and 10),
+  renew_days        int not null default 7 check (renew_days between 1 and 60),
+  block_when_overdue boolean not null default true
+);
+alter table public.library_settings enable row level security;
+drop policy if exists "read" on public.library_settings;
+create policy "read" on public.library_settings for select to authenticated using (public.has_perm(school_id, 'library.circulation.view') or public.has_perm(school_id, 'library.catalogue.view'));
+drop policy if exists "write" on public.library_settings;
+create policy "write" on public.library_settings for all to authenticated
+  using (public.has_perm_school(school_id, 'library.catalogue.edit')) with check (public.has_perm_school(school_id, 'library.catalogue.edit'));
+
+alter table public.library_issues add column if not exists renewals int not null default 0;
+alter table public.library_issues add column if not exists lost boolean not null default false;
+alter table public.library_issues add column if not exists fine_paid_on date;
+alter table public.library_issues add column if not exists fine_waived boolean not null default false;
+alter table public.library_issues add column if not exists returned_by_name text;
+alter table public.library_books add column if not exists active boolean not null default true;
+alter table public.library_books add column if not exists tags text;
+
+create table if not exists public.library_reservations (
+  id          uuid primary key default gen_random_uuid(),
+  school_id   uuid not null references public.schools(id) on delete cascade,
+  book_id     uuid not null references public.library_books(id) on delete cascade,
+  student_id  uuid references public.students(id) on delete cascade,
+  staff_id    uuid references public.staff(id) on delete cascade,
+  status      text not null default 'active' check (status in ('active', 'fulfilled', 'cancelled')),
+  created_at  timestamptz not null default now(),
+  notified_at timestamptz,
+  check (num_nonnulls(student_id, staff_id) = 1)
+);
+create index if not exists library_reservations_idx on public.library_reservations (school_id, book_id, status);
+alter table public.library_reservations enable row level security;
+drop policy if exists "read" on public.library_reservations;
+create policy "read" on public.library_reservations for select to authenticated using (public.has_perm_school(school_id, 'library.circulation.view'));
+
+-- ───────────── helpers ─────────────
+create or replace function public._library_cfg(sid uuid) returns public.library_settings
+language plpgsql stable security definer set search_path = public as $$
+declare c public.library_settings;
+begin
+  select * into c from public.library_settings where school_id = sid;
+  if c.school_id is null then c.school_id := sid; c.loan_days_student := 14; c.loan_days_staff := 30; c.max_books_student := 3; c.max_books_staff := 5; c.fine_per_day := 1;
+    c.grace_days := 0; c.max_renewals := 2; c.renew_days := 7; c.block_when_overdue := true; end if;
+  return c;
+end $$;
+revoke execute on function public._library_cfg(uuid) from public, anon, authenticated;
+
+-- fine of an open loan if returned on p_on
+create or replace function public._library_fine(sid uuid, p_due date, p_on date) returns numeric
+language plpgsql stable security definer set search_path = public as $$
+declare c public.library_settings := public._library_cfg(sid); late int := greatest(p_on - p_due - c.grace_days, 0);
+begin
+  return round(late * c.fine_per_day, 2);
+end $$;
+revoke execute on function public._library_fine(uuid, date, date) from public, anon, authenticated;
+
+-- ───────────── issue ─────────────
+-- p_code: the member's card QR, admission number or employee code (same codes as attendance)
+create or replace function public.library_issue(sid uuid, p_book uuid, p_code text, p_days int default null) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare c public.library_settings := public._library_cfg(sid); f record; b public.library_books; n int; limit_n int; days int; stu uuid; stf uuid; nm text; me text;
+        reserved int; mine int; free_copies int; od int; due date; i uuid; st text;
+begin
+  if auth.uid() is null or not public.has_perm_school(sid, 'library.circulation.create') then raise exception 'not allowed'; end if;
+  select * into b from public.library_books where id = p_book and school_id = sid;
+  if b.id is null then raise exception 'Book not found.'; end if;
+  if not b.active then raise exception 'This book is withdrawn from circulation.'; end if;
+  select * into f from public._find_subject(sid, p_code);
+  if f.id is null then raise exception 'No student or staff member has the code “%”.', left(coalesce(p_code, ''), 30); end if;
+  if f.kind = 'student' then
+    select s.id, s.status, btrim(concat_ws(' ', s.first_name, s.last_name)) into stu, st, nm from public.students s where s.id = f.id;
+    if st <> 'active' then raise exception 'That student is no longer on roll.'; end if;
+    limit_n := c.max_books_student; days := coalesce(p_days, c.loan_days_student);
+  else
+    select w.id, w.status, w.name into stf, st, nm from public.staff w where w.id = f.id;
+    if st <> 'active' then raise exception 'That staff member is no longer working here.'; end if;
+    limit_n := c.max_books_staff; days := coalesce(p_days, c.loan_days_staff);
+  end if;
+  if c.block_when_overdue then
+    select count(*) into od from public.library_issues where school_id = sid and returned_on is null and due_on < public.today_ist() and student_id is not distinct from stu and staff_id is not distinct from stf;
+    if od > 0 then raise exception '% has % overdue book(s). Return them first.', nm, od; end if;
+  end if;
+  select count(*) into n from public.library_issues where school_id = sid and returned_on is null and student_id is not distinct from stu and staff_id is not distinct from stf;
+  if n >= limit_n then raise exception '% already has % book(s) — the limit is %.', nm, n, limit_n; end if;
+  if exists (select 1 from public.library_issues where book_id = p_book and returned_on is null and student_id is not distinct from stu and staff_id is not distinct from stf) then
+    raise exception '% already has this book.', nm; end if;
+  -- copies reserved for others keep their place
+  select count(*) filter (where student_id is not distinct from stu and staff_id is not distinct from stf), count(*) into mine, reserved
+    from public.library_reservations where book_id = p_book and status = 'active';
+  select b.copies - count(*) into free_copies from public.library_issues where book_id = p_book and returned_on is null;
+  if free_copies - (reserved - mine) < 1 then raise exception 'No copy is free: % reservation(s) are waiting for this title.', reserved - mine; end if;
+  days := least(greatest(days, 1), 180);
+  due := public.today_ist() + days;
+  select name into me from public.school_members where school_id = sid and user_id = auth.uid();
+  insert into public.library_issues (school_id, book_id, student_id, staff_id, issued_on, due_on, issued_by_name)
+  values (sid, p_book, stu, stf, public.today_ist(), due, coalesce(me, 'User')) returning id into i;
+  update public.library_reservations set status = 'fulfilled' where book_id = p_book and status = 'active' and student_id is not distinct from stu and staff_id is not distinct from stf;
+  return jsonb_build_object('id', i, 'member', nm, 'book', b.title, 'due_on', due);
+end $$;
+
+-- ───────────── return (normal, lost) ─────────────
+create or replace function public.library_return(sid uuid, p_issue uuid, p_lost boolean default false, p_fine numeric default null, p_waive boolean default false) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare it public.library_issues; b public.library_books; v_fine numeric; me text; next_res uuid;
+begin
+  if auth.uid() is null or not public.has_perm_school(sid, 'library.circulation.edit') then raise exception 'not allowed'; end if;
+  select * into it from public.library_issues where id = p_issue and school_id = sid;
+  if it.id is null then raise exception 'Issue record not found.'; end if;
+  if it.returned_on is not null then raise exception 'This book was already returned.'; end if;
+  select * into b from public.library_books where id = it.book_id;
+  v_fine := coalesce(p_fine, public._library_fine(sid, it.due_on, public.today_ist()));
+  if p_lost then v_fine := v_fine + coalesce(b.price, 0); end if;
+  if p_waive then v_fine := 0; end if;
+  if v_fine < 0 then raise exception 'The fine cannot be negative.'; end if;
+  select name into me from public.school_members where school_id = sid and user_id = auth.uid();
+  update public.library_issues set returned_on = public.today_ist(), fine = v_fine, lost = p_lost, fine_waived = p_waive, returned_by_name = coalesce(me, 'User') where id = p_issue;
+  if p_lost then update public.library_books set copies = greatest(copies - 1, 0) where id = it.book_id; end if;
+  select id into next_res from public.library_reservations where book_id = it.book_id and status = 'active' and notified_at is null order by created_at limit 1;
+  if next_res is not null and not p_lost then update public.library_reservations set notified_at = now() where id = next_res; end if;
+  return jsonb_build_object('fine', v_fine, 'lost', p_lost, 'reservation_waiting', next_res is not null);
+end $$;
+
+create or replace function public.library_renew(sid uuid, p_issue uuid) returns date
+language plpgsql security definer set search_path = public as $$
+declare c public.library_settings := public._library_cfg(sid); it public.library_issues; nxt date;
+begin
+  if auth.uid() is null or not public.has_perm_school(sid, 'library.circulation.edit') then raise exception 'not allowed'; end if;
+  select * into it from public.library_issues where id = p_issue and school_id = sid;
+  if it.id is null or it.returned_on is not null then raise exception 'This book is not out.'; end if;
+  if it.renewals >= c.max_renewals then raise exception 'It was already renewed % time(s) — the limit.', it.renewals; end if;
+  if exists (select 1 from public.library_reservations where book_id = it.book_id and status = 'active' and (student_id is distinct from it.student_id or staff_id is distinct from it.staff_id)) then
+    raise exception 'Another member has reserved this book, so it cannot be renewed.'; end if;
+  nxt := greatest(it.due_on, public.today_ist()) + c.renew_days;
+  update public.library_issues set due_on = nxt, renewals = renewals + 1 where id = p_issue;
+  return nxt;
+end $$;
+
+-- ───────────── reservations ─────────────
+create or replace function public.library_reserve(sid uuid, p_book uuid, p_code text) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare f record; i uuid;
+begin
+  if auth.uid() is null or not public.has_perm_school(sid, 'library.circulation.create') then raise exception 'not allowed'; end if;
+  if not exists (select 1 from public.library_books where id = p_book and school_id = sid and active) then raise exception 'Book not found.'; end if;
+  select * into f from public._find_subject(sid, p_code);
+  if f.id is null then raise exception 'No student or staff member has that code.'; end if;
+  if exists (select 1 from public.library_reservations where book_id = p_book and status = 'active' and ((f.kind = 'student' and student_id = f.id) or (f.kind = 'staff' and staff_id = f.id))) then
+    raise exception 'Already reserved for this member.'; end if;
+  insert into public.library_reservations (school_id, book_id, student_id, staff_id)
+  values (sid, p_book, case when f.kind = 'student' then f.id end, case when f.kind = 'staff' then f.id end) returning id into i;
+  return i;
+end $$;
+
+create or replace function public.library_cancel_reservation(sid uuid, p_res uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null or not public.has_perm_school(sid, 'library.circulation.edit') then raise exception 'not allowed'; end if;
+  update public.library_reservations set status = 'cancelled' where id = p_res and school_id = sid and status = 'active';
+end $$;
+
+-- ───────────── fine collected → day book ─────────────
+create or replace function public.library_collect_fine(sid uuid, p_issue uuid, p_mode text default 'cash') returns void
+language plpgsql security definer set search_path = public as $$
+declare it public.library_issues; head uuid; bk uuid; n int; me text; nm text; ttl text;
+begin
+  if auth.uid() is null or not public.has_perm_school(sid, 'library.circulation.edit') then raise exception 'not allowed'; end if;
+  select * into it from public.library_issues where id = p_issue and school_id = sid;
+  if it.id is null or it.returned_on is null then raise exception 'Return the book first.'; end if;
+  if it.fine <= 0 or it.fine_paid_on is not null then raise exception 'There is no fine to collect.'; end if;
+  perform public._account_defaults(sid);
+  select id into head from public.account_heads where school_id = sid and kind = 'income' and lower(name) = 'library fines';
+  if head is null then insert into public.account_heads (school_id, name, kind) values (sid, 'Library fines', 'income') returning id into head; end if;
+  select id into bk from public.account_books where school_id = sid and active order by (kind = 'cash') desc, created_at limit 1;
+  update public.account_settings set next_no = next_no + 1 where school_id = sid returning next_no - 1 into n;
+  select name into me from public.school_members where school_id = sid and user_id = auth.uid();
+  select coalesce((select btrim(concat_ws(' ', first_name, last_name)) from public.students where id = it.student_id), (select name from public.staff where id = it.staff_id)) into nm;
+  select title into ttl from public.library_books where id = it.book_id;
+  insert into public.vouchers (school_id, no, date, kind, head_id, book_id, amount, party, mode, narration, status, created_by_name)
+  values (sid, 'RV-' || lpad(n::text, 5, '0'), public.today_ist(), 'receipt', head, bk, it.fine, nm, case when p_mode in ('cash', 'upi', 'cheque', 'bank_transfer', 'card') then p_mode else 'cash' end,
+          left('Library fine — ' || ttl, 500), 'posted', coalesce(me, 'User'));
+  update public.library_issues set fine_paid_on = public.today_ist() where id = p_issue;
+end $$;
+
+-- ───────────── lists ─────────────
+create or replace function public.library_issue_list(sid uuid, p_state text default 'out', p_q text default null, p_member text default null, p_from date default null, p_to date default null,
+                                                     p_limit int default 25, p_offset int default 0)
+returns table (id uuid, book_id uuid, title text, accession_no text, author text, member_kind text, member_id uuid, member_name text, member_sub text, phone text,
+               issued_on date, due_on date, returned_on date, fine numeric, lost boolean, fine_paid_on date, renewals int, days_late int, fine_now numeric, total bigint)
+language sql stable security definer set search_path = public as $$
+  select i.id, b.id, b.title, b.accession_no, b.author, case when i.student_id is not null then 'student' else 'staff' end, coalesce(i.student_id, i.staff_id),
+         coalesce(btrim(concat_ws(' ', s.first_name, s.last_name)), w.name),
+         case when s.id is not null then concat_ws(' · ', s.admission_no, c.name || coalesce('-' || sec.name, '')) else coalesce(w.designation, 'Staff') end,
+         coalesce(s.guardian_phone, w.phone), i.issued_on, i.due_on, i.returned_on, i.fine, i.lost, i.fine_paid_on, i.renewals,
+         case when i.returned_on is null then greatest(public.today_ist() - i.due_on, 0) else greatest(i.returned_on - i.due_on, 0) end,
+         case when i.returned_on is null then public._library_fine(sid, i.due_on, public.today_ist()) else i.fine end, count(*) over ()
+    from public.library_issues i
+    join public.library_books b on b.id = i.book_id
+    left join public.students s on s.id = i.student_id
+    left join public.classes c on c.id = s.class_id
+    left join public.sections sec on sec.id = s.section_id
+    left join public.staff w on w.id = i.staff_id
+   where i.school_id = sid and public.has_perm_school(sid, 'library.circulation.view')
+     and (p_state = 'all' or (p_state = 'out' and i.returned_on is null) or (p_state = 'overdue' and i.returned_on is null and i.due_on < public.today_ist())
+          or (p_state = 'returned' and i.returned_on is not null) or (p_state = 'fines' and i.returned_on is not null and i.fine > 0 and i.fine_paid_on is null))
+     and (p_member is null or (p_member = 'student' and i.student_id is not null) or (p_member = 'staff' and i.staff_id is not null))
+     and (p_from is null or i.issued_on >= p_from) and (p_to is null or i.issued_on <= p_to)
+     and (nullif(btrim(coalesce(p_q, '')), '') is null
+          or concat_ws(' ', b.title, b.accession_no, b.author, s.first_name, s.last_name, s.admission_no, w.name) ilike public.like_escape(btrim(p_q)))
+   order by case when i.returned_on is null then i.due_on end asc nulls last, i.returned_on desc nulls last
+   limit least(greatest(coalesce(p_limit, 25), 1), 200) offset greatest(coalesce(p_offset, 0), 0);
+$$;
+
+create or replace function public.library_book_list(sid uuid, p_q text default null, p_category text default null, p_language text default null, p_avail text default null,
+                                                    p_limit int default 25, p_offset int default 0)
+returns table (id uuid, accession_no text, title text, author text, publisher text, isbn text, category text, language text, shelf text, copies int, price numeric, active boolean,
+               out_now bigint, available bigint, reserved bigint, times_issued bigint, total bigint)
+language sql stable security definer set search_path = public as $$
+  select b.id, b.accession_no, b.title, b.author, b.publisher, b.isbn, b.category, b.language, b.shelf, b.copies, b.price, b.active,
+         (select count(*) from public.library_issues i where i.book_id = b.id and i.returned_on is null),
+         greatest(b.copies - (select count(*) from public.library_issues i where i.book_id = b.id and i.returned_on is null), 0),
+         (select count(*) from public.library_reservations r where r.book_id = b.id and r.status = 'active'),
+         (select count(*) from public.library_issues i where i.book_id = b.id), count(*) over ()
+    from public.library_books b
+   where b.school_id = sid and (public.has_perm(sid, 'library.catalogue.view') or public.has_perm(sid, 'library.circulation.view'))
+     and (p_category is null or b.category = p_category) and (p_language is null or b.language = p_language)
+     and (p_avail is null or (p_avail = 'yes' and b.active and b.copies > (select count(*) from public.library_issues i where i.book_id = b.id and i.returned_on is null))
+          or (p_avail = 'no' and b.copies <= (select count(*) from public.library_issues i where i.book_id = b.id and i.returned_on is null)) or (p_avail = 'withdrawn' and not b.active))
+     and (nullif(btrim(coalesce(p_q, '')), '') is null or concat_ws(' ', b.title, b.author, b.accession_no, b.isbn, b.category, b.tags, b.publisher) ilike public.like_escape(btrim(p_q)))
+   order by b.title
+   limit least(greatest(coalesce(p_limit, 25), 1), 200) offset greatest(coalesce(p_offset, 0), 0);
+$$;
+
+-- one query for the dashboard
+create or replace function public.library_dashboard(sid uuid) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare d date := public.today_ist();
+begin
+  if not (public.has_perm_school(sid, 'library.circulation.view') or public.has_perm_school(sid, 'library.catalogue.view')) then raise exception 'not allowed'; end if;
+  return jsonb_build_object(
+    'titles', (select count(*) from public.library_books where school_id = sid and active),
+    'copies', (select coalesce(sum(copies), 0) from public.library_books where school_id = sid and active),
+    'out', (select count(*) from public.library_issues where school_id = sid and returned_on is null),
+    'overdue', (select count(*) from public.library_issues where school_id = sid and returned_on is null and due_on < d),
+    'due_today', (select count(*) from public.library_issues where school_id = sid and returned_on is null and due_on = d),
+    'fines_pending', (select coalesce(sum(fine), 0) from public.library_issues where school_id = sid and returned_on is not null and fine > 0 and fine_paid_on is null),
+    'fines_collected_30', (select coalesce(sum(fine), 0) from public.library_issues where school_id = sid and fine_paid_on >= d - 30),
+    'reservations', (select count(*) from public.library_reservations where school_id = sid and status = 'active'),
+    'per_month', coalesce((select jsonb_agg(jsonb_build_object('m', to_char(m, 'Mon'), 'n', n) order by m) from (
+        select date_trunc('month', g)::date m, count(i.id) n from generate_series(date_trunc('month', d) - interval '5 months', date_trunc('month', d), interval '1 month') g
+          left join public.library_issues i on i.school_id = sid and date_trunc('month', i.issued_on) = date_trunc('month', g) group by 1) x), '[]'::jsonb),
+    'top_books', coalesce((select jsonb_agg(jsonb_build_object('title', title, 'n', n)) from (
+        select b.title, count(*) n from public.library_issues i join public.library_books b on b.id = i.book_id where i.school_id = sid and i.issued_on >= d - 180
+         group by b.title order by n desc limit 5) x), '[]'::jsonb),
+    'top_classes', coalesce((select jsonb_agg(jsonb_build_object('name', name, 'n', n)) from (
+        select c.name, count(*) n from public.library_issues i join public.students s on s.id = i.student_id join public.classes c on c.id = s.class_id
+         where i.school_id = sid and i.issued_on >= d - 180 group by c.name order by n desc limit 5) x), '[]'::jsonb),
+    'by_category', coalesce((select jsonb_agg(jsonb_build_object('name', coalesce(category, 'Other'), 'n', n)) from (
+        select b.category, count(*) n from public.library_issues i join public.library_books b on b.id = i.book_id where i.school_id = sid and i.issued_on >= d - 180
+         group by b.category order by n desc limit 6) x), '[]'::jsonb));
+end $$;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['library_settings', 'library_reservations'] loop
+    execute format('drop trigger if exists audit_%1$s on public.%1$I', t);
+    execute format('create trigger audit_%1$s after insert or update or delete on public.%1$I for each row execute function public.audit_row()', t);
+  end loop;
+end $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Step 31: Health & discipline — health record per student (allergies, conditions, emergency contact), medical-room visits with
+--          parent-informed tracking, periodic check-ups (height / weight / BMI / vision), discipline incidents with several students
+--          per incident, actions and follow-up, confidential counselling notes. Teachers see only their own sections.
+-- Safe to run again.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+create table if not exists public.student_health (
+  student_id       uuid primary key references public.students(id) on delete cascade,
+  school_id        uuid not null references public.schools(id) on delete cascade,
+  blood_group      text,
+  allergies        text,
+  conditions       text,
+  medications      text,
+  vision           text,
+  disability       text,
+  emergency_name   text,
+  emergency_phone  text,
+  doctor_name      text,
+  doctor_phone     text,
+  insurance        text,
+  notes            text,
+  updated_at       timestamptz not null default now(),
+  updated_by_name  text
+);
+
+create table if not exists public.health_visits (
+  id                 uuid primary key default gen_random_uuid(),
+  school_id          uuid not null references public.schools(id) on delete cascade,
+  student_id         uuid not null references public.students(id) on delete cascade,
+  visited_at         timestamptz not null default now(),
+  complaint          text not null check (length(btrim(complaint)) > 0),
+  temperature_c      numeric(4,1) check (temperature_c is null or temperature_c between 30 and 45),
+  treatment          text,
+  medicine           text,
+  outcome            text not null default 'rested' check (outcome in ('rested', 'returned_class', 'sent_home', 'referred', 'hospital')),
+  parent_informed    boolean not null default false,
+  parent_informed_at timestamptz,
+  follow_up_on       date,
+  attended_by_name   text,
+  created_at         timestamptz not null default now()
+);
+create index if not exists health_visits_idx on public.health_visits (school_id, visited_at desc);
+create index if not exists health_visits_student on public.health_visits (student_id, visited_at desc);
+
+create table if not exists public.health_checkups (
+  id           uuid primary key default gen_random_uuid(),
+  school_id    uuid not null references public.schools(id) on delete cascade,
+  student_id   uuid not null references public.students(id) on delete cascade,
+  on_date      date not null default (now() at time zone 'Asia/Kolkata')::date,
+  height_cm    numeric(5,1) check (height_cm is null or height_cm between 40 and 230),
+  weight_kg    numeric(5,1) check (weight_kg is null or weight_kg between 5 and 200),
+  bmi          numeric(4,1) generated always as (case when height_cm > 0 and weight_kg > 0 then round(weight_kg / ((height_cm / 100) * (height_cm / 100)), 1) end) stored,
+  vision_left  text,
+  vision_right text,
+  dental       text,
+  remarks      text,
+  camp         text,
+  by_name      text,
+  created_at   timestamptz not null default now()
+);
+create index if not exists health_checkups_student on public.health_checkups (student_id, on_date desc);
+
+create table if not exists public.discipline_incidents (
+  id               uuid primary key default gen_random_uuid(),
+  school_id        uuid not null references public.schools(id) on delete cascade,
+  incident_on      date not null default (now() at time zone 'Asia/Kolkata')::date,
+  category         text not null default 'misbehaviour' check (category in ('bullying', 'fighting', 'misbehaviour', 'late_coming', 'uniform', 'mobile_phone', 'property_damage', 'cheating', 'absconding', 'abuse', 'other')),
+  severity         text not null default 'minor' check (severity in ('minor', 'moderate', 'serious')),
+  location         text,
+  description      text not null check (length(btrim(description)) > 0),
+  action_taken     text,
+  status           text not null default 'open' check (status in ('open', 'under_review', 'action_taken', 'closed', 'escalated')),
+  parent_informed  boolean not null default false,
+  follow_up_on     date,
+  closed_on        date,
+  confidential     boolean not null default false,
+  reported_by_name text,
+  reported_by      uuid default auth.uid() references auth.users(id) on delete set null,
+  created_at       timestamptz not null default now()
+);
+create index if not exists discipline_idx on public.discipline_incidents (school_id, incident_on desc, status);
+
+create table if not exists public.discipline_students (
+  incident_id uuid not null references public.discipline_incidents(id) on delete cascade,
+  student_id  uuid not null references public.students(id) on delete cascade,
+  school_id   uuid not null references public.schools(id) on delete cascade,
+  role        text not null default 'involved' check (role in ('involved', 'victim', 'witness')),
+  primary key (incident_id, student_id)
+);
+create index if not exists discipline_students_student on public.discipline_students (student_id);
+
+create table if not exists public.counselling_notes (
+  id         uuid primary key default gen_random_uuid(),
+  school_id  uuid not null references public.schools(id) on delete cascade,
+  student_id uuid not null references public.students(id) on delete cascade,
+  on_date    date not null default (now() at time zone 'Asia/Kolkata')::date,
+  note       text not null check (length(btrim(note)) > 0),
+  by_name    text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.student_health enable row level security;
+alter table public.health_visits enable row level security;
+alter table public.health_checkups enable row level security;
+alter table public.discipline_incidents enable row level security;
+alter table public.discipline_students enable row level security;
+alter table public.counselling_notes enable row level security;
+
+-- medical data: scope follows the class assignment
+do $$
+declare t text;
+begin
+  foreach t in array array['student_health', 'health_visits', 'health_checkups'] loop
+    execute format('drop policy if exists "read" on public.%I', t);
+    execute format('create policy "read" on public.%I for select to authenticated using (public.can_student(school_id, ''wellbeing.medical.view'', student_id))', t);
+    execute format('drop policy if exists "create" on public.%I', t);
+    execute format('create policy "create" on public.%I for insert to authenticated with check (public.can_student(school_id, ''wellbeing.medical.create'', student_id))', t);
+    execute format('drop policy if exists "edit" on public.%I', t);
+    execute format('create policy "edit" on public.%I for update to authenticated using (public.can_student(school_id, ''wellbeing.medical.edit'', student_id)) with check (public.can_student(school_id, ''wellbeing.medical.edit'', student_id))', t);
+    execute format('drop policy if exists "delete" on public.%I', t);
+    execute format('create policy "delete" on public.%I for delete to authenticated using (public.has_perm_school(school_id, ''wellbeing.medical.delete''))', t);
+  end loop;
+end $$;
+
+-- a student's record can be written by a teacher only for own sections (can_student) — and a student_health row needs 'create' or 'edit'
+drop policy if exists "create" on public.student_health;
+create policy "create" on public.student_health for insert to authenticated
+  with check (public.can_student(school_id, 'wellbeing.medical.create', student_id) or public.can_student(school_id, 'wellbeing.medical.edit', student_id));
+
+-- discipline: incidents are visible to those who can see any of the students involved (confidential ones need approve)
+create or replace function public.can_incident(sid uuid, inc uuid, pkey text) returns boolean
+language plpgsql stable security definer set search_path = public as $$
+declare scope text := public.perm_scope(sid, pkey); r public.discipline_incidents;
+begin
+  if scope is null then return false; end if;
+  select * into r from public.discipline_incidents where id = inc;
+  if r.id is null then return false; end if;
+  if r.confidential and not public.has_perm_school(sid, 'wellbeing.discipline.approve') and r.reported_by is distinct from auth.uid() then return false; end if;
+  if scope = 'school' then return true; end if;
+  if r.reported_by = auth.uid() then return true; end if;
+  return exists (select 1 from public.discipline_students ds where ds.incident_id = inc and public.can_student(sid, pkey, ds.student_id));
+end $$;
+
+drop policy if exists "read" on public.discipline_incidents;
+create policy "read" on public.discipline_incidents for select to authenticated using (public.can_incident(school_id, id, 'wellbeing.discipline.view'));
+drop policy if exists "read" on public.discipline_students;
+create policy "read" on public.discipline_students for select to authenticated using (public.can_incident(school_id, incident_id, 'wellbeing.discipline.view'));
+drop policy if exists "read" on public.counselling_notes;
+create policy "read" on public.counselling_notes for select to authenticated using (public.has_perm_school(school_id, 'wellbeing.discipline.approve'));
+-- incidents and counselling notes are written by the functions below
+
+-- ───────────── medical room ─────────────
+create or replace function public.health_visit_add(sid uuid, p_student uuid, p_complaint text, p_temp numeric, p_treatment text, p_medicine text, p_outcome text,
+                                                   p_informed boolean, p_follow date) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare i uuid; me text;
+begin
+  if auth.uid() is null or not public.can_student(sid, 'wellbeing.medical.create', p_student) then raise exception 'not allowed'; end if;
+  if not exists (select 1 from public.students where id = p_student and school_id = sid and status = 'active') then raise exception 'Student not found or not on roll.'; end if;
+  if coalesce(btrim(p_complaint), '') = '' then raise exception 'Write the complaint.'; end if;
+  if p_outcome not in ('rested', 'returned_class', 'sent_home', 'referred', 'hospital') then raise exception 'Choose what happened.'; end if;
+  if p_outcome in ('sent_home', 'hospital') and not coalesce(p_informed, false) then raise exception 'The parent must be informed before the student is sent home or to hospital.'; end if;
+  if p_follow is not null and p_follow < public.today_ist() then raise exception 'The follow-up date is in the past.'; end if;
+  select name into me from public.school_members where school_id = sid and user_id = auth.uid();
+  insert into public.health_visits (school_id, student_id, complaint, temperature_c, treatment, medicine, outcome, parent_informed, parent_informed_at, follow_up_on, attended_by_name)
+  values (sid, p_student, left(btrim(p_complaint), 300), p_temp, nullif(left(btrim(coalesce(p_treatment, '')), 300), ''), nullif(left(btrim(coalesce(p_medicine, '')), 200), ''), p_outcome,
+          coalesce(p_informed, false), case when p_informed then now() end, p_follow, coalesce(me, 'User')) returning id into i;
+  return i;
+end $$;
+
+create or replace function public.health_visit_inform(sid uuid, p_visit uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare v public.health_visits;
+begin
+  select * into v from public.health_visits where id = p_visit and school_id = sid;
+  if v.id is null or auth.uid() is null or not public.can_student(sid, 'wellbeing.medical.edit', v.student_id) then raise exception 'not allowed'; end if;
+  update public.health_visits set parent_informed = true, parent_informed_at = coalesce(parent_informed_at, now()) where id = p_visit;
+end $$;
+
+create or replace function public.health_visit_list(sid uuid, d1 date, d2 date, p_q text default null, p_outcome text default null, p_followup boolean default false,
+                                                    p_limit int default 25, p_offset int default 0)
+returns table (id uuid, student_id uuid, student_name text, admission_no text, class_name text, visited_at timestamptz, complaint text, temperature_c numeric, treatment text, medicine text,
+               outcome text, parent_informed boolean, follow_up_on date, attended_by_name text, allergies text, conditions text, visits_30 bigint, total bigint)
+language sql stable security definer set search_path = public as $$
+  select v.id, s.id, btrim(concat_ws(' ', s.first_name, s.last_name)), s.admission_no, c.name || coalesce('-' || sec.name, ''), v.visited_at, v.complaint, v.temperature_c, v.treatment, v.medicine,
+         v.outcome, v.parent_informed, v.follow_up_on, v.attended_by_name, h.allergies, h.conditions,
+         (select count(*) from public.health_visits x where x.student_id = s.id and x.visited_at >= now() - interval '30 days'), count(*) over ()
+    from public.health_visits v
+    join public.students s on s.id = v.student_id
+    left join public.classes c on c.id = s.class_id
+    left join public.sections sec on sec.id = s.section_id
+    left join public.student_health h on h.student_id = s.id
+   where v.school_id = sid and public.can_student(sid, 'wellbeing.medical.view', s.id)
+     and (v.visited_at at time zone 'Asia/Kolkata')::date between d1 and d2
+     and (p_outcome is null or v.outcome = p_outcome)
+     and (not p_followup or (v.follow_up_on is not null and v.follow_up_on <= public.today_ist()))
+     and (nullif(btrim(coalesce(p_q, '')), '') is null or concat_ws(' ', s.first_name, s.last_name, s.admission_no, v.complaint, v.medicine) ilike public.like_escape(btrim(p_q)))
+   order by v.visited_at desc
+   limit least(greatest(coalesce(p_limit, 25), 1), 200) offset greatest(coalesce(p_offset, 0), 0);
+$$;
+
+-- ───────────── discipline ─────────────
+create or replace function public.discipline_report(sid uuid, p_students uuid[], p_category text, p_severity text, p_on date, p_location text, p_description text,
+                                                    p_action text, p_informed boolean, p_follow date, p_confidential boolean, p_victims uuid[] default '{}') returns uuid
+language plpgsql security definer set search_path = public as $$
+declare i uuid; me text; s uuid;
+begin
+  if auth.uid() is null or not public.has_perm(sid, 'wellbeing.discipline.create') then raise exception 'not allowed'; end if;
+  if coalesce(cardinality(p_students), 0) = 0 then raise exception 'Choose at least one student.'; end if;
+  if coalesce(btrim(p_description), '') = '' then raise exception 'Describe what happened.'; end if;
+  if p_on is null or p_on > public.today_ist() then raise exception 'The incident date cannot be in the future.'; end if;
+  foreach s in array p_students loop
+    if not exists (select 1 from public.students where id = s and school_id = sid) then raise exception 'Student not found.'; end if;
+    if not public.can_student(sid, 'wellbeing.discipline.create', s) then raise exception 'not allowed — % is not in your class.', (select first_name from public.students where id = s); end if;
+  end loop;
+  select name into me from public.school_members where school_id = sid and user_id = auth.uid();
+  insert into public.discipline_incidents (school_id, incident_on, category, severity, location, description, action_taken, parent_informed, follow_up_on, confidential, reported_by_name,
+                                           status)
+  values (sid, p_on, p_category, p_severity, nullif(left(btrim(coalesce(p_location, '')), 80), ''), left(btrim(p_description), 1500), nullif(left(btrim(coalesce(p_action, '')), 500), ''),
+          coalesce(p_informed, false), p_follow, coalesce(p_confidential, false) or p_category in ('abuse', 'bullying'), coalesce(me, 'User'),
+          case when p_severity = 'serious' then 'under_review' else 'open' end) returning id into i;
+  insert into public.discipline_students (incident_id, student_id, school_id, role)
+  select i, x, sid, case when x = any(coalesce(p_victims, '{}')) then 'victim' else 'involved' end from unnest(p_students) x on conflict do nothing;
+  return i;
+end $$;
+
+create or replace function public.discipline_update(sid uuid, p_incident uuid, p_status text, p_action text, p_informed boolean, p_follow date) returns void
+language plpgsql security definer set search_path = public as $$
+declare r public.discipline_incidents;
+begin
+  select * into r from public.discipline_incidents where id = p_incident and school_id = sid;
+  if r.id is null or auth.uid() is null then raise exception 'not allowed'; end if;
+  if not (public.has_perm_school(sid, 'wellbeing.discipline.edit') or r.reported_by = auth.uid()) then raise exception 'not allowed'; end if;
+  if p_status not in ('open', 'under_review', 'action_taken', 'closed', 'escalated') then raise exception 'Unknown status.'; end if;
+  if p_status in ('closed', 'escalated') and not public.has_perm_school(sid, 'wellbeing.discipline.approve') then raise exception 'not allowed — only the principal can close or escalate.'; end if;
+  if p_status in ('action_taken', 'closed') and coalesce(btrim(coalesce(p_action, r.action_taken)), '') = '' then raise exception 'Write the action taken.'; end if;
+  update public.discipline_incidents set status = p_status, action_taken = coalesce(nullif(left(btrim(coalesce(p_action, '')), 500), ''), action_taken),
+         parent_informed = coalesce(p_informed, parent_informed), follow_up_on = p_follow, closed_on = case when p_status = 'closed' then public.today_ist() else null end
+   where id = p_incident;
+end $$;
+
+create or replace function public.discipline_list(sid uuid, d1 date, d2 date, p_q text default null, p_status text default null, p_category text default null, p_severity text default null,
+                                                  p_limit int default 25, p_offset int default 0)
+returns table (id uuid, incident_on date, category text, severity text, status text, location text, description text, action_taken text, parent_informed boolean, follow_up_on date,
+               confidential boolean, reported_by_name text, students text, student_count bigint, total bigint)
+language sql stable security definer set search_path = public as $$
+  select i.id, i.incident_on, i.category, i.severity, i.status, i.location, i.description, i.action_taken, i.parent_informed, i.follow_up_on, i.confidential, i.reported_by_name,
+         (select string_agg(btrim(concat_ws(' ', s.first_name, s.last_name)) || ' (' || coalesce(c.name, '') || ')' || case when ds.role <> 'involved' then ' · ' || ds.role else '' end, '; ' order by s.first_name)
+            from public.discipline_students ds join public.students s on s.id = ds.student_id left join public.classes c on c.id = s.class_id where ds.incident_id = i.id),
+         (select count(*) from public.discipline_students ds where ds.incident_id = i.id), count(*) over ()
+    from public.discipline_incidents i
+   where i.school_id = sid and public.can_incident(sid, i.id, 'wellbeing.discipline.view') and i.incident_on between d1 and d2
+     and (p_status is null or i.status = p_status) and (p_category is null or i.category = p_category) and (p_severity is null or i.severity = p_severity)
+     and (nullif(btrim(coalesce(p_q, '')), '') is null or i.description ilike public.like_escape(btrim(p_q))
+          or exists (select 1 from public.discipline_students ds join public.students s on s.id = ds.student_id where ds.incident_id = i.id
+                      and concat_ws(' ', s.first_name, s.last_name, s.admission_no) ilike public.like_escape(btrim(p_q))))
+   order by i.incident_on desc, i.created_at desc
+   limit least(greatest(coalesce(p_limit, 25), 1), 200) offset greatest(coalesce(p_offset, 0), 0);
+$$;
+
+create or replace function public.counselling_add(sid uuid, p_student uuid, p_note text) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare i uuid; me text;
+begin
+  if auth.uid() is null or not public.has_perm_school(sid, 'wellbeing.discipline.approve') then raise exception 'not allowed'; end if;
+  if not exists (select 1 from public.students where id = p_student and school_id = sid) then raise exception 'Student not found.'; end if;
+  if coalesce(btrim(p_note), '') = '' then raise exception 'Write the note.'; end if;
+  select name into me from public.school_members where school_id = sid and user_id = auth.uid();
+  insert into public.counselling_notes (school_id, student_id, note, by_name) values (sid, p_student, left(btrim(p_note), 2000), coalesce(me, 'User')) returning id into i;
+  return i;
+end $$;
+
+-- the wellbeing numbers of one student (profile card)
+create or replace function public.student_wellbeing(sid uuid, p_student uuid) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+begin
+  return jsonb_build_object(
+    'visits_90', case when public.can_student(sid, 'wellbeing.medical.view', p_student) then (select count(*) from public.health_visits where student_id = p_student and visited_at >= now() - interval '90 days') end,
+    'incidents_180', case when public.perm_scope(sid, 'wellbeing.discipline.view') is not null then
+        (select count(*) from public.discipline_students ds join public.discipline_incidents i on i.id = ds.incident_id
+          where ds.student_id = p_student and i.incident_on >= public.today_ist() - 180 and public.can_incident(sid, i.id, 'wellbeing.discipline.view')) end);
+end $$;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['discipline_incidents', 'counselling_notes', 'health_visits'] loop
+    execute format('drop trigger if exists audit_%1$s on public.%1$I', t);
+    execute format('create trigger audit_%1$s after insert or update or delete on public.%1$I for each row execute function public.audit_row()', t);
+  end loop;
+end $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Step 32: Hostel — hostels (boys / girls), rooms and beds, bed allocation with gender and capacity checks, hostel fee billed
+--          into the normal fee dues, night / morning roll call, outpass (leave out) with approval and return, visitors, mess menu.
+-- Safe to run again.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+create table if not exists public.hostels (
+  id          uuid primary key default gen_random_uuid(),
+  school_id   uuid not null references public.schools(id) on delete cascade,
+  name        text not null check (length(btrim(name)) between 1 and 60),
+  kind        text not null default 'boys' check (kind in ('boys', 'girls', 'mixed')),
+  warden_id   uuid references public.staff(id) on delete set null,
+  address     text,
+  active      boolean not null default true,
+  created_at  timestamptz not null default now(),
+  unique (school_id, name)
+);
+create table if not exists public.hostel_rooms (
+  id          uuid primary key default gen_random_uuid(),
+  school_id   uuid not null references public.schools(id) on delete cascade,
+  hostel_id   uuid not null references public.hostels(id) on delete cascade,
+  room_no     text not null check (length(btrim(room_no)) between 1 and 20),
+  floor       int not null default 0,
+  beds        int not null default 4 check (beds between 1 and 40),
+  room_type   text not null default 'dormitory' check (room_type in ('dormitory', 'double', 'single')),
+  monthly_fee numeric(10,2) not null default 0 check (monthly_fee >= 0),
+  active      boolean not null default true,
+  unique (hostel_id, room_no)
+);
+create table if not exists public.hostel_allocations (
+  id          uuid primary key default gen_random_uuid(),
+  school_id   uuid not null references public.schools(id) on delete cascade,
+  session_id  uuid references public.sessions(id) on delete set null,
+  student_id  uuid not null references public.students(id) on delete cascade,
+  room_id     uuid not null references public.hostel_rooms(id) on delete restrict,
+  bed_no      int not null check (bed_no >= 1),
+  start_date  date not null default (now() at time zone 'Asia/Kolkata')::date,
+  end_date    date,
+  monthly_fee numeric(10,2),
+  status      text not null default 'active' check (status in ('active', 'ended')),
+  created_by_name text,
+  created_at  timestamptz not null default now(),
+  check (end_date is null or end_date >= start_date)
+);
+create unique index if not exists hostel_alloc_student on public.hostel_allocations (student_id) where status = 'active';
+create unique index if not exists hostel_alloc_bed on public.hostel_allocations (room_id, bed_no) where status = 'active';
+
+create table if not exists public.hostel_attendance (
+  id            uuid primary key default gen_random_uuid(),
+  school_id     uuid not null references public.schools(id) on delete cascade,
+  hostel_id     uuid not null references public.hostels(id) on delete cascade,
+  student_id    uuid not null references public.students(id) on delete cascade,
+  on_date       date not null,
+  slot          text not null default 'night' check (slot in ('night', 'morning')),
+  status        text not null check (status in ('P', 'A', 'LV')),
+  note          text,
+  marked_by_name text,
+  unique (student_id, on_date, slot)
+);
+create index if not exists hostel_att_day on public.hostel_attendance (school_id, hostel_id, on_date);
+
+create table if not exists public.hostel_outpasses (
+  id              uuid primary key default gen_random_uuid(),
+  school_id       uuid not null references public.schools(id) on delete cascade,
+  student_id      uuid not null references public.students(id) on delete cascade,
+  kind            text not null default 'home' check (kind in ('home', 'local', 'medical', 'event')),
+  reason          text not null check (length(btrim(reason)) > 0),
+  out_at          timestamptz not null,
+  expected_back   timestamptz not null,
+  guardian_name   text,
+  guardian_phone  text,
+  status          text not null default 'requested' check (status in ('requested', 'approved', 'rejected', 'out', 'returned', 'cancelled')),
+  decided_by_name text,
+  decision_note   text,
+  left_at         timestamptz,
+  returned_at     timestamptz,
+  requested_by_name text,
+  created_at      timestamptz not null default now(),
+  check (expected_back > out_at)
+);
+create index if not exists hostel_outpass_idx on public.hostel_outpasses (school_id, status, out_at desc);
+
+create table if not exists public.hostel_visitors (
+  id          uuid primary key default gen_random_uuid(),
+  school_id   uuid not null references public.schools(id) on delete cascade,
+  hostel_id   uuid references public.hostels(id) on delete set null,
+  student_id  uuid not null references public.students(id) on delete cascade,
+  visitor_name text not null check (length(btrim(visitor_name)) > 0),
+  relation    text,
+  phone       text,
+  in_at       timestamptz not null default now(),
+  out_at      timestamptz,
+  note        text,
+  by_name     text
+);
+create index if not exists hostel_visitors_idx on public.hostel_visitors (school_id, in_at desc);
+
+create table if not exists public.mess_menu (
+  id         uuid primary key default gen_random_uuid(),
+  school_id  uuid not null references public.schools(id) on delete cascade,
+  hostel_id  uuid references public.hostels(id) on delete cascade,
+  weekday    int not null check (weekday between 1 and 7),
+  meal       text not null check (meal in ('breakfast', 'lunch', 'snacks', 'dinner')),
+  items      text not null
+);
+create unique index if not exists mess_menu_uniq on public.mess_menu (school_id, coalesce(hostel_id, '00000000-0000-0000-0000-000000000000'::uuid), weekday, meal);
+
+alter table public.hostels enable row level security;
+alter table public.hostel_rooms enable row level security;
+alter table public.hostel_allocations enable row level security;
+alter table public.hostel_attendance enable row level security;
+alter table public.hostel_outpasses enable row level security;
+alter table public.hostel_visitors enable row level security;
+alter table public.mess_menu enable row level security;
+
+-- reads: anyone with a hostel permission; the student's own parent sees the child's allocation / outpass
+do $$
+declare r record;
+begin
+  for r in select * from (values
+      ('hostels', 'hostel.rooms'), ('hostel_rooms', 'hostel.rooms'), ('hostel_allocations', 'hostel.allocation'), ('hostel_attendance', 'hostel.rollcall'),
+      ('hostel_outpasses', 'hostel.rollcall'), ('hostel_visitors', 'hostel.mess'), ('mess_menu', 'hostel.mess')) v(t, p) loop
+    execute format('drop policy if exists "read" on public.%I', r.t);
+    execute format('create policy "read" on public.%I for select to authenticated using (public.has_perm_school(school_id, %L))', r.t, r.p || '.view');
+  end loop;
+end $$;
+drop policy if exists "write" on public.hostels;
+create policy "write" on public.hostels for all to authenticated
+  using (public.has_perm_school(school_id, 'hostel.rooms.edit')) with check (public.has_perm_school(school_id, 'hostel.rooms.create'));
+drop policy if exists "write" on public.hostel_rooms;
+create policy "write" on public.hostel_rooms for all to authenticated
+  using (public.has_perm_school(school_id, 'hostel.rooms.edit')) with check (public.has_perm_school(school_id, 'hostel.rooms.create'));
+drop policy if exists "write" on public.mess_menu;
+create policy "write" on public.mess_menu for all to authenticated
+  using (public.has_perm_school(school_id, 'hostel.mess.edit')) with check (public.has_perm_school(school_id, 'hostel.mess.create'));
+drop policy if exists "create" on public.hostel_visitors;
+create policy "create" on public.hostel_visitors for insert to authenticated with check (public.has_perm_school(school_id, 'hostel.mess.create'));
+drop policy if exists "edit" on public.hostel_visitors;
+create policy "edit" on public.hostel_visitors for update to authenticated using (public.has_perm_school(school_id, 'hostel.mess.edit')) with check (public.has_perm_school(school_id, 'hostel.mess.edit'));
+-- allocations, roll call and outpasses are written by the functions below
+
+-- ───────────── allocation ─────────────
+create or replace function public.hostel_allocate(sid uuid, p_student uuid, p_room uuid, p_bed int, p_start date default null, p_fee numeric default null) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare st record; rm record; h record; i uuid; me text; occupied int; sess uuid;
+begin
+  if auth.uid() is null or not public.has_perm_school(sid, 'hostel.allocation.create') then raise exception 'not allowed'; end if;
+  select id, status, gender, first_name into st from public.students where id = p_student and school_id = sid;
+  if st.id is null then raise exception 'Student not found.'; end if;
+  if st.status <> 'active' then raise exception 'Only a student on roll can get a bed.'; end if;
+  select * into rm from public.hostel_rooms where id = p_room and school_id = sid;
+  if rm.id is null or not rm.active then raise exception 'Room not found or closed.'; end if;
+  select * into h from public.hostels where id = rm.hostel_id;
+  if not h.active then raise exception 'This hostel is closed.'; end if;
+  if (h.kind = 'boys' and coalesce(st.gender, '') = 'F') or (h.kind = 'girls' and coalesce(st.gender, '') = 'M') then raise exception '% is a % hostel.', h.name, h.kind; end if;
+  if p_bed is null or p_bed < 1 or p_bed > rm.beds then raise exception 'Choose a bed between 1 and %.', rm.beds; end if;
+  if exists (select 1 from public.hostel_allocations where student_id = p_student and status = 'active') then raise exception '% already has a bed. Vacate it first.', st.first_name; end if;
+  select count(*) into occupied from public.hostel_allocations where room_id = p_room and status = 'active';
+  if occupied >= rm.beds then raise exception 'Room % is full.', rm.room_no; end if;
+  if exists (select 1 from public.hostel_allocations where room_id = p_room and bed_no = p_bed and status = 'active') then raise exception 'Bed % of room % is taken.', p_bed, rm.room_no; end if;
+  select id into sess from public.sessions where school_id = sid and is_current;
+  select name into me from public.school_members where school_id = sid and user_id = auth.uid();
+  insert into public.hostel_allocations (school_id, session_id, student_id, room_id, bed_no, start_date, monthly_fee, created_by_name)
+  values (sid, sess, p_student, p_room, p_bed, coalesce(p_start, public.today_ist()), p_fee, coalesce(me, 'User')) returning id into i;
+  return i;
+end $$;
+
+create or replace function public.hostel_vacate(sid uuid, p_alloc uuid, p_end date default null) returns void
+language plpgsql security definer set search_path = public as $$
+declare a public.hostel_allocations;
+begin
+  if auth.uid() is null or not public.has_perm_school(sid, 'hostel.allocation.edit') then raise exception 'not allowed'; end if;
+  select * into a from public.hostel_allocations where id = p_alloc and school_id = sid and status = 'active';
+  if a.id is null then raise exception 'This bed is not allocated.'; end if;
+  if exists (select 1 from public.hostel_outpasses where student_id = a.student_id and status = 'out') then raise exception 'The student is out on an outpass. Mark the return first.'; end if;
+  update public.hostel_allocations set status = 'ended', end_date = greatest(coalesce(p_end, public.today_ist()), a.start_date) where id = p_alloc;
+end $$;
+
+-- hostel fee into the normal dues (Fees → Collect, defaulters, receipts all work); one run per label
+create or replace function public.generate_hostel_dues(sid uuid, sess uuid, p_label text, p_due date, p_months numeric default 1) returns int
+language plpgsql security definer set search_path = public as $$
+declare head uuid; cnt int; k text;
+begin
+  if not (public.has_perm_school(sid, 'fees.dues.create') or public.has_perm_school(sid, 'hostel.allocation.edit')) then raise exception 'not allowed'; end if;
+  if coalesce(trim(p_label), '') = '' or p_due is null then raise exception 'Label and due date are required.'; end if;
+  if p_months is null or p_months <= 0 or p_months > 12 then raise exception 'Months must be between 1 and 12.'; end if;
+  if not exists (select 1 from public.sessions where id = sess and school_id = sid) then raise exception 'Session not found.'; end if;
+  select id into head from public.fee_heads where school_id = sid and name = 'Hostel Fee';
+  if head is null then insert into public.fee_heads (school_id, name, sort) values (sid, 'Hostel Fee', 60) returning id into head; end if;
+  k := 'hostel:' || sess || ':' || lower(trim(p_label));
+  insert into public.fee_dues (school_id, session_id, student_id, fee_head_id, label, due_date, amount, concession, source_key)
+  select sid, sess, x.student_id, head, 'Hostel Fee · ' || trim(p_label), p_due, x.amt, public.concession_for(x.student_id, head, x.amt, p_due), k
+    from (select a.student_id, round(coalesce(a.monthly_fee, r.monthly_fee) * p_months, 2) as amt
+            from public.hostel_allocations a join public.hostel_rooms r on r.id = a.room_id join public.students s on s.id = a.student_id and s.status = 'active'
+           where a.school_id = sid and a.status = 'active' and a.start_date <= p_due) x
+   where x.amt > 0
+  on conflict (student_id, source_key) where source_key is not null do nothing;
+  get diagnostics cnt = row_count;
+  return cnt;
+end $$;
+
+-- ───────────── overview and lists ─────────────
+create or replace function public.hostel_overview(sid uuid)
+returns table (hostel_id uuid, name text, kind text, warden text, active boolean, rooms bigint, beds bigint, occupied bigint, free bigint, out_now bigint, absent_last_night bigint, pending_outpass bigint)
+language sql stable security definer set search_path = public as $$
+  select h.id, h.name, h.kind, w.name, h.active,
+         (select count(*) from public.hostel_rooms r where r.hostel_id = h.id and r.active),
+         (select coalesce(sum(r.beds), 0) from public.hostel_rooms r where r.hostel_id = h.id and r.active),
+         (select count(*) from public.hostel_allocations a join public.hostel_rooms r on r.id = a.room_id where r.hostel_id = h.id and a.status = 'active'),
+         (select coalesce(sum(r.beds), 0) from public.hostel_rooms r where r.hostel_id = h.id and r.active)
+           - (select count(*) from public.hostel_allocations a join public.hostel_rooms r on r.id = a.room_id where r.hostel_id = h.id and a.status = 'active'),
+         (select count(*) from public.hostel_outpasses o join public.hostel_allocations a on a.student_id = o.student_id and a.status = 'active' join public.hostel_rooms r on r.id = a.room_id
+           where r.hostel_id = h.id and o.status = 'out'),
+         (select count(*) from public.hostel_attendance x where x.hostel_id = h.id and x.on_date = public.today_ist() - 1 and x.slot = 'night' and x.status = 'A'),
+         (select count(*) from public.hostel_outpasses o join public.hostel_allocations a on a.student_id = o.student_id and a.status = 'active' join public.hostel_rooms r on r.id = a.room_id
+           where r.hostel_id = h.id and o.status = 'requested')
+    from public.hostels h left join public.staff w on w.id = h.warden_id
+   where h.school_id = sid and public.has_perm_school(sid, 'hostel.rooms.view')
+   order by h.name;
+$$;
+
+create or replace function public.hostel_room_grid(sid uuid, p_hostel uuid)
+returns table (room_id uuid, room_no text, floor int, beds int, room_type text, monthly_fee numeric, active boolean, occupants jsonb)
+language sql stable security definer set search_path = public as $$
+  select r.id, r.room_no, r.floor, r.beds, r.room_type, r.monthly_fee, r.active,
+         coalesce((select jsonb_agg(jsonb_build_object('alloc', a.id, 'bed', a.bed_no, 'student', s.id, 'name', btrim(concat_ws(' ', s.first_name, s.last_name)), 'class', c.name) order by a.bed_no)
+                     from public.hostel_allocations a join public.students s on s.id = a.student_id left join public.classes c on c.id = s.class_id
+                    where a.room_id = r.id and a.status = 'active'), '[]'::jsonb)
+    from public.hostel_rooms r
+   where r.hostel_id = p_hostel and r.school_id = sid and public.has_perm_school(sid, 'hostel.rooms.view')
+   order by r.floor, r.room_no;
+$$;
+
+create or replace function public.hostel_allocation_list(sid uuid, p_hostel uuid default null, p_q text default null, p_status text default 'active', p_limit int default 25, p_offset int default 0)
+returns table (id uuid, student_id uuid, student_name text, admission_no text, class_name text, gender text, guardian_phone text, hostel_name text, room_no text, bed_no int, start_date date, end_date date,
+               status text, monthly_fee numeric, dues numeric, total bigint)
+language sql stable security definer set search_path = public as $$
+  select a.id, s.id, btrim(concat_ws(' ', s.first_name, s.last_name)), s.admission_no, c.name || coalesce('-' || sec.name, ''), s.gender, s.guardian_phone, h.name, r.room_no, a.bed_no,
+         a.start_date, a.end_date, a.status, coalesce(a.monthly_fee, r.monthly_fee),
+         (select coalesce(sum(greatest(d.amount - d.concession + d.fine - d.paid, 0)), 0) from public.fee_dues d where d.student_id = s.id and d.source_key like 'hostel:%' and d.status <> 'paid'),
+         count(*) over ()
+    from public.hostel_allocations a
+    join public.students s on s.id = a.student_id
+    join public.hostel_rooms r on r.id = a.room_id
+    join public.hostels h on h.id = r.hostel_id
+    left join public.classes c on c.id = s.class_id
+    left join public.sections sec on sec.id = s.section_id
+   where a.school_id = sid and public.has_perm_school(sid, 'hostel.allocation.view')
+     and (p_hostel is null or h.id = p_hostel) and (p_status = 'all' or a.status = p_status)
+     and (nullif(btrim(coalesce(p_q, '')), '') is null or concat_ws(' ', s.first_name, s.last_name, s.admission_no, r.room_no) ilike public.like_escape(btrim(p_q)))
+   order by h.name, r.room_no, a.bed_no
+   limit least(greatest(coalesce(p_limit, 25), 1), 200) offset greatest(coalesce(p_offset, 0), 0);
+$$;
+
+-- ───────────── roll call ─────────────
+create or replace function public.hostel_save_rollcall(sid uuid, p_hostel uuid, p_date date, p_slot text, p_marks jsonb) returns int
+language plpgsql security definer set search_path = public as $$
+declare m jsonb; n int := 0; me text;
+begin
+  if auth.uid() is null or not public.has_perm_school(sid, 'hostel.rollcall.create') then raise exception 'not allowed'; end if;
+  if p_date is null or p_date > public.today_ist() then raise exception 'The roll call date cannot be in the future.'; end if;
+  if p_slot not in ('night', 'morning') then raise exception 'Choose night or morning.'; end if;
+  if not exists (select 1 from public.hostels where id = p_hostel and school_id = sid) then raise exception 'Hostel not found.'; end if;
+  select name into me from public.school_members where school_id = sid and user_id = auth.uid();
+  for m in select * from jsonb_array_elements(coalesce(p_marks, '[]'::jsonb)) loop
+    continue when (m ->> 'status') not in ('P', 'A', 'LV');
+    continue when not exists (select 1 from public.hostel_allocations a join public.hostel_rooms r on r.id = a.room_id
+                               where a.student_id = (m ->> 'student')::uuid and r.hostel_id = p_hostel and a.status = 'active');
+    insert into public.hostel_attendance (school_id, hostel_id, student_id, on_date, slot, status, note, marked_by_name)
+    values (sid, p_hostel, (m ->> 'student')::uuid, p_date, p_slot, m ->> 'status', nullif(left(m ->> 'note', 120), ''), coalesce(me, 'User'))
+    on conflict (student_id, on_date, slot) do update set status = excluded.status, note = excluded.note, marked_by_name = excluded.marked_by_name;
+    n := n + 1;
+  end loop;
+  return n;
+end $$;
+
+-- ───────────── outpass ─────────────
+create or replace function public.hostel_outpass_request(sid uuid, p_student uuid, p_kind text, p_reason text, p_out timestamptz, p_back timestamptz, p_guardian text, p_phone text) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare i uuid; me text; auto boolean;
+begin
+  if auth.uid() is null or not public.has_perm_school(sid, 'hostel.rollcall.create') then raise exception 'not allowed'; end if;
+  if not exists (select 1 from public.hostel_allocations where student_id = p_student and school_id = sid and status = 'active') then raise exception 'This student has no hostel bed.'; end if;
+  if coalesce(btrim(p_reason), '') = '' then raise exception 'Write the reason.'; end if;
+  if p_out is null or p_back is null or p_back <= p_out then raise exception 'The return time must be after the going-out time.'; end if;
+  if exists (select 1 from public.hostel_outpasses where student_id = p_student and status in ('requested', 'approved', 'out')) then raise exception 'This student already has an open outpass.'; end if;
+  select name into me from public.school_members where school_id = sid and user_id = auth.uid();
+  auto := public.has_perm_school(sid, 'hostel.rollcall.approve');
+  insert into public.hostel_outpasses (school_id, student_id, kind, reason, out_at, expected_back, guardian_name, guardian_phone, status, requested_by_name, decided_by_name)
+  values (sid, p_student, p_kind, left(btrim(p_reason), 200), p_out, p_back, nullif(left(btrim(coalesce(p_guardian, '')), 80), ''), nullif(left(btrim(coalesce(p_phone, '')), 20), ''),
+          case when auto then 'approved' else 'requested' end, coalesce(me, 'User'), case when auto then coalesce(me, 'User') end) returning id into i;
+  return i;
+end $$;
+
+create or replace function public.hostel_outpass_step(sid uuid, p_pass uuid, p_action text, p_note text default null) returns void
+language plpgsql security definer set search_path = public as $$
+declare o public.hostel_outpasses; me text;
+begin
+  select * into o from public.hostel_outpasses where id = p_pass and school_id = sid;
+  if o.id is null or auth.uid() is null then raise exception 'not allowed'; end if;
+  select name into me from public.school_members where school_id = sid and user_id = auth.uid();
+  if p_action in ('approve', 'reject') then
+    if not public.has_perm_school(sid, 'hostel.rollcall.approve') then raise exception 'not allowed'; end if;
+    if o.status <> 'requested' then raise exception 'This outpass is already %.', o.status; end if;
+    if p_action = 'reject' and coalesce(btrim(p_note), '') = '' then raise exception 'Give a reason for refusing.'; end if;
+    update public.hostel_outpasses set status = case when p_action = 'approve' then 'approved' else 'rejected' end, decided_by_name = coalesce(me, 'User'), decision_note = nullif(left(btrim(coalesce(p_note, '')), 200), '') where id = p_pass;
+  elsif p_action = 'out' then
+    if not public.has_perm_school(sid, 'hostel.rollcall.create') then raise exception 'not allowed'; end if;
+    if o.status <> 'approved' then raise exception 'Only an approved outpass can be used.'; end if;
+    update public.hostel_outpasses set status = 'out', left_at = now() where id = p_pass;
+  elsif p_action = 'return' then
+    if not public.has_perm_school(sid, 'hostel.rollcall.create') then raise exception 'not allowed'; end if;
+    if o.status <> 'out' then raise exception 'The student is not out.'; end if;
+    update public.hostel_outpasses set status = 'returned', returned_at = now() where id = p_pass;
+  elsif p_action = 'cancel' then
+    if not public.has_perm_school(sid, 'hostel.rollcall.create') then raise exception 'not allowed'; end if;
+    if o.status not in ('requested', 'approved') then raise exception 'This outpass is already %.', o.status; end if;
+    update public.hostel_outpasses set status = 'cancelled' where id = p_pass;
+  else
+    raise exception 'Unknown action.';
+  end if;
+end $$;
+
+create or replace function public.hostel_outpass_list(sid uuid, p_status text default null, p_q text default null, p_limit int default 25, p_offset int default 0)
+returns table (id uuid, student_id uuid, student_name text, admission_no text, hostel_name text, room_no text, kind text, reason text, out_at timestamptz, expected_back timestamptz,
+               status text, late boolean, guardian_name text, guardian_phone text, decided_by_name text, decision_note text, left_at timestamptz, returned_at timestamptz, total bigint)
+language sql stable security definer set search_path = public as $$
+  select o.id, s.id, btrim(concat_ws(' ', s.first_name, s.last_name)), s.admission_no, h.name, r.room_no, o.kind, o.reason, o.out_at, o.expected_back, o.status,
+         (o.status = 'out' and o.expected_back < now()), o.guardian_name, o.guardian_phone, o.decided_by_name, o.decision_note, o.left_at, o.returned_at, count(*) over ()
+    from public.hostel_outpasses o
+    join public.students s on s.id = o.student_id
+    left join public.hostel_allocations a on a.student_id = s.id and a.status = 'active'
+    left join public.hostel_rooms r on r.id = a.room_id
+    left join public.hostels h on h.id = r.hostel_id
+   where o.school_id = sid and public.has_perm_school(sid, 'hostel.rollcall.view')
+     and (p_status is null or (p_status = 'late' and o.status = 'out' and o.expected_back < now()) or o.status = p_status)
+     and (nullif(btrim(coalesce(p_q, '')), '') is null or concat_ws(' ', s.first_name, s.last_name, s.admission_no, o.reason) ilike public.like_escape(btrim(p_q)))
+   order by case o.status when 'requested' then 0 when 'out' then 1 when 'approved' then 2 else 3 end, o.out_at desc
+   limit least(greatest(coalesce(p_limit, 25), 1), 200) offset greatest(coalesce(p_offset, 0), 0);
+$$;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['hostels', 'hostel_rooms', 'hostel_allocations', 'hostel_outpasses'] loop
+    execute format('drop trigger if exists audit_%1$s on public.%1$I', t);
+    execute format('create trigger audit_%1$s after insert or update or delete on public.%1$I for each row execute function public.audit_row()', t);
+  end loop;
+end $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Step 33: Reports & analysis — one set of aggregate functions for the principal's dashboard and the report pages:
+--          overview KPIs, enrolment by class / gender / category, attendance trend and by class, fee billed vs collected by month,
+--          defaulter ageing, collection by mode, exam performance, UDISE-style strength. Everything is computed in the database.
+-- Safe to run again.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+create or replace function public._can_report(sid uuid, which text default 'overview') returns boolean
+language sql stable security definer set search_path = public as $$
+  select case which
+    when 'fees' then public.has_perm_school(sid, 'reports.fees.view') or public.has_perm_school(sid, 'reports.overview.view')
+    when 'academic' then public.has_perm(sid, 'reports.academic.view')
+    else public.has_perm_school(sid, 'reports.overview.view') end;
+$$;
+revoke execute on function public._can_report(uuid, text) from public, anon, authenticated;
+
+-- Which classes a report may show: the whole school for school-scope holders, only the teacher's own classes for 'assigned' academic reports.
+create or replace function public._report_class_ok(sid uuid, cid uuid, which text default 'overview') returns boolean
+language sql stable security definer set search_path = public as $$
+  select case when which = 'academic'
+    then public.has_perm_school(sid, 'reports.academic.view')
+         or (public.has_perm(sid, 'reports.academic.view') and exists (select 1 from public.sections x where x.class_id = cid and public.assigned_to_section(sid, x.id, null)))
+    else public.has_perm_school(sid, 'reports.overview.view') end;
+$$;
+revoke execute on function public._report_class_ok(uuid, uuid, text) from public, anon, authenticated;
+
+-- ───────────── overview ─────────────
+create or replace function public.report_overview(sid uuid, d1 date, d2 date) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare sess uuid; billed numeric; coll numeric; outst numeric; att_p bigint; att_t bigint; sat_p bigint; sat_t bigint; ex uuid; ex_name text; ex_avg numeric; ex_pass numeric;
+begin
+  if not public._can_report(sid, 'overview') then raise exception 'not allowed'; end if;
+  select id into sess from public.sessions where school_id = sid and is_current;
+  select coalesce(sum(greatest(amount - concession + fine, 0)), 0), coalesce(sum(greatest(amount - concession + fine - paid, 0)) filter (where due_date <= public.today_ist()), 0)
+    into billed, outst from public.fee_dues where school_id = sid and session_id = sess;
+  select coalesce(sum(amount), 0) into coll from public.fee_receipts where school_id = sid and not cancelled and paid_on between d1 and d2;
+  select count(*) filter (where status in ('P', 'L', 'H')), count(*) into att_p, att_t from public.attendance where school_id = sid and date between d1 and d2;
+  select count(*) filter (where status in ('P', 'L', 'H', 'OD')), count(*) into sat_p, sat_t from public.staff_attendance where school_id = sid and date between d1 and d2;
+  select e.id, e.name into ex, ex_name from public.exams e where e.school_id = sid and exists (select 1 from public.exam_results r where r.exam_id = e.id) order by e.sort desc, e.start_date desc nulls last limit 1;
+  if ex is not null then
+    select round(avg(percent), 1), round(100.0 * count(*) filter (where result = 'pass') / nullif(count(*), 0), 1) into ex_avg, ex_pass from public.exam_results where exam_id = ex;
+  end if;
+  return jsonb_build_object(
+    'students', (select count(*) from public.students where school_id = sid and status = 'active'),
+    'boys', (select count(*) from public.students where school_id = sid and status = 'active' and gender = 'M'),
+    'girls', (select count(*) from public.students where school_id = sid and status = 'active' and gender = 'F'),
+    'admitted', (select count(*) from public.students where school_id = sid and admission_date between d1 and d2),
+    'left', (select count(*) from public.students where school_id = sid and left_on between d1 and d2),
+    'staff', (select count(*) from public.staff where school_id = sid and status = 'active'),
+    'teaching', (select count(*) from public.staff where school_id = sid and status = 'active' and kind = 'teaching'),
+    'student_att_pct', case when att_t > 0 then round(100.0 * att_p / att_t, 1) end,
+    'staff_att_pct', case when sat_t > 0 then round(100.0 * sat_p / sat_t, 1) end,
+    'fee_billed', billed, 'fee_collected', coll, 'fee_outstanding', outst,
+    'fee_collection_pct', case when billed > 0 then round(100.0 * (select coalesce(sum(paid), 0) from public.fee_dues where school_id = sid and session_id = sess) / billed, 1) end,
+    'defaulters', (select count(distinct student_id) from public.fee_dues where school_id = sid and session_id = sess and due_date <= public.today_ist() and amount - concession + fine - paid > 0),
+    'last_exam', ex_name, 'last_exam_avg', ex_avg, 'last_exam_pass', ex_pass,
+    'library_issues', (select count(*) from public.library_issues where school_id = sid and issued_on between d1 and d2),
+    'library_overdue', (select count(*) from public.library_issues where school_id = sid and returned_on is null and due_on < public.today_ist()),
+    'health_visits', (select count(*) from public.health_visits where school_id = sid and (visited_at at time zone 'Asia/Kolkata')::date between d1 and d2),
+    'incidents', (select count(*) from public.discipline_incidents where school_id = sid and incident_on between d1 and d2),
+    'hostel_beds', (select coalesce(sum(r.beds), 0) from public.hostel_rooms r where r.school_id = sid and r.active),
+    'hostel_occupied', (select count(*) from public.hostel_allocations where school_id = sid and status = 'active'),
+    'transport_riders', (select count(*) from public.transport_allocations where school_id = sid and (end_date is null or end_date >= public.today_ist())),
+    'visitors', (select count(*) from public.visitors where school_id = sid and (in_at at time zone 'Asia/Kolkata')::date between d1 and d2)
+  );
+end $$;
+
+-- ───────────── enrolment ─────────────
+create or replace function public.report_enrolment(sid uuid)
+returns table (class_id uuid, class_name text, class_sort int, sections bigint, seats int, boys bigint, girls bigint, other bigint, total bigint,
+               general bigint, obc bigint, sc bigint, st bigint, ews bigint, rte bigint, new_this_session bigint)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public._can_report(sid, 'overview') and not public._can_report(sid, 'academic') then raise exception 'not allowed'; end if;
+  return query
+    select c.id, c.name, c.sort, (select count(*) from public.sections x where x.class_id = c.id), c.seats,
+           count(s.id) filter (where s.gender = 'M'), count(s.id) filter (where s.gender = 'F'), count(s.id) filter (where coalesce(s.gender, '') not in ('M', 'F')), count(s.id),
+           count(s.id) filter (where lower(s.category) = 'general'), count(s.id) filter (where lower(s.category) = 'obc'), count(s.id) filter (where lower(s.category) = 'sc'),
+           count(s.id) filter (where lower(s.category) = 'st'), count(s.id) filter (where lower(s.category) = 'ews'),
+           count(s.id) filter (where s.admission_category = 'rte'),
+           count(s.id) filter (where s.admission_date >= (select start_date from public.sessions where school_id = sid and is_current))
+      from public.classes c left join public.students s on s.class_id = c.id and s.status = 'active'
+     where c.school_id = sid and (public._report_class_ok(sid, c.id, 'overview') or public._report_class_ok(sid, c.id, 'academic'))
+     group by c.id, c.name, c.sort, c.seats order by c.sort, c.name;
+end $$;
+
+-- ───────────── attendance ─────────────
+create or replace function public.report_attendance_trend(sid uuid, d1 date, d2 date)
+returns table (day date, present bigint, absent bigint, marked bigint, pct numeric)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public._can_report(sid, 'overview') then raise exception 'not allowed'; end if;
+  return query
+    select a.date, count(*) filter (where a.status in ('P', 'L', 'H')), count(*) filter (where a.status = 'A'), count(*),
+           round(100.0 * count(*) filter (where a.status in ('P', 'L', 'H')) / nullif(count(*), 0), 1)
+      from public.attendance a where a.school_id = sid and a.date between d1 and d2 group by a.date order by a.date;
+end $$;
+
+create or replace function public.report_attendance_by_class(sid uuid, d1 date, d2 date)
+returns table (class_id uuid, class_name text, class_sort int, students bigint, marked bigint, present bigint, absent bigint, pct numeric, low_students bigint)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public._can_report(sid, 'overview') and not public._can_report(sid, 'academic') then raise exception 'not allowed'; end if;
+  return query
+    with per as (
+      select s.class_id as cid, s.id as stu, count(a.id) as m, count(a.id) filter (where a.status in ('P', 'L', 'H')) as p
+        from public.students s left join public.attendance a on a.student_id = s.id and a.date between d1 and d2
+       where s.school_id = sid and s.status = 'active' group by s.class_id, s.id)
+    select c.id, c.name, c.sort, count(per.stu), coalesce(sum(per.m), 0)::bigint, coalesce(sum(per.p), 0)::bigint, (coalesce(sum(per.m), 0) - coalesce(sum(per.p), 0))::bigint,
+           round(100.0 * coalesce(sum(per.p), 0) / nullif(sum(per.m), 0), 1), count(per.stu) filter (where per.m > 0 and 100.0 * per.p / per.m < 75)
+      from public.classes c left join per on per.cid = c.id
+     where c.school_id = sid and (public._report_class_ok(sid, c.id, 'overview') or public._report_class_ok(sid, c.id, 'academic'))
+     group by c.id, c.name, c.sort order by c.sort, c.name;
+end $$;
+
+-- ───────────── fees ─────────────
+create or replace function public.report_fee_monthly(sid uuid, p_months int default 12)
+returns table (month date, billed numeric, collected numeric, receipts bigint)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public._can_report(sid, 'fees') then raise exception 'not allowed'; end if;
+  return query
+    select m::date,
+           coalesce((select sum(greatest(d.amount - d.concession + d.fine, 0)) from public.fee_dues d where d.school_id = sid and date_trunc('month', d.due_date) = m), 0),
+           coalesce((select sum(r.amount) from public.fee_receipts r where r.school_id = sid and not r.cancelled and date_trunc('month', r.paid_on) = m), 0),
+           (select count(*) from public.fee_receipts r where r.school_id = sid and not r.cancelled and date_trunc('month', r.paid_on) = m)
+      from generate_series(date_trunc('month', public.today_ist()) - make_interval(months => least(greatest(p_months, 1), 36) - 1), date_trunc('month', public.today_ist()), interval '1 month') m
+     order by 1;
+end $$;
+
+create or replace function public.report_fee_by_class(sid uuid)
+returns table (class_id uuid, class_name text, class_sort int, students bigint, billed numeric, paid numeric, outstanding numeric, overdue numeric, pct numeric)
+language plpgsql stable security definer set search_path = public as $$
+declare sess uuid;
+begin
+  if not public._can_report(sid, 'fees') then raise exception 'not allowed'; end if;
+  select id into sess from public.sessions where school_id = sid and is_current;
+  return query
+    select c.id, c.name, c.sort, count(distinct s.id), coalesce(sum(greatest(d.amount - d.concession + d.fine, 0)), 0), coalesce(sum(least(d.paid, greatest(d.amount - d.concession + d.fine, 0))), 0),
+           coalesce(sum(greatest(d.amount - d.concession + d.fine - d.paid, 0)), 0),
+           coalesce(sum(greatest(d.amount - d.concession + d.fine - d.paid, 0)) filter (where d.due_date < public.today_ist()), 0),
+           round(100.0 * coalesce(sum(least(d.paid, greatest(d.amount - d.concession + d.fine, 0))), 0) / nullif(sum(greatest(d.amount - d.concession + d.fine, 0)), 0), 1)
+      from public.classes c
+      left join public.students s on s.class_id = c.id and s.status = 'active'
+      left join public.fee_dues d on d.student_id = s.id and d.session_id = sess
+     where c.school_id = sid group by c.id, c.name, c.sort order by c.sort, c.name;
+end $$;
+
+create or replace function public.report_defaulter_ageing(sid uuid)
+returns table (bucket text, sort int, students bigint, amount numeric)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public._can_report(sid, 'fees') then raise exception 'not allowed'; end if;
+  return query
+    select x.bucket, x.sort, count(distinct x.student_id), sum(x.owed) from (
+      select d.student_id, greatest(d.amount - d.concession + d.fine - d.paid, 0) as owed, public.today_ist() - d.due_date as age,
+             case when public.today_ist() - d.due_date <= 30 then '0–30 days' when public.today_ist() - d.due_date <= 60 then '31–60 days'
+                  when public.today_ist() - d.due_date <= 90 then '61–90 days' else 'Over 90 days' end as bucket,
+             case when public.today_ist() - d.due_date <= 30 then 1 when public.today_ist() - d.due_date <= 60 then 2 when public.today_ist() - d.due_date <= 90 then 3 else 4 end as sort
+        from public.fee_dues d where d.school_id = sid and d.due_date < public.today_ist() and d.amount - d.concession + d.fine - d.paid > 0) x
+     group by x.bucket, x.sort order by x.sort;
+end $$;
+
+create or replace function public.report_collection_by_mode(sid uuid, d1 date, d2 date)
+returns table (mode text, amount numeric, payments bigint)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public._can_report(sid, 'fees') then raise exception 'not allowed'; end if;
+  return query
+    select p.mode, sum(p.amount), count(*) from public.fee_receipt_payments p join public.fee_receipts r on r.id = p.receipt_id
+     where r.school_id = sid and not r.cancelled and r.paid_on between d1 and d2 group by p.mode order by sum(p.amount) desc;
+end $$;
+
+-- ───────────── exams ─────────────
+create or replace function public.report_exam_by_class(sid uuid, p_exam uuid)
+returns table (class_id uuid, class_name text, students bigint, avg_percent numeric, pass_percent numeric, topper text, topper_percent numeric, failed bigint, absent bigint)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public._can_report(sid, 'academic') then raise exception 'not allowed'; end if;
+  return query
+    select c.id, c.name, count(r.id), round(avg(r.percent), 1), round(100.0 * count(*) filter (where r.result = 'pass') / nullif(count(r.id), 0), 1),
+           (select btrim(concat_ws(' ', s.first_name, s.last_name)) from public.exam_results t join public.students s on s.id = t.student_id where t.exam_id = p_exam and t.class_id = c.id and t.result <> 'withheld' order by t.percent desc limit 1),
+           max(r.percent), count(*) filter (where r.result = 'fail'), count(*) filter (where r.result = 'absent')
+      from public.exam_results r join public.classes c on c.id = r.class_id
+     where r.exam_id = p_exam and r.school_id = sid and public._report_class_ok(sid, c.id, 'academic')
+     group by c.id, c.name, c.sort order by c.sort, c.name;
+end $$;
+
+create or replace function public.report_exam_by_subject(sid uuid, p_exam uuid)
+returns table (class_name text, subject_name text, students bigint, avg_percent numeric, below_pass bigint, highest numeric)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public._can_report(sid, 'academic') then raise exception 'not allowed'; end if;
+  return query
+    select c.name, sb.name, count(m.id), round(avg(100.0 * m.marks / nullif(es.max_marks, 0)), 1),
+           count(*) filter (where m.absent or coalesce(m.marks, 0) < coalesce(es.pass_marks, round(es.max_marks * 0.33, 2))), max(m.marks)
+      from public.exam_subjects es
+      join public.classes c on c.id = es.class_id join public.subjects sb on sb.id = es.subject_id
+      join public.students s on s.class_id = es.class_id and s.status = 'active'
+      left join public.marks m on m.exam_id = es.exam_id and m.student_id = s.id and m.subject_id = es.subject_id
+     where es.exam_id = p_exam and es.school_id = sid and public._report_class_ok(sid, c.id, 'academic')
+     group by c.name, c.sort, sb.name, sb.sort order by c.sort, sb.sort, sb.name;
+end $$;
+
+-- ───────────── pickers for library / health / discipline / hostel ─────────────
+-- A librarian or warden has no access to the student profile, but must still find a student by name to issue a book or give a bed.
+-- Each permission is checked with its own scope (a class teacher only finds own students).
+create or replace function public.student_lookup(sid uuid, p_q text)
+returns table (id uuid, name text, admission_no text, class_name text, father_name text)
+language sql stable security definer set search_path = public as $$
+  select s.id, btrim(concat_ws(' ', s.first_name, s.middle_name, s.last_name)), s.admission_no, c.name || coalesce('-' || sec.name, ''), s.father_name
+    from public.students s
+    left join public.classes c on c.id = s.class_id
+    left join public.sections sec on sec.id = s.section_id
+   where s.school_id = sid and s.status = 'active' and auth.uid() is not null
+     and concat_ws(' ', s.first_name, s.last_name, s.admission_no, s.father_name) ilike public.like_escape(btrim(coalesce(p_q, '')))
+     and (public.can_student(sid, 'students.profile.view', s.id) or public.can_student(sid, 'library.circulation.view', s.id) or public.can_student(sid, 'wellbeing.medical.view', s.id)
+          or public.can_student(sid, 'wellbeing.discipline.view', s.id) or public.can_student(sid, 'hostel.allocation.view', s.id) or public.can_student(sid, 'hostel.rollcall.view', s.id)
+          or public.can_student(sid, 'frontdesk.visitors.view', s.id) or public.can_student(sid, 'fees.collection.view', s.id) or public.can_student(sid, 'attendance.students.view', s.id)
+          or public.can_student(sid, 'documents.issue.view', s.id) or public.can_student(sid, 'students.board_reg.view', s.id))
+   order by s.first_name, s.last_name limit 10;
+$$;
+
+-- staff finder: also for the librarian (issuing to staff) and the hostel warden
+create or replace function public.staff_lookup(sid uuid, p_q text) returns table (id uuid, name text, designation text, emp_code text)
+language sql stable security definer set search_path = public as $$
+  select s.id, s.name, s.designation, s.emp_code
+    from public.staff s
+   where s.school_id = sid and s.status = 'active'
+     and (public.has_perm(sid, 'hr.staff.view') or public.has_perm(sid, 'frontdesk.visitors.view') or public.has_perm(sid, 'academics.timetable.view')
+          or public.has_perm(sid, 'library.circulation.view') or public.has_perm(sid, 'hostel.allocation.view'))
+     and concat_ws(' ', s.name, s.emp_code, s.designation) ilike public.like_escape(btrim(coalesce(p_q, '')))
+   order by s.name limit 10;
+$$;
+
+-- ───────────── UDISE-style strength (class × gender × category) ─────────────
+create or replace function public.report_udise_strength(sid uuid)
+returns table (class_name text, class_sort int, category text, boys bigint, girls bigint, total bigint)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not (public._can_report(sid, 'overview') or public.has_perm_school(sid, 'reports.udise.export')) then raise exception 'not allowed'; end if;
+  return query
+    select c.name, c.sort, coalesce(nullif(initcap(s.category), ''), 'Not stated'), count(*) filter (where s.gender = 'M'), count(*) filter (where s.gender = 'F'), count(*)
+      from public.students s join public.classes c on c.id = s.class_id
+     where s.school_id = sid and s.status = 'active' group by c.name, c.sort, coalesce(nullif(initcap(s.category), ''), 'Not stated') order by c.sort, 3;
 end $$;

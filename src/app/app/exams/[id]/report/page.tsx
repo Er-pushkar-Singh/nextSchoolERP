@@ -5,6 +5,9 @@ import { PrintButton } from "@/components/ui/PrintButton";
 import { fmtDate, fullName } from "@/lib/format";
 import { getClasses, pct } from "@/lib/erp";
 import { classResults } from "@/lib/results";
+import { signedPhotoUrls } from "@/lib/doc-photo";
+import { getBranding } from "@/lib/branding";
+import { DocSheet } from "@/components/DocSheet";
 
 const uid = (v?: string) => (v && /^[0-9a-f-]{36}$/.test(v) ? v : null);
 
@@ -57,18 +60,28 @@ export default async function ReportCards({ params, searchParams }: { params: Pr
   const results = await classResults(supabase, cls, (allExams ?? []) as { id: string; name: string }[], ids, school.grade_scale);
   const att = session && list.length ? (await supabase.from("attendance").select("student_id,status").in("student_id", list.map((s) => s.id)).gte("date", session.start_date).lte("date", session.end_date).limit(50000)).data ?? [] : [];
 
+  const { data: decl } = list.length ? await supabase.from("exam_results").select("student_id,result,rank,percent,grade,remark,withheld_reason,failed_subjects").eq("exam_id", id).in("student_id", list.map((s) => s.id)) : { data: [] };
+  const declared = new Map((decl ?? []).map((d) => [d.student_id as string, d as { result: string; rank: number | null; percent: number; grade: string | null; remark: string | null; withheld_reason: string | null; failed_subjects: number }]));
+  const notDeclared = list.length > 0 && declared.size === 0;
+  const [photos, branding] = await Promise.all([signedPhotoUrls(school.id, list.map((s) => s.id)), getBranding(supabase, school.id)]);
+
   return (
     <div className="flex flex-col gap-5">
       <div className="print:hidden"><PageHeader title={`Report cards · ${exam.name} · Class ${klass?.name ?? ""}`} subtitle={`${list.length} students · prints one per page`} back={{ href: `/app/exams/${id}`, label: exam.name }} actions={<PrintButton />} /></div>
+      {notDeclared && <p role="note" className="m-0 rounded-[12px] border border-[#f1d39a] bg-[#fff4e0] px-4 py-3 text-[14px] text-[#7a4b00] print:hidden">The result of this class is <b>not declared</b> yet — these cards show marks only, without pass / fail and rank. Declare it from the exam page.</p>}
       {!list.length && <Empty>No students.</Empty>}
       {list.map((s) => {
         const res = results.get(s.id) ?? [];
         const mine = att.filter((a) => a.student_id === s.id);
         const present = mine.filter((a) => ["P", "L", "H"].includes(a.status)).length;
         const subjects = [...new Set(res.flatMap((r) => r.rows.map((x) => x.subject)))];
+        const dr = declared.get(s.id);
         return (
-          <article key={s.id} className="mx-auto w-full max-w-[800px] break-after-page rounded-[12px] border border-line bg-white p-6 text-[13px] text-ink print:max-w-none print:rounded-none print:border-0 print:p-0">
-            <header className="border-b-2 border-ink pb-2 text-center">
+          <DocSheet key={s.id} branding={branding} logoUrl={school.logo_url} schoolName={school.name} className="mx-auto w-full max-w-[800px] break-after-page rounded-[12px] border border-line bg-white print:max-w-none print:rounded-none print:border-0">
+          <article className="p-6 text-[13px] text-ink print:p-0">
+            <header className="relative border-b-2 border-ink pb-2 text-center">
+              {photos.get(s.id) /* eslint-disable-next-line @next/next/no-img-element */ ? <img src={photos.get(s.id)} alt="Photograph" className="absolute top-0 right-0 h-[86px] w-[68px] rounded border border-ink object-cover" /> : <span className="absolute top-0 right-0 flex h-[86px] w-[68px] items-center justify-center rounded border border-dashed border-ink text-[10px] text-muted">Photo</span>}
+              {school.logo_url /* eslint-disable-next-line @next/next/no-img-element */ ? <img src={school.logo_url} alt="" className="absolute top-0 left-0 h-[64px] w-[64px] object-contain" /> : null}
               <h2 className="m-0 text-[20px] font-extrabold">{school.name}</h2>
               <p className="m-0 text-[12px]">{[school.address, school.city].filter(Boolean).join(", ")}{school.affiliation_no ? ` · ${school.board} Aff. No. ${school.affiliation_no}` : ""}</p>
               <p className="mt-1 mb-0 text-[14px] font-bold">REPORT CARD · SESSION {session?.name}</p>
@@ -81,7 +94,7 @@ export default async function ReportCards({ params, searchParams }: { params: Pr
               <div><dt className="inline text-muted">Adm. no.: </dt><dd className="inline">{s.admission_no}</dd></div>
               <div><dt className="inline text-muted">Date of birth: </dt><dd className="inline">{fmtDate(s.dob)}</dd></div>
             </dl>
-            {res.length ? (
+            {dr?.result === "withheld" ? <p className="my-6 rounded border border-ink p-4 text-center text-[14px] font-bold">RESULT WITHHELD{dr.withheld_reason ? ` — ${dr.withheld_reason}` : ""}. Please contact the school office.</p> : res.length ? (
               <table className="w-full border-collapse border border-ink text-center">
                 <thead>
                   <tr className="bg-surface-alt"><th rowSpan={2} className="border border-ink px-2 py-1 text-left">Subject</th>{res.map((r) => <th key={r.exam.id} colSpan={2} className="border border-ink px-2 py-1">{r.exam.name}</th>)}</tr>
@@ -102,13 +115,20 @@ export default async function ReportCards({ params, searchParams }: { params: Pr
                 </tbody>
               </table>
             ) : <p className="text-muted">No marks entered yet.</p>}
+            {dr && dr.result !== "withheld" && (
+              <p className="mt-3 mb-0 flex flex-wrap gap-x-6 font-semibold">
+                <span>Result: <b className={dr.result === "pass" ? "text-[#15803d]" : "text-error"}>{dr.result.toUpperCase()}</b>{dr.result === "fail" && dr.failed_subjects > 0 ? ` (${dr.failed_subjects} subject${dr.failed_subjects === 1 ? "" : "s"})` : ""}</span>
+                <span>Percentage: {Number(dr.percent)}%</span><span>Grade: {dr.grade ?? "—"}</span><span>Rank: {dr.rank ?? "—"}</span>
+              </p>
+            )}
             <p className="mt-3 mb-0">Attendance this session: <b>{mine.length ? `${present}/${mine.length} days (${pct(present, mine.length)}%)` : "—"}</b></p>
             <p className="mt-1 mb-0 text-[11px] text-muted">Grades: {school.grade_scale.map((g) => `${g.grade} ≥${g.min}%`).join(" · ")}</p>
-            <div className="mt-6 h-14 border border-line p-2 text-[12px] text-muted">Remarks:</div>
+            <div className="mt-6 min-h-14 border border-line p-2 text-[12px] text-muted">Remarks: <span className="text-ink">{dr?.remark ?? ""}</span></div>
             <footer className="mt-10 grid grid-cols-3 gap-6 text-center text-[12px]">
-              <span className="border-t border-ink pt-1">Class teacher</span><span className="border-t border-ink pt-1">Parent</span><span className="border-t border-ink pt-1">Principal{school.principal_name ? ` (${school.principal_name})` : ""}</span>
+              <span className="border-t border-ink pt-1">Class teacher</span><span className="border-t border-ink pt-1">Parent</span><span className="border-t border-ink pt-1">{branding.signature /* eslint-disable-next-line @next/next/no-img-element */ ? <img src={branding.signature} alt="" className="mx-auto -mt-12 mb-1 block h-10 object-contain" /> : null}Principal{school.principal_name ? ` (${school.principal_name})` : ""}</span>
             </footer>
           </article>
+          </DocSheet>
         );
       })}
     </div>

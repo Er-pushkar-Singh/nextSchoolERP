@@ -88,3 +88,28 @@ export async function copySyllabus(f: FormData) {
   const { data, error } = await supabase.rpc("copy_syllabus", { sid: school.id, from_session: uuid(f, "from"), to_session: uuid(f, "to") });
   go("/app/academics/syllabus", error ? { error: errMsg(error) } : { ok: `Copied ${data ?? 0} topics to the new session.` });
 }
+
+/** Adds one subject to one class: picks an existing subject or creates a new one by name, then maps it with periods a week. */
+export async function addSubjectToClass(f: FormData) {
+  const { supabase, school } = await requirePerm("academics.setup.edit", "academics.setup.create");
+  const cls = uuid(f, "class_id");
+  const back = "/app/academics/curriculum";
+  if (!cls) go(back, { error: "Choose a class." });
+  let subject = uuid(f, "subject_id");
+  const name = str(f, "new_name", 60);
+  if (!subject && name) {
+    const { data: ex } = await supabase.from("subjects").select("id").eq("school_id", school.id).ilike("name", name).maybeSingle();
+    if (ex) subject = ex.id;
+    else {
+      const { data: made, error } = await supabase.from("subjects").insert({ school_id: school.id, name }).select("id").single();
+      if (error) go(back, { error: errMsg(error) });
+      subject = made!.id;
+    }
+  }
+  if (!subject) go(back, { error: "Choose a subject or type a new subject name." });
+  const { error } = await supabase.from("class_subjects").upsert(
+    { school_id: school.id, class_id: cls, subject_id: subject, periods_per_week: Math.min(20, Math.max(0, Math.round(num(f, "periods") ?? 5))), is_optional: f.get("optional") === "1" },
+    { onConflict: "class_id,subject_id" });
+  revalidatePath("/app/academics");
+  go(back, error ? { error: errMsg(error) } : { ok: "Subject added to the class." });
+}

@@ -72,12 +72,14 @@ export function TemplateDesigner({ initial, name: initialName, action, templateI
   };
   const addText = (text = "Your text", extra: Partial<Item> = {}) => add({ type: "text", text, size: 12, weight: 400, color: "#111111", align: "left", valign: "top", w: 60, h: 10, lh: 1.25, ...extra });
   const addField = (key: string) => {
-    const isImg = key === "student.photo" || key === "school.logo" || key === "student.qr" || key === "school.signature" || key === "school.seal";
+    const isImg = key === "student.photo" || key === "school.logo" || key === "student.qr" || key === "school.signature" || key === "school.seal" || key.endsWith(".barcode") || key === "doc.verify_qr";
     if (key === "student.photo") add({ type: "photo", w: 24, h: 30, radius: 2, name: "Photograph" });
     else if (key === "school.logo") add({ type: "logo", w: 16, h: 16, name: "Logo" });
     else if (key === "school.signature") add({ type: "signature", w: 40, h: 14, name: "Principal signature" });
     else if (key === "school.seal") add({ type: "seal", w: 24, h: 24, name: "School seal" });
     else if (key === "student.qr" || key === "staff.qr") add({ type: "qr", w: 18, h: 18, name: "QR code", text: key });
+    else if (key === "doc.verify_qr") add({ type: "qr", w: 18, h: 18, name: "Verification QR", text: key });
+    else if (key === "student.barcode" || key === "staff.barcode") add({ type: "barcode", w: 44, h: 9, name: "Barcode", text: key });
     else addText(`{{${key}}}`, { w: key.endsWith("_html") ? Math.min(design.w - 20, 120) : 60, h: key.endsWith("_html") ? 40 : 7, size: 11 });
     return isImg;
   };
@@ -255,6 +257,8 @@ export function TemplateDesigner({ initial, name: initialName, action, templateI
               <button type="button" className={fieldBtn} onClick={() => add({ type: "photo", w: 24, h: 30, radius: 2, name: "Photograph" })}>👤 Student photo</button>
               <button type="button" className={fieldBtn} onClick={() => add({ type: "logo", w: 16, h: 16, name: "Logo" })}>◈ School logo</button>
               <button type="button" className={fieldBtn} onClick={() => add({ type: "qr", w: 18, h: 18, name: "QR code" })}>▦ QR code</button>
+          <button type="button" className={fieldBtn} onClick={() => add({ type: "barcode", w: 44, h: 9, name: "Barcode", text: "student.barcode" })}>▮▯▮ Barcode</button>
+          <button type="button" className={fieldBtn} onClick={() => add({ type: "qr", w: 18, h: 18, name: "Verification QR", text: "doc.verify_qr" })}>✔ Verification QR</button>
               <button type="button" className={fieldBtn} onClick={() => add({ type: "signature", w: 40, h: 14, name: "Principal signature" })}>✍ Principal signature</button>
               <button type="button" className={fieldBtn} onClick={() => add({ type: "seal", w: 24, h: 24, name: "School seal" })}>◎ School seal</button>
               <p className="col-span-2 m-0 text-[11px] text-muted">Drag to move, corners to resize, the round handle to rotate. Shift-click selects several. Delete, Ctrl+D duplicate, arrows nudge.</p>
@@ -280,7 +284,7 @@ export function TemplateDesigner({ initial, name: initialName, action, templateI
               {[...items].reverse().map((i) => (
                 <li key={i.id} className={`flex items-center gap-1 rounded-md border px-1.5 py-1 text-[12px] ${sel.includes(i.id) ? "border-blue bg-blue-tint" : "border-line"}`}>
                   <button type="button" onClick={(e) => setSel(e.shiftKey ? [...sel, i.id] : [i.id])} className="min-w-0 flex-1 cursor-pointer truncate border-0 bg-transparent p-0 text-left">
-                    {i.type === "text" ? (i.text || "Text").slice(0, 28) : i.name ?? { rect: "Rectangle", ellipse: "Circle", line: "Line", image: "Image", photo: "Photograph", logo: "Logo", qr: "QR code", signature: "Signature", seal: "Seal", text: "Text" }[i.type]}
+                    {i.type === "text" ? (i.text || "Text").slice(0, 28) : i.name ?? { rect: "Rectangle", ellipse: "Circle", line: "Line", image: "Image", photo: "Photograph", logo: "Logo", qr: "QR code", barcode: "Barcode", signature: "Signature", seal: "Seal", text: "Text" }[i.type]}
                   </button>
                   <button type="button" title="Hide" onClick={() => update([i.id], { hidden: !i.hidden })} className="cursor-pointer border-0 bg-transparent p-0">{i.hidden ? "🚫" : "👁"}</button>
                   <button type="button" title="Lock" onClick={() => update([i.id], { locked: !i.locked })} className="cursor-pointer border-0 bg-transparent p-0">{i.locked ? "🔒" : "🔓"}</button>
@@ -339,6 +343,8 @@ export function TemplateDesigner({ initial, name: initialName, action, templateI
                 } else if (it.type === "image") {
                   style = { overflow: "hidden", borderRadius: (it.radius ?? 0) * S, background: it.src ? undefined : "repeating-linear-gradient(45deg,#e5e7eb,#e5e7eb 6px,#f3f4f6 6px,#f3f4f6 12px)" };
                   body = it.src ? <img src={it.src} alt="" draggable={false} style={{ width: "100%", height: "100%", objectFit: it.fit }} /> : <span style={{ fontSize: 10, color: "#6b7280", padding: 4, display: "block" }}>Image</span>;
+                } else if (it.type === "barcode") {
+                  style = { background: "repeating-linear-gradient(90deg,#111 0 2px,#fff 2px 4px,#111 4px 7px,#fff 7px 9px,#111 9px 10px,#fff 10px 13px)" };
                 } else {
                   style = { overflow: "hidden", borderRadius: (it.radius ?? 0) * S, border: it.sw ? `${it.sw * S}px solid ${it.stroke}` : undefined,
                     background: it.type === "photo" ? "linear-gradient(135deg,#cbd5e1,#94a3b8)" : it.type === "qr" ? "repeating-conic-gradient(#111 0 25%,#fff 0 50%) 0 0/20% 20%" : "#1d4ed8", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 11, fontWeight: 700 };
@@ -449,9 +455,20 @@ export function TemplateDesigner({ initial, name: initialName, action, templateI
                 </div>
               )}
 
+              {one.type === "barcode" && (
+                <div className="grid gap-2 border-t border-line pt-3">
+                  <p className="m-0 text-[12px] text-muted">The card code as a Code 128 barcode — any barcode scanner at the gate reads it and marks attendance.</p>
+                  <label className={lbl}>Whose code
+                    <select value={one.text === "staff.barcode" ? "staff.barcode" : "student.barcode"} onChange={(e) => update([one.id], { text: e.target.value }, false)} className={inp}>
+                      <option value="student.barcode">Student</option><option value="staff.barcode">Staff member</option>
+                    </select>
+                  </label>
+                </div>
+              )}
+
               {(one.type === "photo" || one.type === "logo" || one.type === "qr" || one.type === "signature" || one.type === "seal") && (
                 <div className="grid gap-2 border-t border-line pt-3">
-                  <p className="m-0 text-[12px] text-muted">{one.type === "photo" ? "The student's photograph is placed here." : one.type === "qr" ? "The student's (or staff member's) attendance QR code is placed here. Scanning it marks attendance." : one.type === "signature" ? "The principal's signature (Settings → Documents) is placed here." : one.type === "seal" ? "The school seal (Settings → Documents) is placed here." : "The school logo (Settings → School) is placed here."}</p>
+                  <p className="m-0 text-[12px] text-muted">{one.type === "photo" ? "The student's photograph is placed here." : one.type === "qr" && one.text === "doc.verify_qr" ? "Verification QR: scanning it opens the public page of this very document with the student's details, so a forged copy is caught." : one.type === "qr" ? "The student's (or staff member's) attendance QR code is placed here. Scanning it marks attendance." : one.type === "signature" ? "The principal's signature (Settings → Documents) is placed here." : one.type === "seal" ? "The school seal (Settings → Documents) is placed here." : "The school logo (Settings → School) is placed here."}</p>
                   <div className="grid grid-cols-2 gap-2">
                     <label className={lbl}>Corner radius<input type="number" min={0} max={100} step="0.5" value={one.radius ?? 0} onChange={(e) => update([one.id], { radius: num(e.target.value) }, false)} className={inp} /></label>
                     <label className={lbl}>Border (mm)<input type="number" min={0} max={5} step="0.1" value={one.sw ?? 0} onChange={(e) => update([one.id], { sw: num(e.target.value) }, false)} className={inp} /></label>

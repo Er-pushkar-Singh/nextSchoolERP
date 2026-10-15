@@ -5,6 +5,7 @@ import { checkHs, checkInter, optionsForHs } from "../src/lib/board-rules.ts";
 import { validAadhaar } from "../src/lib/aadhaar.ts";
 import { sanitizeHtml, withPhoto } from "../src/lib/html-sanitize.ts";
 import { compileDesign, normalizeDesign, PRESETS, pageOf, withSample } from "../src/lib/design.ts";
+import { CODE128, code128Modules, code128Values, withBarcode } from "../src/lib/barcode.ts";
 
 let n = 0;
 const ok = (name, fn) => { fn(); n++; console.log("ok ", name); };
@@ -99,5 +100,18 @@ ok("Design: page size maps to A4 / A5 / card", () => {
 ok("Design: sample data fills fields for previews", () => {
   assert.ok(withSample("{{student.name}}").includes("Aarav"));
 });
+
+// ── Code 128 ──
+ok("Code 128: 106 symbol patterns, each 11 modules wide and all different", () => {
+  assert.equal(CODE128.PATTERNS.length, 106);
+  for (const p of CODE128.PATTERNS) assert.equal([...p].reduce((s, d) => s + Number(d), 0), 11);
+  assert.equal(new Set(CODE128.PATTERNS).size, 106);
+  assert.equal([...CODE128.STOP].reduce((s, d) => s + Number(d), 0), 13);
+});
+// 104 + 48·1 + 42·2 + 42·3 + 17·4 + 18·5 + 19·6 + 35·7 = 879 → 879 mod 103 = 55
+ok("Code 128: checksum of \"PJJ123C\" in set B is 55", () => assert.equal(code128Values("PJJ123C").at(-1), 55));
+ok("Code 128: digits use the dense set C", () => assert.deepEqual(code128Values("123456").slice(0, 4), [105, 12, 34, 56]));
+ok("Code 128: a symbol starts and ends with a bar", () => { const m = code128Modules("a1b2c3d4e5f6"); assert.equal(m.length % 2, 1); });
+ok("Code 128: fills a barcode slot in a document", () => assert.match(withBarcode('<img data-barcode="a1b2c3d4e5f6" src="">'), /src="data:image\/svg\+xml;base64,/));
 
 console.log(`\n${n} checks passed`);

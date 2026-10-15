@@ -116,3 +116,14 @@ export async function addCounselling(f: FormData) {
   revalidatePath("/app/discipline");
   go(back, error ? { error: errMsg(error) } : { ok: "Counselling note saved." });
 }
+
+/** A fine for an incident goes on the fee account of every student involved (not victims). 0 withdraws an unpaid fine. */
+export async function setDisciplineFine(f: FormData) {
+  const { supabase, school } = await requireSchool();
+  const back = backTo(f, "/app/discipline");
+  const amount = Math.max(0, num(f, "fine") ?? 0);
+  const { data, error } = await supabase.rpc("discipline_set_fine", { sid: school.id, p_incident: uuid(f, "id")!, p_amount: amount });
+  revalidatePath("/app/discipline");
+  revalidatePath("/app/fees");
+  go(back, error ? { error: errMsg(error) } : { ok: amount > 0 ? `Fine of ₹${amount} added to the fee account of ${data} student${data === 1 ? "" : "s"}.` : "Fine withdrawn." });
+}

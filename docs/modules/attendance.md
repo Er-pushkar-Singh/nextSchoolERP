@@ -55,3 +55,10 @@ Student leave requests from parents (`attendance.leave`); automatic SMS / WhatsA
 - `/app/attendance/register` reads marks **by student**, so manual marks, QR / biometric / card scans and marks made before a student changed section all appear in one grid; scanned marks are underlined (hover shows in / out time and source). It lists Sundays and school holidays, working days so far, class average, students below 75% and a present-count per day; a teacher with *assigned* scope picks only own sections.
 - Saving the manual page writes only rows that are new or whose status was changed, so a scan's time and source are not overwritten ("by scan" count stays right); an absence entered by hand clears that day's scan times.
 - `attendance_summary` groups by the student's **current** class / section, and a trigger moves today's and later marks when a student changes section (past marks keep the section of that day). Test: `attendance_sync.test.sql`.
+
+## Barcode attendance (15 Oct 2026, migration `0041`)
+- `/app/attendance/barcode` — the gate station. A USB / Bluetooth barcode scanner types the card code and Enter; the box keeps the focus. Shows the student's **photo**, name, class, admission no., present / late / out / repeat, with a beep; live "present today" counter and the last scans (`attendance_scan_feed`). Camera fallback where the browser has `BarcodeDetector` (Chrome).
+- **Finish the day**: `attendance_close_day(sid, date, section?)` marks everyone without a mark absent (a teacher only for own sections, a holiday is refused) and optionally tells the parents (absence messages).
+- `attendance_clear` undoes one student's mark for a day.
+- Barcodes: Code 128 of the card code (`att_code`), generated in `src/lib/barcode.ts` (no library). On ID cards via `{{student.barcode}}` / `{{staff.barcode}}` (designer block "Barcode"; gallery "Student ID card — with barcode", "Staff ID card — with barcode"); sticker sheets at `/app/attendance/barcodes`.
+- Tests: `barcode.test.sql`; `npm run test:rules` checks the Code 128 table and checksum.

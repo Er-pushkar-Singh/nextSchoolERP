@@ -33,6 +33,7 @@ export async function saveFeeSettings(f: FormData) {
     receipt_footer: str(f, "receipt_footer", 300),
     sibling_percent: Math.min(100, Math.max(0, money2(num(f, "sibling_percent")) ?? 0)),
     sibling_head_id: uuid(f, "sibling_head_id"),
+    tc_clearance: oneOf(f, "tc_clearance", ["all", "due_till_today"] as const, "all"),
   };
   if (row.fine_enabled && row.fine_amount <= 0) go(back, { error: "Enter the fine amount, or switch the late fine off." });
   const { error } = await supabase.from("fee_settings").upsert(row, { onConflict: "school_id" });

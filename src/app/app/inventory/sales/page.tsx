@@ -29,7 +29,7 @@ export default async function Sales({ searchParams }: { searchParams: Promise<Re
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader icon="fees" title="Sales" subtitle={`${total} bill${total === 1 ? "" : "s"} · ${money(sum)} on this page`} back={{ href: "/app/inventory", label: "Inventory" }}
+      <PageHeader icon="fees" title="Sales" subtitle={`${total} bill${total === 1 ? "" : "s"} · ${money(sum)} on this page`} back={{ href: "/app/inventory/shop", label: "Shop" }}
         actions={can("inventory.sales.create") ? <Link href="/app/inventory/sell" className="btn btn-sm btn-primary">+ New bill</Link> : undefined} />
       <Flash ok={sp.ok} error={sp.error} />
       <form className="flex flex-wrap items-end gap-2">

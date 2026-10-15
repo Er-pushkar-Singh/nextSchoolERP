@@ -1,57 +1,77 @@
 import Link from "next/link";
 import { requirePerm } from "@/lib/school";
 import { Card, Flash, PageHeader, Stat } from "@/components/ui/ui";
-import { BarChart, HBars } from "@/components/ui/charts";
+import { Modal } from "@/components/ui/Modal";
+import { HBars } from "@/components/ui/charts";
+import { AssignForm } from "@/components/inventory/AssetForms";
+import { loadAssignables } from "@/lib/inventory";
 import { money } from "@/lib/format";
 
-type Dash = { items: number; units: number; stock_value: number; low: number; out: number; sales_today: number; sales_month: number; bills_month: number; on_fee_account: number; purchases_month: number;
-  per_month: { m: string; sales: number; purchases: number }[]; top_items: { name: string; qty: number; amount: number }[]; reorder: { id: string; name: string; on_hand: number; reorder: number }[] };
+type O = { kinds: number; in_store: number; assigned: number; with_people: number; in_rooms: number; overdue: number; repairs: number; low: number; value: number;
+  by_category: { name: string; units: number }[]; recent: { at: string; by: string | null; action: string; detail: string | null }[] };
+const when = (iso: string) => new Date(iso).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: true });
 
 export default async function Inventory({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string }> }) {
-  const { supabase, school, can } = await requirePerm("inventory.items.view", "inventory.sales.view", "inventory.purchase.view");
+  const { supabase, school, can } = await requirePerm("inventory.items.view", "inventory.assign.view", "inventory.sales.view", "inventory.purchase.view");
   const sp = await searchParams;
-  const { data } = await supabase.rpc("inventory_dashboard", { sid: school.id });
-  const D = (data ?? {}) as Dash;
+  if (!can("inventory.items.view") && !can("inventory.assign.view")) {
+    return (
+      <div className="flex flex-col gap-5">
+        <PageHeader icon="layers" title="Inventory" subtitle="Your access covers the shop only" />
+        <Link href="/app/inventory/shop" className="btn btn-primary w-fit">Open the uniform & book shop</Link>
+      </div>
+    );
+  }
+  const [{ data }, forms] = await Promise.all([
+    supabase.rpc("inventory_overview", { sid: school.id }),
+    can("inventory.assign.create") ? loadAssignables(supabase, school.id) : Promise.resolve({ items: [], locations: [] as [string, string][] }),
+  ]);
+  const o = (data ?? {}) as Partial<O>;
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader icon="layers" title="Inventory & sales" subtitle="Uniform, books and stationery — stock, counter sales and purchases"
+      <PageHeader icon="layers" title="Inventory & assets" subtitle="Everything the school owns — in the store, in each room, and with each person"
         actions={<>
-          {can("inventory.sales.create") && <Link href="/app/inventory/sell" className="btn btn-sm btn-primary">+ New bill</Link>}
-          {can("inventory.purchase.create") && <Link href="/app/inventory/purchases/new" className="btn btn-sm btn-secondary">+ Purchase</Link>}
-          {can("inventory.items.view") && <Link href="/app/inventory/items" className="btn btn-sm btn-secondary">Items</Link>}
+          {can("inventory.assign.create") && <Modal label="+ Give an item" title="Give school property" size="lg"><AssignForm items={forms.items} locations={forms.locations} back="/app/inventory" /></Modal>}
+          {can("inventory.items.view") && <Link href="/app/inventory/items" className="btn btn-sm btn-secondary">Items & stock</Link>}
+          <Link href="/app/inventory/rooms" className="btn btn-sm btn-secondary">Rooms</Link>
+          {can("inventory.sales.view") && <Link href="/app/inventory/shop" className="btn btn-sm btn-secondary">Shop</Link>}
         </>} />
       <Flash ok={sp.ok} error={sp.error} />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Sales today" value={money(D.sales_today ?? 0)} icon="fees" tone="green" href="/app/inventory/sales" />
-        <Stat label="Sales this month" value={money(D.sales_month ?? 0)} hint={`${D.bills_month ?? 0} bills`} icon="revenue" tone="violet" href="/app/inventory/sales" />
-        <Stat label="Stock value (at cost)" value={money(D.stock_value ?? 0)} hint={`${D.items ?? 0} items · ${D.units ?? 0} units`} icon="layers" href="/app/inventory/items" />
-        <Stat label="Needs re-ordering" value={(D.low ?? 0) + (D.out ?? 0)} hint={`${D.out ?? 0} out of stock · ${D.low ?? 0} low`} icon="notifications" tone={(D.low ?? 0) + (D.out ?? 0) ? "rose" : "green"} href="/app/inventory/items?state=attention" />
+        <Stat label="In the store" value={o.in_store ?? 0} hint={`${o.kinds ?? 0} kinds of items`} icon="layers" href="/app/inventory/items" />
+        <Stat label="Installed in rooms" value={o.in_rooms ?? 0} icon="school" tone="cyan" href="/app/inventory/rooms" />
+        <Stat label="With staff & students" value={o.with_people ?? 0} icon="students" tone="violet" href="/app/inventory/assignments?holder=staff" />
+        <Stat label="Value (at cost)" value={money(o.value ?? 0)} icon="revenue" tone="green" />
+        <Stat label="Return overdue" value={o.overdue ?? 0} icon="notifications" tone={o.overdue ? "rose" : "green"} href="/app/inventory/assignments?state=overdue" />
+        <Stat label="Open repairs" value={o.repairs ?? 0} icon="settings" tone={o.repairs ? "amber" : "green"} href="/app/inventory/repairs" />
+        <Stat label="Low in the store" value={o.low ?? 0} hint="at or below the re-order level" icon="layers" tone={o.low ? "amber" : "green"} href="/app/inventory/items?state=attention" />
       </div>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Waiting on fee accounts" value={money(D.on_fee_account ?? 0)} hint="charged to students, not yet paid" icon="students" tone="amber" />
-        <Stat label="Purchases this month" value={money(D.purchases_month ?? 0)} icon="billing" tone="cyan" href="/app/inventory/purchases" />
-      </div>
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card title="Sales and purchases" description="Last 6 months" className="lg:col-span-2">
-          <BarChart data={(D.per_month ?? []).map((m) => ({ label: m.m, value: Number(m.sales), value2: Number(m.purchases) }))} names={["Sales", "Purchases"]} colors={["#16a34a", "#94a3b8"]}
-            format={(n) => (n >= 100000 ? `${(n / 100000).toFixed(1)}L` : n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)))} />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card title="What the school owns" description="Units by category — store + rooms + people">
+          <HBars data={(o.by_category ?? []).map((c) => ({ label: c.name, value: Number(c.units) }))} />
         </Card>
-        <Card title="Best sellers (90 days)">
-          <HBars data={(D.top_items ?? []).map((t) => ({ label: t.name, value: Number(t.amount), hint: `${t.qty} sold` }))} format={(n) => money(n)} color="#7c3aed" />
+        <Card title="Latest movements" actions={<Link href="/app/inventory/assignments?state=all" className="text-[14px] font-semibold">All →</Link>}>
+          {(o.recent ?? []).length ? (
+            <ul className="m-0 list-none p-0 text-[13.5px]">
+              {(o.recent ?? []).map((r, i) => (
+                <li key={i} className="border-t border-line py-2 first:border-0">
+                  <span className="font-semibold text-ink capitalize">{r.action}</span> <span className="text-body">{r.detail}</span>
+                  <div className="text-[12px] text-muted">{when(r.at)}{r.by ? ` · ${r.by}` : ""}</div>
+                </li>
+              ))}
+            </ul>
+          ) : <p className="m-0 text-[13px] text-muted">Nothing has been given out yet.</p>}
         </Card>
       </div>
-      <Card title="Re-order list" description="At or below the re-order level" actions={can("inventory.purchase.create") ? <Link href="/app/inventory/purchases/new" className="text-[14px] font-semibold">Record a purchase →</Link> : undefined}>
-        {(D.reorder ?? []).length ? (
-          <ul className="m-0 grid list-none gap-x-8 gap-y-1 p-0 text-[14px] sm:grid-cols-2">
-            {(D.reorder ?? []).map((r) => (
-              <li key={r.id} className="flex items-baseline justify-between gap-3 border-t border-line py-2">
-                <span className="text-ink">{r.name}</span>
-                <span><b className={r.on_hand <= 0 ? "text-error" : "text-[#b26a00]"}>{r.on_hand}</b><span className="text-muted"> left · re-order at {r.reorder}</span></span>
-              </li>
-            ))}
-          </ul>
-        ) : <p className="m-0 text-[14px] text-muted">Every tracked item is above its re-order level.</p>}
+      <Card title="How it works">
+        <ol className="m-0 flex list-decimal flex-col gap-1 pl-5 text-[14px] text-body">
+          <li>Add the <Link href="/app/inventory/rooms">rooms &amp; places</Link> (one click creates a classroom for every section).</li>
+          <li>Add the <Link href="/app/inventory/items">items</Link> with the quantity in the store (or record a <Link href="/app/inventory/purchases/new">purchase</Link>).</li>
+          <li><b>Give</b> them out: fans and benches to rooms, laptops and keys to staff, books or kits to students — with a return date when it must come back.</li>
+          <li>Staff and parents get an email when something is given and when it is returned; a reminder goes out every week once it is overdue.</li>
+          <li>On return, choose the condition: good (back to the store), needs repair, damaged or lost — a student&apos;s damage can be charged to the fee account.</li>
+        </ol>
       </Card>
     </div>
   );

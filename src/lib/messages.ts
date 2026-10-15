@@ -9,7 +9,7 @@ import { notifyOn, type Channel, type NotifyEvent, type SchoolPrefs } from "./pr
    (school = null) go through CodersDuniya's account. A user action never waits for a provider.
    ───────────────────────────────────────────────────────────────────────────── */
 
-export type MsgEvent = NotifyEvent | "custom" | "invoice_issued" | "invoice_paid" | "welcome";
+export type MsgEvent = NotifyEvent | "custom" | "invoice_issued" | "invoice_paid" | "welcome";   // NotifyEvent includes the property events
 export type Lang = "en" | "hi";
 export const CHANNELS: Channel[] = ["whatsapp", "sms", "email"];
 export const CHANNEL_NAME: Record<Channel, string> = { whatsapp: "WhatsApp", sms: "SMS", email: "Email" };
@@ -67,6 +67,30 @@ export const EVENTS: Record<MsgEvent, EventDef> = {
     name: "Birthday wishes", vars: ["student", "school"],
     subject: { en: "Happy birthday {{student}}!", hi: "जन्मदिन मुबारक {{student}}!" },
     text: { en: "Happy birthday {{student}}! Wishing you a wonderful year ahead. — {{school}}", hi: "जन्मदिन मुबारक {{student}}! आपका आने वाला वर्ष शुभ हो। — {{school}}" },
+  },
+  asset_assigned: {
+    name: "School property given", vars: ["holder", "item", "qty", "tag", "due_back", "school", "by"],
+    subject: { en: "{{item}} given to {{holder}} — {{school}}", hi: "{{item}} {{holder}} को दिया गया — {{school}}" },
+    text: {
+      en: "Dear {{holder}}, {{qty}} × {{item}}{{tag}} has been given to you by {{school}} on your name. Return date: {{due_back}}. Please take care of it and return it on time. — Issued by {{by}}",
+      hi: "प्रिय {{holder}}, {{school}} द्वारा {{qty}} × {{item}}{{tag}} आपके नाम पर दिया गया है। वापसी की तिथि: {{due_back}}। कृपया इसका ध्यान रखें और समय पर लौटाएँ। — जारीकर्ता {{by}}",
+    },
+  },
+  asset_returned: {
+    name: "School property returned", vars: ["holder", "item", "qty", "condition", "school"],
+    subject: { en: "{{item}} returned — {{school}}", hi: "{{item}} वापस प्राप्त — {{school}}" },
+    text: {
+      en: "Dear {{holder}}, we have received back {{qty}} × {{item}} ({{condition}}). Thank you. — {{school}}",
+      hi: "प्रिय {{holder}}, {{qty}} × {{item}} ({{condition}}) वापस प्राप्त हो गया है। धन्यवाद। — {{school}}",
+    },
+  },
+  asset_overdue: {
+    name: "Property not returned on time", vars: ["holder", "item", "qty", "due_back", "school"],
+    subject: { en: "Please return {{item}} — {{school}}", hi: "कृपया {{item}} लौटाएँ — {{school}}" },
+    text: {
+      en: "Dear {{holder}}, {{qty}} × {{item}} was due back on {{due_back}}. Please return it to the school at the earliest. — {{school}}",
+      hi: "प्रिय {{holder}}, {{qty}} × {{item}} की वापसी की तिथि {{due_back}} थी। कृपया इसे शीघ्र विद्यालय में लौटाएँ। — {{school}}",
+    },
   },
   custom: {
     name: "Message from the school", vars: ["body", "school"],
@@ -147,7 +171,7 @@ export async function queueMessages(o: { schoolId: string | null; event: MsgEven
     prefs = (s?.prefs ?? null) as SchoolPrefs | null;
     for (const r of t ?? []) override.set(`${r.channel}|${r.language}`, { subject: r.subject, body: r.body, provider_template: r.provider_template });
   }
-  const isNotify = o.schoolId !== null && o.event in { fee_receipt: 1, fee_reminder: 1, absent: 1, exam_result: 1, notice: 1, admission: 1, birthday: 1 };
+  const isNotify = o.schoolId !== null && o.event in { fee_receipt: 1, fee_reminder: 1, absent: 1, exam_result: 1, notice: 1, admission: 1, birthday: 1, asset_assigned: 1, asset_returned: 1, asset_overdue: 1 };
   const wanted: Channel[] = (o.channels ?? (def.platform ? (["email"] as Channel[]) : CHANNELS)).filter((c) => !isNotify || o.channels || notifyOn(prefs, o.event as NotifyEvent, c));
   const have = new Set<Channel>();
   await Promise.all(wanted.map(async (c) => { if (await resolveIntegration(o.schoolId, c)) have.add(c); }));

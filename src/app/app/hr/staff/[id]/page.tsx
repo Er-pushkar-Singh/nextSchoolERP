@@ -6,6 +6,7 @@ import { fmtDate, money, todayIST } from "@/lib/format";
 import { DEFAULT_DEDUCTIONS, DEFAULT_EARNINGS, LEAVE_KINDS, monthName, QUOTA_KINDS, STAFF_KINDS, sumLines, type Line, type Staff } from "@/lib/hr";
 import { saveStaff, setStaffStatus } from "../../../_actions/hr";
 import { blockStaff, deleteStaffSafe, unblockStaff } from "../../../_actions/people";
+import { PropertyCard } from "@/components/inventory/PropertyCard";
 
 function SalaryRows({ prefix, title, rows, defaults }: { prefix: string; title: string; rows: Line[]; defaults: string[] }) {
   const list = rows.length ? [...rows, { name: "", amount: 0 }, { name: "", amount: 0 }] : defaults.map((name) => ({ name, amount: 0 }));
@@ -163,6 +164,8 @@ export default async function StaffPage({ params, searchParams }: { params: Prom
           </Card>
         )}
       </div>
+
+      {(can("inventory.assign.view") || can("inventory.items.view")) && <PropertyCard supabase={supabase} sid={school.id} kind="staff" id={s.id} />}
 
       {edit && (
         <Card title={s.status === "active" ? "Leaving the school" : "Rejoining"}>

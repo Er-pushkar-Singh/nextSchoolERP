@@ -35,6 +35,7 @@ export default async function Attendance({ searchParams }: { searchParams: Promi
       leave: a.leave + Number(x.leave), not_marked: a.not_marked + Number(x.not_marked), scanned: a.scanned + Number(x.scanned) }),
       { strength: 0, present: 0, late: 0, absent: 0, leave: 0, not_marked: 0, scanned: 0 });
   const methods: { href: string; title: string; hint: string; show: boolean }[] = [
+    { href: "/app/attendance/barcode", title: "Barcode scanner", hint: "Scan ID cards at the gate", show: can("attendance.students.create") || can("attendance.staff.create") },
     { href: "/app/attendance/scan", title: "Scan QR", hint: "ID card with the camera", show: can("attendance.students.create") || can("attendance.staff.create") },
     { href: "/app/attendance/staff", title: "Staff", hint: "Day list & month summary", show: can("attendance.staff.view") },
     { href: "/app/attendance/me", title: "My check-in", hint: "From my phone, at school", show: true },
@@ -61,7 +62,7 @@ export default async function Attendance({ searchParams }: { searchParams: Promi
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader icon="attendance" title="Attendance" subtitle={`${fmtDate(day)} · mark by class, scan a QR or use a device`} actions={<Link href="/app/attendance/register" className="btn btn-sm btn-secondary">Monthly register</Link>} />
+      <PageHeader icon="attendance" title="Attendance" subtitle={`${fmtDate(day)} · mark by class, scan a QR or use a device`} actions={<>{(can("attendance.students.create") || can("attendance.staff.create")) && <Link href="/app/attendance/barcode" className="btn btn-sm btn-primary">Barcode scanner</Link>}<Link href="/app/attendance/register" className="btn btn-sm btn-secondary">Monthly register</Link></>} />
       <Flash ok={sp.ok} error={sp.error} />
       {holiday && <p className="m-0 rounded-[12px] border border-[#e0b44a] bg-[#fff8e6] px-4 py-3 text-[14px]">{fmtDate(day)} is marked as <b>{String(holiday)}</b> in the school calendar. You can still mark attendance if classes were held.</p>}
 
@@ -72,7 +73,7 @@ export default async function Attendance({ searchParams }: { searchParams: Promi
         <Stat label="Not marked" value={tot.not_marked} tone="amber" />
         <Stat label="By scan / device" value={tot.scanned} tone="violet" />
       </div>
-      <ul className="m-0 grid list-none grid-cols-2 gap-2 p-0 sm:grid-cols-3 lg:grid-cols-6">
+      <ul className="m-0 grid list-none grid-cols-2 gap-2 p-0 sm:grid-cols-4 lg:grid-cols-7">
         {methods.filter((m) => m.show).map((m) => (
           <li key={m.href}>
             <Link href={m.href} className="block h-full rounded-[12px] border border-line bg-white px-3 py-2.5 no-underline hover:border-blue">

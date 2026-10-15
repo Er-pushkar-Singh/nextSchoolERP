@@ -6,7 +6,7 @@ import { EntityPicker } from "@/components/ui/EntityPicker";
 import { Pagination, pageParams } from "@/components/ui/Pagination";
 import { IncidentStudents } from "@/components/wellbeing/IncidentStudents";
 import { addDays, fmtDate, label, todayIST } from "@/lib/format";
-import { addCounselling, reportIncident, updateIncident } from "../_actions/wellbeing";
+import { addCounselling, reportIncident, setDisciplineFine, updateIncident } from "../_actions/wellbeing";
 
 type Inc = { id: string; incident_on: string; category: string; severity: string; status: string; location: string | null; description: string; action_taken: string | null;
   parent_informed: boolean; follow_up_on: string | null; confidential: boolean; reported_by_name: string | null; students: string | null; student_count: number; total: number };
@@ -36,6 +36,8 @@ export default async function Discipline({ searchParams }: { searchParams: Promi
     approver ? supabase.from("counselling_notes").select("id,on_date,note,by_name,student:students(first_name,last_name,admission_no)").eq("school_id", school.id).order("created_at", { ascending: false }).limit(6) : Promise.resolve({ data: [] }),
   ]);
   const I = (data ?? []) as Inc[];
+  const { data: fines } = I.length ? await supabase.from("discipline_incidents").select("id,fine_amount").in("id", I.map((i) => i.id)) : { data: [] };
+  const fineOf = new Map((fines ?? []).map((x) => [x.id, Number(x.fine_amount)]));
   const A = (open ?? []) as Inc[];
   const total = I[0] ? Number(I[0].total) : 0;
   const params = { from: d1 === addDays(today, -89) ? undefined : d1, to: d2 === today ? undefined : d2, q: q || undefined, status: status ?? undefined, category: category ?? undefined, severity: severity ?? undefined };
@@ -106,6 +108,7 @@ export default async function Discipline({ searchParams }: { searchParams: Promi
               <td className={td}><b className="text-ink">{label(i.category)}</b>{i.location ? <span className="text-muted"> · {i.location}</span> : null}
                 <div className="text-[13.5px]">{i.description}</div>
                 {i.action_taken && <div className="mt-1 text-[12.5px] text-muted"><b>Action:</b> {i.action_taken}</div>}
+                {(fineOf.get(i.id) ?? 0) > 0 && <div className="mt-1 text-[12px] font-semibold text-error">Fine ₹{fineOf.get(i.id)} per student (fee account)</div>}
                 <div className="mt-1 text-[12px] text-muted">Reported by {i.reported_by_name ?? "—"}{i.follow_up_on ? ` · follow-up ${fmtDate(i.follow_up_on)}` : ""}{!i.parent_informed ? " · parents not informed" : ""}</div></td>
               <td className={td}><Badge value={SEV_BADGE[i.severity] ?? "normal"} text={label(i.severity)} /></td>
               <td className={td}><Badge value={STATUS_BADGE[i.status] ?? "normal"} text={label(i.status)} /></td>
@@ -121,6 +124,13 @@ export default async function Discipline({ searchParams }: { searchParams: Promi
                       <label className="flex items-center gap-2 text-[14px]"><input type="checkbox" name="informed" defaultChecked={i.parent_informed} /> Parents informed</label>
                       <Submit>Save</Submit>
                     </form>
+                    {approver && (
+                      <form action={setDisciplineFine} className="mt-4 flex flex-col gap-2 border-t border-line pt-3">
+                        <input type="hidden" name="back" value={back} /><input type="hidden" name="id" value={i.id} />
+                        <Input label="Fine per involved student (₹)" name="fine" type="number" min={0} step="1" defaultValue={fineOf.get(i.id) ?? 0} hint="Goes on the student's fee account; 0 withdraws an unpaid fine" />
+                        <Submit>Set fine</Submit>
+                      </form>
+                    )}
                   </Modal>
                 )}
               </td>

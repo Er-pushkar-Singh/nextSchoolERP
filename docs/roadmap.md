@@ -98,6 +98,9 @@ Still open:
 - Apply `setup.sql` (includes the 12 Oct 2026 security fix) to the production Supabase project, then click-test every module.
 - Dashboard widgets for step-5 modules; README screenshots / user guide for schools.
 
+## Done in step 37–39 (15 Oct 2026)
+Inventory rebuilt as **school property** (rooms, give / take back / move, repairs, emails to holders, recovery to the fee account), **one money trail** (board fee, library / discipline fines, damage recovery on the fee account), **TC only after fees are paid**, **barcode attendance** (scan station, finish the day, barcode cards, barcodes on ID cards) and **verification QR** on marksheets and certificates with a public `/verify` page. Apply migrations `0039` … `0041`.
+
 ## Done in step 34–36 (15 Oct 2026)
 Attendance synchronisation and a reformed monthly register; fee pages paged; **Communications 2.0** (one outbox for email / SMS / WhatsApp through each school's own accounts and the platform's own account, templates, compose, retry, fee reminders job, platform invoice mails) and **Inventory & sales** (stock ledger, purchases, counter sales with fee-account billing, stock take). Apply migrations `0036` … `0038`; schedule `/api/cron/messages` (see docs/modules/communications.md).
 

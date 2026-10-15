@@ -1,43 +1,61 @@
-# Inventory & sales
+# Inventory & assets (school property) — with the uniform & book shop
 
-> Status: Built 15 Oct 2026 (step 36) · Catalogue: `inventory.items`, `inventory.purchase`, `inventory.sales` · Plans: Premium · Migration: `0038_inventory.sql`
+> Status: Built 15 Oct 2026 (steps 36 and 38) · Catalogue: `inventory.items`, `inventory.assign`, `inventory.purchase`, `inventory.sales` · Migrations: `0038_inventory.sql`, `0040_assets.sql`
 
 ## Purpose
-Uniform, books and stationery: one stock ledger, purchases from suppliers, counter sales to a student / staff member / walk-in (paid at once, or added to the student's fee account), issue to teachers and classes, stock take, low-stock alerts — with the money flowing into the day book by itself.
+Everything the school owns — fans, tube lights, benches, tables, computers, projectors, lab kits, sports goods, keys — with **how many are in the store, which room each one is in, and which staff member, student or department holds it**. Giving and taking back are recorded with dates and condition; the holder is told by email (and WhatsApp / SMS if the school switched those on). Repairs, write-offs and the recovery of a student's damaged or lost item through the fee account are part of the same trail. The uniform / book / stationery **shop** of step 36 is the third kind of item.
+
+## Item kinds
+| Kind | Example | What happens to it |
+|---|---|---|
+| **Asset** | fan, bench, laptop, projector, cricket kit | given to a **room**, a **staff member**, a **student** or a **department**; comes back; repaired; written off |
+| **Consumable** | chalk, markers, printer paper | stock goes down when issued; re-order alerts |
+| **Shop** | uniform, textbooks | sold at the counter (paid, or added to the student's fee account) |
 
 ## Who uses it
 | Role | Permissions |
 |---|---|
 | Principal | everything |
-| Accountant | items view, purchases and sales full |
-| Office admin | items view / create / edit, purchases view / create, sales view / create / print |
-| Front office (uniform counter) | items view, sales view / create / print |
-| Vice principal | items and sales view |
+| Office admin | items view / create / edit, **assign view / create / edit**, purchases, shop counter |
+| Hostel warden, Transport manager | items view, assign (their rooms / buses' equipment) |
+| Accountant | items and assignments view; purchases and shop full |
+| Vice principal, Front office, Librarian | view (front office: shop counter) |
 
 ## Screens
 | Route | What's there |
 |---|---|
-| `/app/inventory` | Sales today / month, stock value, items to re-order, amounts waiting on fee accounts, sales vs purchases chart, best sellers, re-order list |
-| `/app/inventory/sell` | The counter: customer (student picker pre-listed, staff, walk-in), tap items (search, categories, stock shown), quantities, bill total, discount (needs sales-edit), payment mode incl. **add to fee account** |
-| `/app/inventory/sales` | Bills with filters and pagination, receipt, cancel (returns stock, cancels the voucher / removes the unpaid fee charge) |
-| `/app/inventory/sales/[id]` | Printable receipt |
-| `/app/inventory/items` | Search / category / stock state / active filters, pagination, add / edit modal (opening stock), stock correction, write-off, issue / return to a teacher or class |
-| `/app/inventory/purchases` (+ `/new`, `/suppliers`) | Purchase bills with the cart, supplier, amount paid and mode; suppliers |
-| `/app/inventory/ledger` | Every stock movement with who and why (filter by item, type, dates) |
-| `/app/inventory/stocktake` | Type the counted quantities; only the differences become corrections |
+| `/app/inventory` | Overview: in the store, installed in rooms, with staff & students, value, overdue returns, open repairs, low stock; units by category; latest movements; **+ Give an item** |
+| `/app/inventory/assignments` | Who / which room holds what — tabs (with people & rooms, overdue, returned, damaged / lost / repair), search, held-by filter, pagination; **Take back** (quantity, condition, note, recovery charge for a student) and **Move** (room to room, person to person) |
+| `/app/inventory/rooms` | Rooms & places as cards (units, value, in-charge); one click creates a classroom for every section; add / edit |
+| `/app/inventory/rooms/[id]` | Everything installed in that room; put an item here; take back / move; **printable room stock register** with signature lines |
+| `/app/inventory/items` | Items with kind / category / stock filters: in store, given out, under repair, total owned and value; add / edit (kind, warranty, re-order level, opening stock); stock correction, write-off; **Give** |
+| `/app/inventory/repairs` | Faults reported in a room and units that came back needing repair; close as fixed (back to the store) or written off, with cost and repairer |
+| `/app/inventory/purchases` (+ `/new`, `/suppliers`) | Purchase bills raise stock; payment posts to the day book |
+| `/app/inventory/ledger`, `/stocktake` | Every stock movement; physical count |
+| `/app/inventory/shop`, `/sell`, `/sales` | The uniform & book shop (see below) |
+| Student / staff profile | "School property with them" card |
 
-## Database (0038)
-`inventory_items` (`on_hand` kept equal to the ledger by trigger, cannot be edited by hand, never negative for counted items), `inventory_moves` (signed ledger), `inventory_suppliers`, `inventory_purchases` / `_lines`, `inventory_sales` / `_lines`, `inventory_settings` (numbers SL-00001 / PU-0001). Functions: `inventory_purchase`, `inventory_sell`, `inventory_cancel_sale`, `inventory_adjust`, `inventory_issue`, `inventory_stock_take`, `inventory_item_list`, `inventory_sale_list`, `inventory_move_list`, `inventory_dashboard`.
+## Emails
+- **Given** (`asset_assigned`): to the staff member, the student's parent (guardian email, else the student's), or a room's in-charge — item, quantity, tag, return date.
+- **Returned** (`asset_returned`): acknowledgement with the condition.
+- **Overdue** (`asset_overdue`): weekly from the daily job (`/api/cron/messages?job=reminders`) while it is past the return date.
+Defaults: email on, SMS off, WhatsApp on only for overdue — changeable in Settings → Notifications; wording in Messages → Templates.
+
+## Database (0040)
+`inventory_locations`, `inventory_assignments` (holder = location | staff | student | department; status active / returned / repair / damaged / lost), `inventory_assignment_events` (history), `inventory_repairs`; `inventory_items.kind`, `warranty_until`. Functions: `inventory_assign`, `inventory_return` (partial returns split the row; good → store; needs repair → repair ticket; damaged / lost → return + write-off in the ledger; recovery charge → fee account), `inventory_transfer`, `inventory_report_fault`, `inventory_repair_close`, `inventory_assignment_list`, `inventory_location_summary`, `inventory_repair_list`, `inventory_overview`, `inventory_item_list` (now with kind, assigned, in repair, owned).
 
 ## Rules
-1. Stock = sum of the ledger; selling more than is in stock is refused and leaves no half-saved bill.
-2. A clerk sells at the list price; changing a price or giving a discount needs `inventory.sales.edit`.
-3. Paid sales post a receipt voucher ("Sale of books & uniform"); purchase payments post a payment voucher ("Inventory purchases"); fee-account sales create a due under the head "Uniform & Books" and post no voucher until the parent pays at the fee counter.
-4. A sale whose fee-account charge was already (partly) paid cannot be cancelled — refund it from Fees first.
-5. Another school never sees or sells this stock.
+1. Store stock = the ledger; you cannot give more than the store has. Total owned = store + given out + in repair.
+2. Shop items are sold, never assigned.
+3. A recovery charge is only for a student's damaged or lost item and lands on the fee account (head "Damage / Loss Recovery").
+4. Every give / take back / move is in the history with who did it.
+5. Another school never sees or touches this property.
+
+## Shop (step 36, unchanged)
+Counter bill for a student / staff member / walk-in, paid at once (receipt voucher in the day book) or **added to the student's fee account** (head "Uniform & Books"); cancel returns stock; clerks sell at list price, discounts need `inventory.sales.edit`.
 
 ## Tests
-`inventory.test.sql` (36 checks): ledger, guards, purchase, sale, fee account, permissions, cancel, issue, stock take, lists, dashboard, isolation.
+`assets.test.sql` (39 checks), `inventory.test.sql` (36 checks).
 
 ## Gaps & ideas
-Barcode scanner on the counter, class-wise book sets sold in one tap, GST invoices, purchase returns, supplier payments ledger, per-student uniform entitlement, CSV import of items.
+Per-unit serial register with QR asset tags, annual physical verification by room with a signed report, depreciation, AMC / warranty reminders, staff clearance on leaving.

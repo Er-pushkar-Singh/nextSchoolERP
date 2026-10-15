@@ -36,7 +36,7 @@ The top-level [`README.md`](../README.md) is the product / setup guide; these do
 | 28 | Hostel | [modules/hostel.md](modules/hostel.md) | `hostel.*` | Built (step 32) |
 | 29 | Reports & analysis | [modules/reports.md](modules/reports.md) | `reports.*` | Built (step 33) |
 | 30 | Communications (email / SMS / WhatsApp, per school + platform) | [modules/communications.md](modules/communications.md) | `comms.outbox`, `comms.templates`, `comms.broadcast` | Built (step 35) |
-| 31 | Inventory & sales | [modules/inventory.md](modules/inventory.md) | `inventory.*` | Built (step 36) |
+| 31 | Inventory & assets (+ shop) | [modules/inventory.md](modules/inventory.md) | `inventory.*` | Built (steps 36, 38) |
 | 17 | Help & support desk | [modules/support.md](modules/support.md) | `support.tickets` | Built |
 | 18 | UP Board registration (Class 9-12) | [modules/board-registration.md](modules/board-registration.md) | `students.board_reg` | Built (step 6; no direct portal submission) |
 | 19 | Certificates (old fixed layouts) | [modules/certificates.md](modules/certificates.md) | `students.certificates` | Built (step 7) — superseded by 20 |

@@ -185,3 +185,96 @@ export function notifyPlatformInvoice(invoiceId: string, kind: "invoice_issued" 
     });
   });
 }
+
+/* ───────────── school property: given, returned, overdue ───────────── */
+type AssetRow = {
+  id: string; school_id: string; qty: number; tag: string | null; due_back: string | null; holder_kind: "location" | "staff" | "student" | "department"; status: string; return_condition: string | null;
+  staff_id: string | null; student_id: string | null; location_id: string | null; department: string | null; assigned_by_name: string | null;
+  inventory_items: { name: string; variant: string | null } | { name: string; variant: string | null }[] | null;
+  inventory_locations: { name: string; in_charge_staff_id: string | null } | { name: string; in_charge_staff_id: string | null }[] | null;
+};
+const ASSET_SEL = "id,school_id,qty,tag,due_back,holder_kind,status,return_condition,staff_id,student_id,location_id,department,assigned_by_name,inventory_items(name,variant),inventory_locations(name,in_charge_staff_id)";
+const COND: Record<string, string> = { good: "in good condition", needs_repair: "needs repair", damaged: "damaged", lost: "lost" };
+
+/** Who should hear about a piece of property: the staff member, the student's parent, or a room's in-charge. */
+async function assetRecipient(schoolId: string, a: AssetRow): Promise<(Omit<Recipient, "vars" | "dedupe"> & { holder: string }) | null> {
+  const db = supabaseAdmin();
+  if (!db) return null;
+  if (a.holder_kind === "staff" && a.staff_id) {
+    const { data: w } = await db.from("staff").select("name,phone,email").eq("id", a.staff_id).eq("school_id", schoolId).maybeSingle();
+    return w ? { name: w.name, phone: w.phone, email: w.email, holder: w.name } : null;
+  }
+  if (a.holder_kind === "student" && a.student_id) {
+    const [s] = await students(schoolId, [a.student_id]);
+    if (!s) return null;
+    const { data: own } = await db.from("students").select("email").eq("id", a.student_id).maybeSingle();
+    return { name: fullName(s), phone: s.guardian_phone, email: s.guardian_email ?? own?.email ?? null, studentId: s.id, optedOut: s.msg_opt_out, holder: fullName(s) };
+  }
+  const loc = one(a.inventory_locations);
+  if (a.holder_kind === "location" && loc?.in_charge_staff_id) {
+    const { data: w } = await db.from("staff").select("name,phone,email").eq("id", loc.in_charge_staff_id).eq("school_id", schoolId).maybeSingle();
+    return w ? { name: w.name, phone: w.phone, email: w.email, holder: loc.name } : null;
+  }
+  return null;
+}
+const itemName = (a: AssetRow) => { const i = one(a.inventory_items); return i ? `${i.name}${i.variant ? ` (${i.variant})` : ""}` : "item"; };
+
+/** After an assignment is made: an email (and WhatsApp / SMS if the school switched them on) to the person who now holds it. */
+export function notifyAssetAssigned(schoolId: string, assignmentId: string, by?: string | null) {
+  return safe("asset assigned", async () => {
+    const db = supabaseAdmin();
+    if (!db) return;
+    const { data } = await db.from("inventory_assignments").select(ASSET_SEL).eq("id", assignmentId).eq("school_id", schoolId).maybeSingle();
+    const a = data as unknown as AssetRow | null;
+    if (!a) return;
+    const r = await assetRecipient(schoolId, a);
+    if (!r) return;
+    const school = await schoolName(schoolId);
+    await queueMessages({
+      schoolId, event: "asset_assigned", by, urgent: true,
+      recipients: [{ name: r.name, phone: r.phone, email: r.email, studentId: r.studentId, optedOut: r.optedOut, dedupe: `asset_assigned:${a.id}`,
+        vars: { holder: r.holder, item: itemName(a), qty: String(a.qty), tag: a.tag ? ` (tag ${a.tag})` : "", due_back: a.due_back ? fmtDate(a.due_back) : "until further notice", school, by: a.assigned_by_name ?? "the school office" } }],
+    });
+  });
+}
+
+/** After a return (the closed row's id): an acknowledgement, with the condition it came back in. */
+export function notifyAssetReturned(schoolId: string, assignmentId: string, by?: string | null) {
+  return safe("asset returned", async () => {
+    const db = supabaseAdmin();
+    if (!db) return;
+    const { data } = await db.from("inventory_assignments").select(ASSET_SEL).eq("id", assignmentId).eq("school_id", schoolId).maybeSingle();
+    const a = data as unknown as AssetRow | null;
+    if (!a) return;
+    const r = await assetRecipient(schoolId, a);
+    if (!r) return;
+    const school = await schoolName(schoolId);
+    await queueMessages({
+      schoolId, event: "asset_returned", by, urgent: true,
+      recipients: [{ name: r.name, phone: r.phone, email: r.email, studentId: r.studentId, optedOut: r.optedOut, dedupe: `asset_returned:${a.id}`,
+        vars: { holder: r.holder, item: itemName(a), qty: String(a.qty), condition: COND[a.return_condition ?? "good"] ?? "received", school } }],
+    });
+  });
+}
+
+/** Daily job: a reminder every week for property that is past its return date. */
+export async function runAssetOverdueJob() {
+  const db = supabaseAdmin();
+  if (!db) return { queued: 0 };
+  const today = todayIST();
+  const week = `${today.slice(0, 4)}-w${Math.floor((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${today.slice(0, 4)}-01-01T00:00:00Z`)) / (7 * 86400_000))}`;
+  const { data } = await db.from("inventory_assignments").select(ASSET_SEL).eq("status", "active").lt("due_back", today).in("holder_kind", ["staff", "student"]).limit(5000);
+  let queued = 0;
+  for (const a of (data ?? []) as unknown as AssetRow[]) {
+    const r = await assetRecipient(a.school_id, a);
+    if (!r) continue;
+    const school = await schoolName(a.school_id);
+    const q = await queueMessages({
+      schoolId: a.school_id, event: "asset_overdue", by: "auto",
+      recipients: [{ name: r.name, phone: r.phone, email: r.email, studentId: r.studentId, optedOut: r.optedOut, dedupe: `asset_overdue:${a.id}:${week}`,
+        vars: { holder: r.holder, item: itemName(a), qty: String(a.qty), due_back: a.due_back ? fmtDate(a.due_back) : "", school } }],
+    });
+    queued += q.queued;
+  }
+  return { queued };
+}

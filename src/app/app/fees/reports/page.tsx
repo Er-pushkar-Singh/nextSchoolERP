@@ -3,11 +3,12 @@ import { requirePerm } from "@/lib/school";
 import { Card, Empty, PageHeader, Table, td } from "@/components/ui/ui";
 import { fmtDate, money, todayIST } from "@/lib/format";
 import { MODE_LABEL } from "@/lib/fees";
+import { Pagination, pageParams } from "@/components/ui/Pagination";
 
 const valid = (d?: string) => (d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null);
 const GROUPS: [string, string][] = [["day", "By day"], ["month", "By month"], ["head", "By fee head"], ["class", "By class"], ["mode", "By payment mode"], ["collector", "By collector"]];
 
-export default async function Reports({ searchParams }: { searchParams: Promise<{ from?: string; to?: string; by?: string }> }) {
+export default async function Reports({ searchParams }: { searchParams: Promise<{ from?: string; to?: string; by?: string; page?: string; size?: string; opage?: string; osize?: string }> }) {
   const { supabase, school, session } = await requirePerm("fees.collection.view", "fees.receipts.view");
   const sp = await searchParams;
   const today = todayIST();
@@ -28,6 +29,13 @@ export default async function Reports({ searchParams }: { searchParams: Promise<
   const ageTotal = age.reduce((t, r) => t + Number(r.amount), 0);
   const byCat = Object.entries(((cons ?? []) as { category: string }[]).reduce<Record<string, number>>((m, c) => ({ ...m, [c.category]: (m[c.category] ?? 0) + 1 }), {}));
   const qs = (b: string) => new URLSearchParams({ from, to, by: b }).toString();
+  // two tables, two pagers: the collection table (?page, ?size) and outstanding by class and head (?opage, ?osize)
+  const pg = pageParams({ page: sp.page, size: sp.size }, 10, [10, 25, 50]);
+  const og = pageParams({ page: sp.opage, size: sp.osize }, 10, [10, 25, 50]);
+  const shownRows = rows.slice(pg.offset, pg.offset + pg.size);
+  const shownOut = outRows.slice(og.offset, og.offset + og.size);
+  const keep = { from: sp.from ? from : undefined, to: sp.to ? to : undefined, by: sp.by ? by : undefined };
+  const keepOut = { ...keep, page: sp.page, size: sp.size };
 
   return (
     <div className="flex flex-col gap-5">
@@ -56,6 +64,7 @@ export default async function Reports({ searchParams }: { searchParams: Promise<
             ))}
           </Table>
         ) : <Empty>Nothing collected in this period.</Empty>}
+        <div className="mt-3"><Pagination total={rows.length} page={pg.page} size={pg.size} basePath="/app/fees/reports" sizes={[10, 25, 50]} params={{ ...keep, opage: sp.opage, osize: sp.osize }} /></div>
       </Card>
 
       <Card title="Outstanding — how old" description={`Unpaid balances of session ${session?.name ?? ""} as of today · ${money(ageTotal)}`}>
@@ -82,6 +91,7 @@ export default async function Reports({ searchParams }: { searchParams: Promise<
             ))}
           </Table>
         ) : <Empty>No dues yet.</Empty>}
+        <div className="mt-3"><Pagination total={outRows.length} page={og.page} size={og.size} basePath="/app/fees/reports" sizes={[10, 25, 50]} pageKey="opage" sizeKey="osize" params={keepOut} /></div>
       </Card>
 
       {byCat.length > 0 && (

@@ -106,6 +106,14 @@ const NAV: Entry[] = [
     { href: "/app/transport/students", label: "Students on transport", any: ["transport.allocation.view"] },
     { href: "/app/transport/vehicles", label: "Vehicles", any: ["transport.routes.view"] },
   ] },
+  { key: "inventory", label: "Inventory & sales", icon: "layers", items: [
+    { href: "/app/inventory", label: "Overview", any: ["inventory.items.view", "inventory.sales.view", "inventory.purchase.view"] },
+    { href: "/app/inventory/sell", label: "New bill (counter)", any: ["inventory.sales.create"] },
+    { href: "/app/inventory/sales", label: "Sales", any: ["inventory.sales.view"] },
+    { href: "/app/inventory/items", label: "Items & stock", any: ["inventory.items.view"] },
+    { href: "/app/inventory/purchases", label: "Purchases", any: ["inventory.purchase.view"] },
+    { href: "/app/inventory/ledger", label: "Stock ledger", any: ["inventory.items.view"] },
+  ] },
   { key: "hostel", label: "Hostel", icon: "hostel", items: [
     { href: "/app/hostel", label: "Overview", any: ["hostel.rooms.view", "hostel.allocation.view", "hostel.rollcall.view"] },
     { href: "/app/hostel/rooms", label: "Rooms & beds", any: ["hostel.rooms.view"] },
@@ -129,6 +137,11 @@ const NAV: Entry[] = [
     { href: "/app/reports/udise", label: "UDISE strength", any: ["reports.overview.view", "reports.udise.export"] },
   ] },
   { key: "notices", label: "Notices", icon: "notices", href: "/app/notices", any: ["comms.notices.view"], section: "Communication" },
+  { key: "messages", label: "Messages", icon: "notifications", items: [
+    { href: "/app/messages", label: "Sent & waiting", any: ["comms.outbox.view"] },
+    { href: "/app/messages/compose", label: "Send a message", any: ["comms.broadcast.create"] },
+    { href: "/app/messages/templates", label: "Templates", any: ["comms.templates.view"] },
+  ] },
   { key: "calendar", label: "School calendar", icon: "notices", href: "/app/calendar", any: ["comms.calendar.view"] },
   { key: "settings", label: "Settings", icon: "settings", section: "Administration", items: [
     { href: "/app/settings", label: "Settings centre", any: ["settings.school.view", "settings.users.view", "settings.roles.view", "academics.setup.create", "settings.billing.view", "settings.integrations.view", "settings.audit.view"] },

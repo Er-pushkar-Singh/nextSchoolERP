@@ -1,4 +1,6 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { after, NextResponse, type NextRequest } from "next/server";
+import { notifyPlatformInvoice } from "@/lib/message-events";
+import { processOutbox } from "@/lib/messages";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { platformRazorpay, verifyRazorpaySignature } from "@/lib/razorpay";
 
@@ -23,5 +25,6 @@ export async function POST(req: NextRequest) {
   if (!inv) return NextResponse.json({ ok: true, note: "no matching invoice" });
   const { error } = await db.rpc("mark_subscription_invoice_paid", { inv_id: inv.id, p_ref: `Razorpay ${pay.method ?? ""} ${pay.id}`.trim() });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  after(async () => { await notifyPlatformInvoice(inv.id, "invoice_paid"); await processOutbox({ limit: 10 }); });
   return NextResponse.json({ ok: true });
 }

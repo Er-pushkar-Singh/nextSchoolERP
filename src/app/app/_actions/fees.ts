@@ -1,6 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
+import { notifyFeeReceipt } from "@/lib/message-events";
+import { processOutbox } from "@/lib/messages";
 import { requirePerm } from "@/lib/school";
 import { date, errMsg, go, num, oneOf, str, uuid } from "@/lib/action-util";
 
@@ -90,6 +93,7 @@ export async function collectFee(f: FormData) {
     p_fine: Math.max(0, num(f, "fine") ?? 0), p_by: by,
   });
   if (error) go(back, { error: errMsg(error) });
+  after(async () => { await notifyFeeReceipt(school.id, String(data), myName || null); await processOutbox({ schoolId: school.id, limit: 10 }); });
   go(`/app/fees/receipts/${data}`, { ok: "Fee received." });
 }
 

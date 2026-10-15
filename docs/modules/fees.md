@@ -96,3 +96,6 @@ Automatic SMS / WhatsApp reminders and receipt messages, sibling-discount rules,
 ## Fee template binding (step 17) — migration `0019_fee_template_binding.sql`
 `document_templates.fee_kind` (`receipt | demand | statement`, one per school and kind) says which template prints which document. `render_fee_document` uses the bound template, else a template with the standard code (`fee_receipt` …) or made from the matching gallery design, else the app's built-in layout. Fees → Fee templates shows what is used now and lets you choose ("Use this template for"); saving a design of an unbound fee template binds it automatically when that document has none. Gallery "Use this design" for a fee design replaces the layout of the template already used (or creates it with the standard code).
 Earlier bug: a template created from the gallery under another code was never found by the receipt, so the built-in layout kept printing.
+
+## Pagination (15 Oct 2026)
+Defaulters, receipts, cheques, promises to pay, refunds, fee structure (cards per class, 5 / 10 / 20) and fee reports (two pagers: `page`/`size` and `opage`/`osize`) are paged; totals above a table always cover the whole selection, not just the page. `Pagination` / `pageParams` accept custom `sizes`, `pageKey` and `sizeKey`.

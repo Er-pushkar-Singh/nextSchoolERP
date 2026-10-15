@@ -6,8 +6,10 @@ import { getClasses } from "@/lib/erp";
 import { appUrl } from "@/lib/brand";
 import { feeReminderText, type Defaulter } from "@/lib/reminders";
 import { WaQueue } from "@/components/WaQueue";
+import { sendFeeReminders } from "../../_actions/messages";
+import { Pagination, pageParams } from "@/components/ui/Pagination";
 
-export default async function Defaulters({ searchParams }: { searchParams: Promise<{ class_id?: string; min?: string; on?: string }> }) {
+export default async function Defaulters({ searchParams }: { searchParams: Promise<{ class_id?: string; min?: string; on?: string; page?: string; size?: string }> }) {
   const { supabase, school, session } = await requirePerm("fees.defaulters.view");
   const sp = await searchParams;
   if (!session) return <Empty>No current session.</Empty>;
@@ -18,14 +20,16 @@ export default async function Defaulters({ searchParams }: { searchParams: Promi
     getClasses(supabase, school.id),
     supabase.rpc("defaulters", { sid: school.id, sess: session.id, on_day: on, cls, min_amount: min }).limit(5000),
   ]);
-  const rows = (data ?? []) as Defaulter[];
-  const total = rows.reduce((s, r) => s + Number(r.overdue), 0);
+  const all = (data ?? []) as Defaulter[];
+  const total = all.reduce((s, r) => s + Number(r.overdue), 0);
+  const { page, size, offset } = pageParams(sp);
+  const rows = all.slice(offset, offset + size); // totals are for everyone; the table and the WhatsApp queue show this page
   const msgs = rows.map((r) => ({ id: r.student_id, name: r.student_name, href: waLink(r.guardian_phone, feeReminderText(r, school, appUrl(`/p/${r.portal_token}`))) }));
   const qs = new URLSearchParams({ on, min: String(min), ...(cls ? { class_id: cls } : {}) });
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader icon="fees" title="Fee defaulters" subtitle={`${rows.length} students · ${money(total)} overdue as of ${fmtDate(on)}`} back={{ href: "/app/fees", label: "Fees" }}
+      <PageHeader icon="fees" title="Fee defaulters" subtitle={`${all.length} students · ${money(total)} overdue as of ${fmtDate(on)}`} back={{ href: "/app/fees", label: "Fees" }}
         actions={<a href={`/app/fees/defaulters/export?${qs}`} className="btn btn-sm btn-secondary">Download CSV</a>} />
       <form className="flex flex-wrap items-end gap-2">
         <label className="text-[13px] font-semibold">Class
@@ -37,7 +41,13 @@ export default async function Defaulters({ searchParams }: { searchParams: Promi
       </form>
       {rows.length ? (
         <>
-          <p className="m-0 text-[14px] print:hidden"><Link href={`/app/fees/print/demand?${new URLSearchParams({ ...(cls ? { class_id: cls } : {}), min: String(min) })}`}>Print demand notices for all {rows.length > 60 ? "(first 60) " : ""}shown →</Link></p>
+          <p className="m-0 text-[14px] print:hidden"><Link href={`/app/fees/print/demand?${new URLSearchParams({ ...(cls ? { class_id: cls } : {}), min: String(min) })}`}>Print demand notices for all {all.length > 60 ? "(first 60) " : ""}{all.length} →</Link></p>
+          <form action={sendFeeReminders} className="flex flex-wrap items-center gap-3 rounded-[12px] border border-line bg-blue-soft px-4 py-3 print:hidden">
+            <input type="hidden" name="on" value={on} />{cls && <input type="hidden" name="class_id" value={cls} />}
+            <input type="hidden" name="back" value={`/app/fees/defaulters?${qs}`} />
+            <button className="btn btn-sm btn-primary cursor-pointer border-0">Send reminders to all {all.length} by WhatsApp / SMS / email</button>
+            <span className="text-[13px] text-muted">Goes out through the school&apos;s own accounts; each parent gets one reminder a day. <a href="/app/messages">See what was sent →</a></span>
+          </form>
           <WaQueue items={msgs} />
           <Table head={["Student", "Class", "Father / phone", "Overdue", "Since", ""]}>
             {rows.map((r, i) => (
@@ -55,6 +65,7 @@ export default async function Defaulters({ searchParams }: { searchParams: Promi
               </tr>
             ))}
           </Table>
+          <Pagination total={all.length} page={page} size={size} basePath="/app/fees/defaulters" params={{ class_id: cls ?? undefined, min: min > 1 ? String(min) : undefined, on: sp.on ? on : undefined }} />
         </>
       ) : <Empty>No one has overdue fees. 🎉</Empty>}
     </div>

@@ -583,7 +583,8 @@
             "create",
             "edit",
             "delete"
-          ]
+          ],
+          "built": true
         },
         {
           "code": "calendar",
@@ -603,6 +604,16 @@
             "view",
             "create"
           ]
+        },
+        {
+          "code": "outbox",
+          "name": "Message outbox & log",
+          "actions": [
+            "view",
+            "create",
+            "edit"
+          ],
+          "built": true
         }
       ]
     },
@@ -738,16 +749,29 @@
             "create",
             "edit",
             "delete"
-          ]
+          ],
+          "built": true
         },
         {
-          "code": "sales",
-          "name": "Uniform & book sales",
+          "code": "purchase",
+          "name": "Purchases & suppliers",
           "actions": [
             "view",
             "create",
+            "edit"
+          ],
+          "built": true
+        },
+        {
+          "code": "sales",
+          "name": "Uniform, book & stationery sales",
+          "actions": [
+            "view",
+            "create",
+            "edit",
             "print"
-          ]
+          ],
+          "built": true
         }
       ]
     },
@@ -1144,6 +1168,24 @@
         "library.circulation": [
           "school",
           "view"
+        ],
+        "comms.templates": [
+          "school",
+          "*"
+        ],
+        "comms.outbox": [
+          "school",
+          "view",
+          "create",
+          "edit"
+        ],
+        "inventory.items": [
+          "school",
+          "view"
+        ],
+        "inventory.sales": [
+          "school",
+          "view"
         ]
       }
     },
@@ -1260,6 +1302,27 @@
         "reports.overview": [
           "school",
           "view"
+        ],
+        "comms.outbox": [
+          "school",
+          "view"
+        ],
+        "inventory.items": [
+          "school",
+          "view"
+        ],
+        "inventory.purchase": [
+          "school",
+          "view",
+          "create",
+          "edit"
+        ],
+        "inventory.sales": [
+          "school",
+          "view",
+          "create",
+          "edit",
+          "print"
         ]
       }
     },
@@ -1389,6 +1452,20 @@
           "view",
           "create",
           "print"
+        ],
+        "comms.outbox": [
+          "school",
+          "view"
+        ],
+        "inventory.items": [
+          "school",
+          "view"
+        ],
+        "inventory.sales": [
+          "school",
+          "view",
+          "create",
+          "print"
         ]
       }
     },
@@ -1460,6 +1537,28 @@
           "view",
           "create",
           "edit"
+        ],
+        "comms.outbox": [
+          "school",
+          "view",
+          "edit"
+        ],
+        "inventory.items": [
+          "school",
+          "view",
+          "create",
+          "edit"
+        ],
+        "inventory.purchase": [
+          "school",
+          "view",
+          "create"
+        ],
+        "inventory.sales": [
+          "school",
+          "view",
+          "create",
+          "print"
         ]
       }
     },

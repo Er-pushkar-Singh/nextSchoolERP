@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { attachPaymentLink } from "@/lib/billing";
+import { notifyPlatformInvoice } from "@/lib/message-events";
+import { processOutbox } from "@/lib/messages";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,6 +23,8 @@ export async function GET(req: NextRequest) {
   const links: Record<string, string> = {};
   for (const id of ids) {
     try { const r = await attachPaymentLink(db, id); links[id] = "url" in r ? r.url : r.skipped; } catch (e) { links[id] = `error: ${(e as Error).message}`; }
+    await notifyPlatformInvoice(id, "invoice_issued");
   }
+  if (ids.length) await processOutbox({ limit: 50 });
   return NextResponse.json({ ok: true, invoices: ids.length, links });
 }

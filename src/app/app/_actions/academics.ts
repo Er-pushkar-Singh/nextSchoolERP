@@ -1,6 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
+import { notifyAbsent, notifyNotice, notifyResult } from "@/lib/message-events";
+import { processOutbox } from "@/lib/messages";
 import { requirePerm } from "@/lib/school";
 import { date, errMsg, go, num, str, uuid } from "@/lib/action-util";
 import { todayIST } from "@/lib/format";
@@ -15,17 +18,37 @@ export async function saveAttendance(f: FormData) {
   const back = `/app/attendance?class_id=${class_id}&section_id=${section_id}&date=${day}`;
   if (day > todayIST()) go(back, { error: "Can't mark attendance for a future date." });
   const by = myName || null;
-  const rows: Record<string, unknown>[] = [];
+  const wanted = new Map<string, string>();
   for (const [k, v] of f.entries()) {
     if (!k.startsWith("st_")) continue;
     const student_id = k.slice(3);
     if (!/^[0-9a-f-]{36}$/.test(student_id) || !STATUSES.includes(String(v))) continue;
-    rows.push({ school_id: school.id, student_id, class_id, section_id, date: day, status: String(v), marked_by: by, marked_at: new Date().toISOString(), source: "manual" });
+    wanted.set(student_id, String(v));
   }
-  if (!rows.length) go(back, { error: "No students to mark." });
-  const { error } = await supabase.from("attendance").upsert(rows, { onConflict: "student_id,date" });
+  if (!wanted.size) go(back, { error: "No students to mark." });
+  // Marks made by a QR scan / device must survive a manual save: only rows that are new or whose status the teacher changed are
+  // written, so the scan time, source and the "by scan" count of the others stay as they were.
+  const { data: have } = await supabase.from("attendance").select("student_id,status").eq("date", day).in("student_id", [...wanted.keys()]);
+  const was = new Map((have ?? []).map((r) => [r.student_id, r.status as string]));
+  const rows: Record<string, unknown>[] = [];
+  for (const [student_id, status] of wanted) {
+    if (was.get(student_id) === status) continue;
+    rows.push({
+      school_id: school.id, student_id, class_id, section_id, date: day, status, marked_by: by, marked_at: new Date().toISOString(), source: "manual",
+      // an absence / leave entered by hand cancels the scan times of that day
+      ...(status === "A" || status === "LV" ? { in_time: null, out_time: null } : {}),
+    });
+  }
+  if (rows.length) {
+    const { error } = await supabase.from("attendance").upsert(rows, { onConflict: "student_id,date" });
+    if (error) go(`${back}`, { error: errMsg(error) });
+  }
   revalidatePath("/app");
-  go(`${back}&saved=1`, error ? { error: errMsg(error) } : { ok: `Attendance saved for ${rows.length} students.` });
+  // parents of children marked absent today are told once per day (the outbox de-duplicates)
+  const absent = rows.filter((r) => r.status === "A").map((r) => String(r.student_id));
+  if (absent.length) after(async () => { await notifyAbsent(school.id, absent, day, by); await processOutbox({ schoolId: school.id, limit: 30 }); });
+  const kept = wanted.size - rows.length;
+  go(`${back}&saved=1`, { ok: rows.length ? `Attendance saved — ${rows.length} mark${rows.length === 1 ? "" : "s"} written${kept ? `, ${kept} left as they were` : ""}.` : "Nothing changed — every mark is already as shown." });
 }
 
 /* ───────── Exams ───────── */
@@ -44,6 +67,7 @@ export async function togglePublish(f: FormData) {
   const id = uuid(f, "id");
   const published = f.get("published") === "1";
   const { error } = await supabase.from("exams").update({ published }).eq("id", id!).eq("school_id", school.id);
+  if (!error && published) after(async () => { await notifyResult(school.id, id!); await processOutbox({ schoolId: school.id, limit: 50 }); });
   go(`/app/exams/${id}`, error ? { error: errMsg(error) } : { ok: published ? "Results published — parents can see them on their page." : "Results hidden from parents." });
 }
 
@@ -107,11 +131,12 @@ export async function saveNotice(f: FormData) {
   const { supabase, school, myName } = await requirePerm("comms.notices.create");
   const title = str(f, "title", 150);
   if (!title) go("/app/notices", { error: "Title is required." });
-  const { error } = await supabase.from("notices").insert({
+  const { data: made, error } = await supabase.from("notices").insert({
     school_id: school.id, title, body: str(f, "body", 4000), class_id: uuid(f, "class_id"),
     published_on: date(f, "published_on") ?? todayIST(),
     created_by: myName || null,
-  });
+  }).select("id").single();
+  if (!error && made && f.get("notify") === "1") after(async () => { await notifyNotice(school.id, made.id, myName || null); await processOutbox({ schoolId: school.id, limit: 50 }); });
   go("/app/notices", error ? { error: errMsg(error) } : { ok: "Notice published. Parents see it on their page." });
 }
 

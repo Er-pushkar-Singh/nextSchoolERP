@@ -66,3 +66,6 @@ Live GPS tracking (`transport.tracking`) via driver phone app / GPS vendor API, 
 - **Map**: Leaflet + OpenStreetMap tiles (no API key; keep to light use or switch to a paid tile provider for heavy use). The `Permissions-Policy` now allows `geolocation=(self)` for the driver page.
 - **Honest limits**: web tracking works while the driver's page is open with the screen on (mobile browsers pause background tabs); a native driver app or a GPS box feeding `driver_ping` removes that. ETA ignores roads and traffic. No "approaching" push messages yet (they belong to the Communications module).
 - **Tests**: `supabase/tests/transport_live.test.sql` (38 checks).
+
+## Map tiles and the 403 (15 Oct 2026)
+The app sends `Referrer-Policy: same-origin`, so the browser sent no Referer to OpenStreetMap and its tile servers answered **403 Access blocked**. The map's tile layer now sets `referrerPolicy: "origin"` (only the bare origin, never a path or a secret link) — see `LiveMap.tsx`.

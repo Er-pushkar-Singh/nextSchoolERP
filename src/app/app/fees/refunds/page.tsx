@@ -2,17 +2,19 @@ import Link from "next/link";
 import { requirePerm } from "@/lib/school";
 import { Badge, Card, Empty, Flash, Input, PageHeader, Select, Submit, Table, td } from "@/components/ui/ui";
 import { cleanSearch, fmtDate, fullName, money } from "@/lib/format";
+import { Pagination, pageParams } from "@/components/ui/Pagination";
 import { decideRefund, payRefund, requestRefund } from "../../_actions/fees2";
 
 type R = { id: string; amount: number; reason: string; status: string; mode: string | null; paid_on: string | null; decision_note: string | null; created_at: string;
   students: { id: string; first_name: string; last_name: string | null; admission_no: string } | null };
 
-export default async function Refunds({ searchParams }: { searchParams: Promise<{ find?: string; ok?: string; error?: string }> }) {
+export default async function Refunds({ searchParams }: { searchParams: Promise<{ find?: string; ok?: string; error?: string; page?: string; size?: string }> }) {
   const { supabase, school, can } = await requirePerm("fees.refunds.view");
   const sp = await searchParams;
   const q = cleanSearch(sp.find ?? "").trim();
-  const [{ data }, found] = await Promise.all([
-    supabase.from("fee_refunds").select("id,amount,reason,status,mode,paid_on,decision_note,created_at,students(id,first_name,last_name,admission_no)").eq("school_id", school.id).order("created_at", { ascending: false }).limit(200),
+  const { page, size, offset } = pageParams(sp);
+  const [{ data, count }, found] = await Promise.all([
+    supabase.from("fee_refunds").select("id,amount,reason,status,mode,paid_on,decision_note,created_at,students(id,first_name,last_name,admission_no)", { count: "exact" }).eq("school_id", school.id).order("created_at", { ascending: false }).range(offset, offset + size - 1),
     q && can("fees.refunds.create")
       ? supabase.from("students").select("id,first_name,last_name,admission_no").eq("school_id", school.id).or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,admission_no.ilike.${q}%`).order("first_name").limit(8)
       : Promise.resolve({ data: null }),
@@ -59,6 +61,7 @@ export default async function Refunds({ searchParams }: { searchParams: Promise<
           ))}
         </Table>
       ) : <Empty>No refunds yet.</Empty>}
+      <Pagination total={count ?? 0} page={page} size={size} basePath="/app/fees/refunds" params={{}} />
 
       {can("fees.refunds.create") && (
         <Card title="Request a refund" description="Only money held as advance can be refunded. To refund a fee already paid, first use “Move a payment back to advance” on the collect screen.">

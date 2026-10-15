@@ -9,7 +9,9 @@ export async function GET(req: Request) {
   const u = new URL(req.url);
   const kind = u.searchParams.get("kind");
   const q = (u.searchParams.get("q") ?? "").trim().slice(0, 40);
-  if (q.length < 2) return NextResponse.json({ hits: [] });
+  // students, staff and books are listed as soon as the box is opened (q empty) and narrowed while typing; the rest need 2 letters
+    const preload = kind === "student" || kind === "staff" || kind === "book";
+    if (q.length < (preload ? 0 : 2)) return NextResponse.json({ hits: [] });
   const like = `%${q.replace(/[%_\\,()]/g, " ")}%`;
   if (kind === "student") {
     if (!canAny("students.profile.view", "frontdesk.visitors.view", "fees.collection.view", "attendance.students.view", "documents.issue.view", "students.board_reg.view",
@@ -41,7 +43,7 @@ export async function GET(req: Request) {
   }
   if (kind === "book") {
     if (!canAny("library.circulation.view", "library.catalogue.view")) return NextResponse.json({ hits: [] }, { status: 403 });
-    const { data } = await supabase.rpc("library_book_list", { sid: school.id, p_q: q, p_limit: 10, p_offset: 0 });
+    const { data } = await supabase.rpc("library_book_list", { sid: school.id, p_q: q || null, p_limit: 20, p_offset: 0 });
     return NextResponse.json({ hits: ((data ?? []) as { id: string; title: string; author: string | null; accession_no: string | null; available: number; copies: number; active: boolean }[]).map((b) => ({
       id: b.id, label: b.title, sub: [b.accession_no, b.author, !b.active ? "withdrawn" : `${b.available}/${b.copies} available`].filter(Boolean).join(" · "),
     })) });

@@ -36,6 +36,7 @@ const NAV: Entry[] = [
   { key: "settings", label: "Settings", icon: "settings", items: [
     { href: "/platform/settings", label: "General", area: "settings" },
     { href: "/platform/settings/integrations", label: "Integrations", area: "settings" },
+    { href: "/platform/messages", label: "Messages sent", area: "settings" },
   ] },
 ];
 

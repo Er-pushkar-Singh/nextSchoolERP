@@ -2,11 +2,13 @@ import { requirePerm } from "@/lib/school";
 import { Card, Empty, Flash, Input, PageHeader, Select, Submit } from "@/components/ui/ui";
 import { fmtDate, money } from "@/lib/format";
 import { getClasses } from "@/lib/erp";
+import { Pagination, pageParams } from "@/components/ui/Pagination";
 import { addFeeHead, addSchedule, deleteFeeHead, deletePlan, generateDues } from "../../_actions/fees";
 
+const CLASS_SIZES = [5, 10, 20] as const;
 type Plan = { id: string; class_id: string; fee_head_id: string; label: string; due_date: string; amount: number };
 
-export default async function Structure({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string }> }) {
+export default async function Structure({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string; page?: string; size?: string }> }) {
   const { supabase, school, session } = await requirePerm("fees.structure.view");
   const sp = await searchParams;
   const [classes, { data: heads }, { data: plans }] = await Promise.all([
@@ -17,6 +19,10 @@ export default async function Structure({ searchParams }: { searchParams: Promis
   const H = (heads ?? []) as { id: string; name: string }[];
   const P = (plans ?? []) as Plan[];
   const headName = (id: string) => H.find((h) => h.id === id)?.name ?? "—";
+  // one card per class that has fees; the cards are paged so a school with many classes stays fast to scroll
+  const withFees = classes.filter((c) => P.some((p) => p.class_id === c.id));
+  const { page, size, offset } = pageParams(sp, 5, CLASS_SIZES);
+  const shown = withFees.slice(offset, offset + size);
 
   return (
     <div className="flex flex-col gap-5">
@@ -49,9 +55,8 @@ export default async function Structure({ searchParams }: { searchParams: Promis
       <Card title="Fees by class">
         {P.length === 0 ? <Empty>No fees set for this session yet. Use the form above.</Empty> : (
           <div className="flex flex-col gap-4">
-            {classes.map((c) => {
+            {shown.map((c) => {
               const mine = P.filter((p) => p.class_id === c.id);
-              if (!mine.length) return null;
               const byHead = [...new Set(mine.map((p) => p.fee_head_id))];
               const total = mine.reduce((s, p) => s + Number(p.amount), 0);
               return (
@@ -79,6 +84,7 @@ export default async function Structure({ searchParams }: { searchParams: Promis
             })}
           </div>
         )}
+        <div className="mt-4"><Pagination total={withFees.length} page={page} size={size} basePath="/app/fees/structure" params={{}} sizes={CLASS_SIZES} /></div>
       </Card>
 
       <Card title="Fee heads">

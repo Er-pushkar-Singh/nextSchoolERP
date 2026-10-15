@@ -1,6 +1,9 @@
 "use server";
 
 import { cookies } from "next/headers";
+import { after } from "next/server";
+import { notifyPlatformInvoice } from "@/lib/message-events";
+import { processOutbox } from "@/lib/messages";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { SCHOOL_COOKIE } from "@/lib/school";
@@ -208,14 +211,17 @@ export async function createInvoice(f: FormData) {
   if (error) go(tenantPath(sid, "subscription"), { error: errMsg(error) });
   let note = "";
   try { const r = await attachPaymentLink(supabase, inv as string); note = "url" in r ? " Razorpay link created." : ` (${r.skipped}.)`; } catch (e) { note = ` Razorpay link failed: ${(e as Error).message}`; }
-  go(tenantPath(sid, "subscription"), { ok: `Invoice created.${note}` });
+  after(async () => { await notifyPlatformInvoice(inv as string, "invoice_issued"); await processOutbox({ limit: 10 }); });
+  go(tenantPath(sid, "subscription"), { ok: `Invoice created.${note} The school is being told by email / WhatsApp.` });
 }
 
 export async function markInvoicePaid(f: FormData) {
   const { supabase } = await requirePlatform("billing", true);
   const sid = uuid(f, "school_id");
   const back = str(f, "back", 200)?.startsWith("/platform") ? str(f, "back", 200)! : tenantPath(sid, "subscription");
-  const { error } = await supabase.rpc("mark_subscription_invoice_paid", { inv_id: uuid(f, "id"), p_ref: str(f, "ref", 80) });
+  const invId = uuid(f, "id");
+  const { error } = await supabase.rpc("mark_subscription_invoice_paid", { inv_id: invId, p_ref: str(f, "ref", 80) });
+  if (!error && invId) after(async () => { await notifyPlatformInvoice(invId, "invoice_paid"); await processOutbox({ limit: 10 }); });
   go(back, error ? { error: errMsg(error) } : { ok: "Marked paid — subscription extended." });
 }
 

@@ -45,6 +45,18 @@ export async function deleteStudent(f: FormData) {
   go("/app/students", { ok: "Student record deleted." });
 }
 
+/** From the row menu of the student list: move to another section / class, or promote to another class. */
+export async function moveStudent(f: FormData) {
+  const promote = f.get("kind") === "promote";
+  const { supabase, school } = await requirePerm(promote ? "students.promotion.create" : "students.profile.edit");
+  const to = back(f, "/app/students");
+  const cls = uuid(f, "class_id"), sec = uuid(f, "section_id");
+  if (!cls || !sec) go(to, { error: "Choose the class and section." });
+  const { error } = await supabase.rpc("move_student", { sid: school.id, p_student: uuid(f, "id"), p_class: cls, p_section: sec, p_kind: promote ? "promote" : "move" });
+  revalidatePath("/app/students");
+  go(to, error ? { error: errMsg(error) } : { ok: promote ? "Student promoted. Last class is kept in their history; set the new roll number." : "Student moved." });
+}
+
 /** Tick rows on the student list → block / unblock / move to a section. */
 export async function bulkStudents(f: FormData) {
   const { supabase, school } = await requirePerm("students.profile.view");

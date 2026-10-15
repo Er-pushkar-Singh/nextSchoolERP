@@ -9,6 +9,7 @@ import { deleteRun, markPaid, setRunStatus, updatePayslip } from "../../../_acti
 type Slip = {
   id: string; staff_id: string; working_days: number; lop_days: number; gross: number; total_deductions: number; adjustment: number; adjustment_note: string | null;
   net: number; paid_on: string | null; pay_mode: string | null; pay_ref: string | null;
+  att_lop: number; advance_recovery: number; pf_employee: number; esi_employee: number; prof_tax: number; employer_pf: number; employer_esi: number;
   staff: { name: string; emp_code: string | null; designation: string | null; bank_account: string | null; ifsc: string | null } | null;
 };
 const MODES: [string, string][] = [["bank_transfer", "Bank transfer"], ["cash", "Cash"], ["cheque", "Cheque"], ["upi", "UPI"]];
@@ -21,7 +22,7 @@ export default async function PayrollRun({ params, searchParams }: { params: Pro
   const { data: run } = await supabase.from("payroll_runs").select("id,month,status,approved_at").eq("id", id).eq("school_id", school.id).maybeSingle();
   if (!run) notFound();
   const { data } = await supabase.from("payslips")
-    .select("id,staff_id,working_days,lop_days,gross,total_deductions,adjustment,adjustment_note,net,paid_on,pay_mode,pay_ref,staff(name,emp_code,designation,bank_account,ifsc)")
+    .select("id,staff_id,working_days,lop_days,gross,total_deductions,adjustment,adjustment_note,net,paid_on,pay_mode,pay_ref,att_lop,advance_recovery,pf_employee,esi_employee,prof_tax,employer_pf,employer_esi,staff(name,emp_code,designation,bank_account,ifsc)")
     .eq("run_id", id);
   const P = ((data ?? []) as unknown as Slip[]).sort((a, b) => (a.staff?.name ?? "").localeCompare(b.staff?.name ?? ""));
   const draft = run.status === "draft";
@@ -35,6 +36,7 @@ export default async function PayrollRun({ params, searchParams }: { params: Pro
         subtitle={<><Badge value={draft ? "draft" : "paid"} text={draft ? "Draft — can be changed" : `Approved ${fmtDate(run.approved_at)} — locked`} /> {P.length} payslips</>}
         actions={<>
           {can("hr.payroll.export") && <a href={`/app/hr/payroll/${id}/export`} className="btn btn-sm btn-secondary">Bank sheet (CSV)</a>}
+          {can("hr.payroll.export") && <a href={`/app/hr/payroll/${id}/statutory`} className="btn btn-sm btn-secondary">PF / ESI / PT (CSV)</a>}
           {can("hr.payroll.approve") && (
             <form action={setRunStatus}>
               <input type="hidden" name="id" value={id} /><input type="hidden" name="status" value={draft ? "approved" : "draft"} />
@@ -57,9 +59,13 @@ export default async function PayrollRun({ params, searchParams }: { params: Pro
           <tr key={p.id}>
             <td className={td}>{!draft && !p.paid_on && can("hr.payroll.edit") && <input type="checkbox" name="ids" value={p.id} form="paid" defaultChecked aria-label={`Paid ${p.staff?.name}`} className="h-4 w-4" />}</td>
             <td className={td}><Link href={`/app/hr/staff/${p.staff_id}`} className="font-semibold">{p.staff?.name}</Link><div className="text-[12px] text-muted">{[p.staff?.emp_code, p.staff?.designation].filter(Boolean).join(" · ")}</div></td>
-            <td className={td}>{Number(p.working_days) - Number(p.lop_days)}/{p.working_days}{Number(p.lop_days) > 0 && <div className="text-[12px] text-error">{Number(p.lop_days)} unpaid</div>}</td>
+            <td className={td}>{Number(p.working_days) - Number(p.lop_days)}/{p.working_days}{Number(p.lop_days) > 0 && <div className="text-[12px] text-error">{Number(p.lop_days)} unpaid{Number(p.att_lop) > 0 ? ` (${Number(p.att_lop)} from attendance)` : ""}</div>}</td>
             <td className={td}>{money(p.gross)}</td>
-            <td className={td}>{money(p.total_deductions)}</td>
+            <td className={td}>{money(p.total_deductions)}
+              {(Number(p.pf_employee) > 0 || Number(p.esi_employee) > 0 || Number(p.prof_tax) > 0 || Number(p.advance_recovery) > 0) && (
+                <div className="text-[11px] text-muted">{[Number(p.pf_employee) > 0 && `PF ${p.pf_employee}`, Number(p.esi_employee) > 0 && `ESI ${p.esi_employee}`, Number(p.prof_tax) > 0 && `PT ${p.prof_tax}`, Number(p.advance_recovery) > 0 && `Adv ${p.advance_recovery}`].filter(Boolean).join(" · ")}</div>
+              )}
+            </td>
             <td className={td}>{Number(p.adjustment) ? money(p.adjustment) : "—"}{p.adjustment_note && <div className="text-[12px] text-muted">{p.adjustment_note}</div>}</td>
             <td className={`${td} font-bold text-ink`}>{money(p.net)}</td>
             <td className={`${td} text-[13px]`}>{p.paid_on ? <>{fmtDate(p.paid_on)}<div className="text-muted">{MODES.find((m) => m[0] === p.pay_mode)?.[1]}{p.pay_ref ? ` · ${p.pay_ref}` : ""}</div></> : <span className="text-muted">—</span>}</td>

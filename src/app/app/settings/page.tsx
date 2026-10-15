@@ -18,7 +18,8 @@ export default async function SettingsCentre({ searchParams }: { searchParams: P
   const groups: { name: string; tiles: Tile[] }[] = [
     { name: "School", tiles: [
       { href: "/app/settings/school", title: "School profile & branding", text: "Name, address, logo, receipt numbering, UPI, modules and regional preferences.", icon: "school", show: can("settings.school.view"), meta: school.logo_url ? "Logo set" : "No logo yet" },
-      { href: "/app/settings/academic", title: "Classes & sessions", text: "Classes, sections, subjects, academic sessions and promotions.", icon: "academics", show: can("academics.setup.create"), meta: session ? `Session ${session.name}` : "No current session" },
+      { href: "/app/settings/documents", title: "Documents & branding", text: "Principal's signature, school seal, watermark and the mandatory documents (marksheet, report card, TC…).", icon: "layers", show: can("settings.school.view"), meta: "Signature · seal · watermark" },
+  { href: "/app/settings/academic", title: "Classes & sessions", text: "Classes, sections, subjects, academic sessions and promotions.", icon: "academics", show: can("academics.setup.create"), meta: session ? `Session ${session.name}` : "No current session" },
       { href: "/app/settings/notifications", title: "Notifications", text: "Which events reach parents and staff, by SMS, email or WhatsApp.", icon: "notifications", show: can("settings.school.view") },
     ] },
     { name: "People & security", tiles: [

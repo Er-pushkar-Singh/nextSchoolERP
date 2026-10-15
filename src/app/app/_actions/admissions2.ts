@@ -77,3 +77,20 @@ export async function lapseOffers() {
   const { data, error } = await supabase.rpc("lapse_expired_offers", { sid: school.id });
   go("/app/admissions/pipeline", error ? { error: errMsg(error) } : { ok: data ? `${data} expired offer(s) cancelled; seats released.` : "No offer has expired." });
 }
+
+/** Change the date, channel or note of an open follow-up. */
+export async function updateFollowup(f: FormData) {
+  const { supabase, school } = await requirePerm("frontdesk.admissions.edit", "frontdesk.enquiries.edit");
+  const back = safeBack(f, "/app/admissions/followups");
+  const { error } = await supabase.from("application_followups")
+    .update({ due_on: date(f, "due_on"), channel: oneOf(f, "channel", ["call", "whatsapp", "visit", "email", "sms"] as const, "call"), note: str(f, "note", 300) })
+    .eq("id", uuid(f, "id")!).eq("school_id", school.id).eq("done", false);
+  go(back, error ? { error: errMsg(error) } : { ok: "Follow-up updated." });
+}
+
+export async function deleteFollowup(f: FormData) {
+  const { supabase, school } = await requirePerm("frontdesk.admissions.edit", "frontdesk.enquiries.edit");
+  const back = safeBack(f, "/app/admissions/followups");
+  const { error } = await supabase.from("application_followups").delete().eq("id", uuid(f, "id")!).eq("school_id", school.id);
+  go(back, error ? { error: errMsg(error) } : { ok: "Follow-up deleted." });
+}

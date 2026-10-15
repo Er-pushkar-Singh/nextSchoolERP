@@ -43,6 +43,9 @@ export default async function StaffPage({ params, searchParams }: { params: Prom
     .sort((a, b) => (b.payroll_runs?.month ?? "").localeCompare(a.payroll_runs?.month ?? ""));
   const takenLogins = new Set((linked ?? []).map((x) => x.user_id).filter((u) => u !== s.user_id));
   const loginOptions = (members ?? []).filter((m) => !takenLogins.has(m.user_id)).map((m) => [m.user_id, `${m.name ?? m.email}${m.name && m.email ? ` · ${m.email}` : ""}`] as [string, string]);
+  const { data: revisions } = can("hr.payroll.view")
+    ? await supabase.from("staff_salary_history").select("id,changed_on,old_gross,new_gross,changed_by_name").eq("staff_id", id).order("created_at", { ascending: false }).limit(8)
+    : { data: [] };
   const edit = can("hr.staff.edit");
   const canBlock = can("hr.staff.block");
   const isBlocked = Boolean(s.blocked_at) && (!s.blocked_till || s.blocked_till >= todayIST());
@@ -100,6 +103,12 @@ export default async function StaffPage({ params, searchParams }: { params: Prom
                 <Input label="IFSC" name="ifsc" defaultValue={s.ifsc} />
                 <Input label="PAN" name="pan" defaultValue={s.pan} />
                 <Input label="UAN (PF)" name="uan" defaultValue={s.uan} />
+                <div className="flex flex-wrap items-center gap-4 pt-6 text-[14px] sm:col-span-3">
+                  <span className="font-semibold text-ink">Statutory deductions apply:</span>
+                  <label className="flex items-center gap-1"><input type="checkbox" name="pf_applicable" value="1" defaultChecked={(s as unknown as { pf_applicable?: boolean }).pf_applicable !== false} />PF</label>
+                  <label className="flex items-center gap-1"><input type="checkbox" name="esi_applicable" value="1" defaultChecked={(s as unknown as { esi_applicable?: boolean }).esi_applicable !== false} />ESI</label>
+                  <label className="flex items-center gap-1"><input type="checkbox" name="pt_applicable" value="1" defaultChecked={(s as unknown as { pt_applicable?: boolean }).pt_applicable !== false} />Professional tax</label>
+                </div>
               </div>
             </fieldset>
           </Card>
@@ -113,6 +122,18 @@ export default async function StaffPage({ params, searchParams }: { params: Prom
         {edit && <div><Submit>Save staff record</Submit></div>}
       </form>
 
+      {(revisions ?? []).length > 0 && (
+        <Card title="Salary revisions">
+          <ul className="m-0 list-none divide-y divide-line p-0 text-[14px]">
+            {(revisions ?? []).map((r) => (
+              <li key={r.id} className="flex flex-wrap justify-between gap-2 py-2">
+                <span>{fmtDate(r.changed_on)}{r.changed_by_name ? <span className="text-muted"> · {r.changed_by_name}</span> : null}</span>
+                <span>{money(r.old_gross)} → <b className={Number(r.new_gross) >= Number(r.old_gross) ? "text-[#15803d]" : "text-error"}>{money(r.new_gross)}</b></span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
       <div className="grid gap-5 lg:grid-cols-2">
         <Card title="Recent leave" actions={<Link href="/app/hr/leave" className="text-[14px] font-semibold">Leave →</Link>}>
           {(leaves ?? []).length ? (

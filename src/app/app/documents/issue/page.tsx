@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePerm } from "@/lib/school";
-import { Badge, Card, Flash, Input, PageHeader, Submit } from "@/components/ui/ui";
+import { Badge, Card, Flash, Input, PageHeader, Select, Submit } from "@/components/ui/ui";
 import { fullName, money, todayIST } from "@/lib/format";
 import { issueDocument } from "../../_actions/documents";
 import type { TemplateField } from "@/lib/documents";
@@ -26,6 +26,12 @@ export default async function Issue({ searchParams }: { searchParams: Promise<{ 
     supabase.from("issued_documents").select("doc_no").eq("school_id", school.id).eq("template_code", t.code).eq("status", "issued").eq(stu ? "student_id" : "staff_id", (stu ?? stf)!).limit(5),
   ]);
   if (!s && !w) notFound();
+  // exams for which this student has a declared result (for marksheet / report card templates)
+  const { data: res } = stu && ((t.fields as TemplateField[]) ?? []).some((f) => f.type === "exam")
+    ? await supabase.from("exam_results").select("exam_id,exams(id,name,sort)").eq("student_id", stu).eq("school_id", school.id)
+    : { data: [] };
+  const declared = ((res ?? []) as unknown as { exams: { id: string; name: string; sort: number } | { id: string; name: string; sort: number }[] | null }[])
+    .map((r) => (Array.isArray(r.exams) ? r.exams[0] : r.exams)).filter(Boolean).sort((a, b) => b!.sort - a!.sort) as { id: string; name: string; sort: number }[];
   const owed = (dues ?? []).reduce((a, d) => a + Math.max(0, Number(d.amount) - Number(d.concession) + Number(d.fine) - Number(d.paid)), 0);
   const fields = (t.fields as TemplateField[]) ?? [];
   const known = new Set(fields.map((f) => f.key));
@@ -50,7 +56,10 @@ export default async function Issue({ searchParams }: { searchParams: Promise<{ 
           {stu && <input type="hidden" name="student_id" value={stu} />}
           {stf && <input type="hidden" name="staff_id" value={stf} />}
           <Input label="Issue date" name="issued_on" type="date" defaultValue={todayIST()} />
-          {fields.map((f) => (
+          {fields.map((f) => f.type === "exam" ? (
+            <Select key={f.key} label={f.label} name={`x_${f.key}`} required={f.required} className="sm:col-span-2" blank="Choose the examination…"
+              options={(declared ?? []).map((e) => [e.id, e.name] as [string, string])} hint={!(declared ?? []).length ? "No exam has a declared result yet." : undefined} />
+          ) : (
             <Input key={f.key} label={f.label} name={`x_${f.key}`} type={f.type === "number" ? "number" : f.type === "date" ? "date" : "text"} required={f.required} className={f.type === "text" ? "sm:col-span-2" : ""} />
           ))}
           {/* standard questions used in the layout but not declared by the template */}

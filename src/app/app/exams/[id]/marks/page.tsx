@@ -31,6 +31,8 @@ export default async function Marks({ params, searchParams }: { params: Promise<
   const { data: students } = await q.order("roll_no", { nullsFirst: false }).order("first_name");
   const ids = (students ?? []).map((s) => s.id);
   const { data: marks } = ids.length ? await supabase.from("marks").select("student_id,subject_id,marks,absent").eq("exam_id", id).in("student_id", ids) : { data: [] };
+  const { data: lockRow } = await supabase.from("exam_class_status").select("marks_locked,declared_at").eq("exam_id", id).eq("class_id", cls).maybeSingle();
+  const locked = Boolean(lockRow?.marks_locked);
   const val = new Map((marks ?? []).map((m) => [`${m.student_id}_${m.subject_id}`, m.absent ? "AB" : m.marks === null ? "" : String(Number(m.marks))]));
 
   return (
@@ -40,6 +42,7 @@ export default async function Marks({ params, searchParams }: { params: Promise<
       {klass && klass.sections.length > 1 && (
         <nav className="flex flex-wrap gap-2">{klass.sections.map((s) => <a key={s.id} href={`/app/exams/${id}/marks?class_id=${cls}&section_id=${s.id}`} className={`chip ${s.id === sec ? "!border-ink" : ""}`}>Section {s.name}</a>)}</nav>
       )}
+      {locked && <p role="note" className="m-0 rounded-[12px] border border-[#f1d39a] bg-[#fff4e0] px-4 py-3 text-[14px] text-[#7a4b00]">Marks entry is <b>locked</b> for this class{lockRow?.declared_at ? " because the result is declared" : ""}. Ask the exam in-charge to unlock it to make changes.</p>}
       {!subs.length ? <Empty>No subjects set for this class in this exam.</Empty> : !(students ?? []).length ? <Empty>No students.</Empty> : (
         <form action={saveMarks} className="flex flex-col gap-4">
           <input type="hidden" name="exam_id" value={id} /><input type="hidden" name="class_id" value={cls} />{sec && <input type="hidden" name="section_id" value={sec} />}
@@ -60,7 +63,7 @@ export default async function Marks({ params, searchParams }: { params: Promise<
               </tbody>
             </table>
           </div>
-          <div className="sticky bottom-3"><Submit>Save marks</Submit></div>
+          {!locked && <div className="sticky bottom-3"><Submit>Save marks</Submit></div>}
         </form>
       )}
     </div>

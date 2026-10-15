@@ -1,3 +1,4 @@
+import { SearchSelect } from "@/components/ui/SearchSelect";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePerm } from "@/lib/school";
@@ -101,18 +102,12 @@ export default async function BoardStudent({ params, searchParams }: { params: P
                 {level === "hs"
                   ? ["1", "2", "3", "4", "5", "6", "trade"].map((slot) => (
                     <label key={slot} className="flex flex-col gap-1 text-[13px] font-semibold text-ink">{HS_SLOT_LABELS[slot]}
-                      <select name={`slot_${slot}`} defaultValue={chosen.get(slot) ?? ""} className="input !min-h-10 !py-2 text-[15px] font-normal">
-                        <option value="">—</option>
-                        {optionsForHs(slot).map((c) => <option key={c} value={c}>{c} — {names.get(c)?.name_en ?? c}{names.get(c)?.name_hi ? ` (${names.get(c)!.name_hi})` : ""}</option>)}
-                      </select>
+                      <SearchSelect name={`slot_${slot}`} defaultValue={chosen.get(slot) ?? ""} placeholder="Search subject name or code…" options={optionsForHs(slot).map((c) => ({ value: c, label: `${names.get(c)?.name_en ?? c}${names.get(c)?.name_hi ? ` (${names.get(c)!.name_hi})` : ""}` }))} />
                     </label>
                   ))
                   : Array.from({ length: interRequiredCount(group as Group) }, (_, i) => String(i + 1)).map((slot) => (
                     <label key={slot} className="flex flex-col gap-1 text-[13px] font-semibold text-ink">Subject {slot}
-                      <select name={`slot_${slot}`} defaultValue={chosen.get(slot) ?? ""} className="input !min-h-10 !py-2 text-[15px] font-normal">
-                        <option value="">—</option>
-                        {interAllowed(group as Group).map((c) => <option key={c} value={c}>{c} — {names.get(c)?.name_en ?? c}{names.get(c)?.name_hi ? ` (${names.get(c)!.name_hi})` : ""}</option>)}
-                      </select>
+                      <SearchSelect name={`slot_${slot}`} defaultValue={chosen.get(slot) ?? ""} placeholder="Search subject name or code…" options={interAllowed(group as Group).map((c) => ({ value: c, label: `${names.get(c)?.name_en ?? c}${names.get(c)?.name_hi ? ` (${names.get(c)!.name_hi})` : ""}` }))} />
                     </label>
                   ))}
               </fieldset>

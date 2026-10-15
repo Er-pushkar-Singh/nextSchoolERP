@@ -476,6 +476,48 @@ begin
     where not exists (select 1 from public.school_events where school_id = sid and created_by_name = 'DEMO');
   end;
 
+  -- ── Front office, syllabus and payroll rules ──
+  declare fo_stu uuid; fo_d date := public.today_ist(); fo_cs uuid; fo_sub uuid; fo_sess uuid; fo_st uuid;
+  begin
+    insert into public.visitors (school_id, pass_no, name, phone, purpose, to_meet, people, vehicle_no, in_at, out_at, created_by_name) values
+      (sid, 'V-D-0001', 'Mr R. K. Gupta', '9811100010', 'parent', 'Class teacher', 1, 'UP32 AB 4521', now() - interval '3 hours', now() - interval '2 hours', 'DEMO'),
+      (sid, 'V-D-0002', 'Sharma Book Depot', '9811100011', 'vendor', 'Office', 2, null, now() - interval '90 minutes', now() - interval '60 minutes', 'DEMO'),
+      (sid, 'V-D-0003', 'Mrs Anita Verma', '9811100012', 'admission', 'Principal', 2, null, now() - interval '20 minutes', null, 'DEMO')
+    on conflict (school_id, pass_no) do nothing;
+    insert into public.phone_calls (school_id, direction, name, phone, purpose, summary, follow_up_on, handled_by_name) values
+      (sid, 'incoming', 'Mrs Kapoor', '9811100013', 'enquiry', 'Asked about Class 2 seats and fee', fo_d, 'DEMO'),
+      (sid, 'incoming', 'Mr Yadav', '9811100014', 'complaint', 'Bus 2 was late this morning', fo_d - 1, 'DEMO'),
+      (sid, 'outgoing', 'Mr Khan', '9811100015', 'fees', 'Reminder for term-2 fee', null, 'DEMO');
+    insert into public.postal_items (school_id, direction, on_date, mode, party, reference_no, subject, to_whom, created_by_name) values
+      (sid, 'received', fo_d, 'speed_post', 'District Inspector of Schools', 'EE123456789IN', 'Inspection notice', 'Principal', 'DEMO'),
+      (sid, 'dispatched', fo_d - 1, 'courier', 'UP Board Regional Office', 'AWB 778812', 'Registration forms Class 9', 'Office', 'DEMO');
+    select id into fo_stu from public.students where school_id = sid and admission_no like 'DEMO-%' and status = 'active' order by admission_no limit 1;
+    if fo_stu is not null then
+      insert into public.gate_passes (school_id, pass_no, student_id, reason, pickup_name, pickup_relation, pickup_phone, status, requested_by_name) values
+        (sid, 'GP-D-0001', fo_stu, 'Dental appointment', 'Mr Sharma', 'Father', '9811100016', 'requested', 'DEMO')
+      on conflict (school_id, pass_no) do nothing;
+    end if;
+    -- a small syllabus for the first class-subject pair
+    select id into fo_cs from public.classes where school_id = sid order by sort limit 1;
+    select id into fo_sub from public.subjects where school_id = sid order by name limit 1;
+    select id into fo_sess from public.sessions where school_id = sid and is_current limit 1;
+    if fo_cs is not null and fo_sub is not null and fo_sess is not null then
+      insert into public.class_subjects (school_id, class_id, subject_id, periods_per_week) values (sid, fo_cs, fo_sub, 6) on conflict do nothing;
+      if not exists (select 1 from public.syllabus_units where school_id = sid and class_id = fo_cs and subject_id = fo_sub and session_id = fo_sess) then
+        insert into public.syllabus_units (school_id, session_id, class_id, subject_id, no, title, term, status, completed_on)
+        select sid, fo_sess, fo_cs, fo_sub, x.n, x.t, 'Term 1', x.st, case when x.st = 'done' then fo_d - 20 + x.n end from (values
+          (1, 'Numbers up to 100', 'done'), (2, 'Addition and subtraction', 'done'), (3, 'Shapes and patterns', 'in_progress'), (4, 'Measurement', 'pending'), (5, 'Time and money', 'pending')) x(n, t, st);
+      end if;
+    end if;
+    -- payroll rules on, one advance
+    insert into public.payroll_settings (school_id, use_attendance, pf_on, esi_on, pt_on) values (sid, true, true, true, true) on conflict (school_id) do nothing;
+    select id into fo_st from public.staff where school_id = sid and emp_code like 'DEMO-E%' and status = 'active' and jsonb_array_length(earnings) > 0 order by emp_code limit 1;
+    if fo_st is not null and not exists (select 1 from public.staff_advances where school_id = sid and created_by_name = 'DEMO') then
+      insert into public.staff_advances (school_id, staff_id, amount, monthly_emi, balance, taken_on, reason, created_by_name)
+      values (sid, fo_st, 12000, 2000, 12000, fo_d - 5, 'Medical expenses', 'DEMO');
+    end if;
+  end;
+
   -- ── Summary ──
   select count(*) into cnt_students from public.students where school_id = sid and (admission_no like 'DEMO-%' or application_id is not null);
   select count(*) into cnt_apps from public.admission_applications where school_id = sid and form ? 'demo';

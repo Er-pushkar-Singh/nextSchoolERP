@@ -183,3 +183,9 @@ button[data-loading]::before {
 table tbody tr { transition: background-color .12s; }
 table tbody tr:hover > td { background: #f7f9ff; }
 button[data-loading] svg { display: none; }
+
+/* Printing: keep backgrounds, borders' colours, photographs and the watermark exactly as on screen
+   (browsers drop background colours / images when printing unless the page asks for them). */
+@media print {
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+}

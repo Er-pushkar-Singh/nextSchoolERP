@@ -7,6 +7,8 @@ import { fmtDate } from "@/lib/format";
 import { sanitizeHtml, withPhoto } from "@/lib/html-sanitize";
 import { withQr } from "@/lib/qr";
 import { signedPhotoUrls } from "@/lib/doc-photo";
+import { getBranding, withBrand } from "@/lib/branding";
+import { DocSheet } from "@/components/DocSheet";
 import { cancelDocument } from "../../_actions/documents";
 
 export default async function IssuedDocument({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ ok?: string; error?: string }> }) {
@@ -17,7 +19,8 @@ export default async function IssuedDocument({ params, searchParams }: { params:
   const { data: d } = await supabase.from("issued_documents").select("*").eq("id", id).eq("school_id", school.id).maybeSingle();
   if (!d) notFound();
   const photos = d.student_id ? await signedPhotoUrls(school.id, [d.student_id]) : new Map<string, string>();
-  const html = withQr(withPhoto(sanitizeHtml(d.html), d.student_id ? photos.get(d.student_id) ?? null : null));
+  const branding = await getBranding(supabase, school.id);
+  const html = withBrand(withQr(withPhoto(sanitizeHtml(d.html), d.student_id ? photos.get(d.student_id) ?? null : null)), branding);
   const width = d.page_size === "card" ? `${d.card_width_mm ?? 86}mm` : d.page_size === "A5" ? "148mm" : "210mm";
   const cancelled = d.status === "cancelled";
 
@@ -34,7 +37,9 @@ export default async function IssuedDocument({ params, searchParams }: { params:
         <div className="relative mx-auto bg-white p-4 shadow print:p-0 print:shadow-none" style={{ width, maxWidth: "100%" }}>
           {cancelled && <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-[70px] font-extrabold tracking-widest text-[#e11d48]/25 select-none">CANCELLED</div>}
           {d.is_duplicate && <p className="m-0 text-right text-[12px] font-bold tracking-widest">DUPLICATE</p>}
-          <div dangerouslySetInnerHTML={{ __html: html }} />
+          <DocSheet branding={d.page_size === "card" ? { ...branding, watermark_mode: "none" } : branding} logoUrl={school.logo_url} schoolName={school.name}>
+            <div dangerouslySetInnerHTML={{ __html: html }} />
+          </DocSheet>
         </div>
       </div>
       {!cancelled && can("documents.issue.approve") && (

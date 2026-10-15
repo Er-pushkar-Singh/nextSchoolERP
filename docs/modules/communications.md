@@ -48,3 +48,6 @@ Secrets are AES-256-GCM encrypted (`SETTINGS_ENCRYPTION_KEY`); nobody can read t
 
 ## Gaps & ideas
 Delivery receipts via provider webhooks, two-way parent–teacher inbox, per-school daily caps and usage billing, birthday job, voice calls, push for the parent app.
+
+## Events added on 15 Oct 2026
+School property: `asset_assigned` and `asset_returned` (sent at once to the staff member / the student's parent / the room in-charge) and `asset_overdue` (weekly, from the daily job). Defaults: email on.

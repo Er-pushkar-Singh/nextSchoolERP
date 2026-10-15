@@ -10,7 +10,7 @@ type Row = { id: string; sku: string | null; name: string; category: string; var
 export default async function Sell({ searchParams }: { searchParams: Promise<{ student?: string; ok?: string; error?: string }> }) {
   const { supabase, school, can } = await requirePerm("inventory.sales.create");
   const sp = await searchParams;
-  const { data } = await supabase.rpc("inventory_item_list", { sid: school.id, p_active: "yes", p_limit: 200, p_offset: 0 });
+  const { data } = await supabase.rpc("inventory_item_list", { sid: school.id, p_active: "yes", p_limit: 200, p_offset: 0, p_kind: "shop" });
   const items: CartItem[] = ((data ?? []) as Row[]).map((r) => ({
     id: r.id, name: r.name, variant: r.variant, category: r.category, sku: r.sku, price: Number(r.price), cost: Number(r.cost), on_hand: r.on_hand, track: r.track_stock, unit: r.unit, cls: r.class_name,
   }));
@@ -20,7 +20,7 @@ export default async function Sell({ searchParams }: { searchParams: Promise<{ s
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader icon="fees" title="New bill" subtitle="Pick the customer, tap the items, choose how it is paid" back={{ href: "/app/inventory", label: "Inventory" }} />
+      <PageHeader icon="fees" title="New bill" subtitle="Pick the customer, tap the items, choose how it is paid" back={{ href: "/app/inventory/shop", label: "Shop" }} />
       <Flash ok={sp.ok} error={sp.error} />
       {items.length === 0 ? (
         <Card title="No items yet">Add uniform, books or stationery under <a href="/app/inventory/items">Items & stock</a> first.</Card>

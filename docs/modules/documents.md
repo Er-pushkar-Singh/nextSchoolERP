@@ -58,3 +58,8 @@ Every document the school hands out comes from a **template the school controls*
 
 ## Gaps & ideas
 Visual (drag-and-drop) template editor, QR code / barcode on ID cards, Hindi templates set, admit cards from exam data, mail-merge letters to a whole class, e-signature of the principal as an image, SMS / WhatsApp the document link to the parent.
+
+## Verification QR and barcodes (15 Oct 2026, migration `0041`)
+- `{{doc.verify_qr}}` (designer: "Verification QR") prints a QR with the link `/verify/<document id>`. The public page shows whether the document is **genuine or cancelled**, the number, dates, the student's photo and details as printed, the exam result with marks (marksheets / report cards) and the student's current record. Every marksheet, report card, result, bonafide, DOB, migration certificate and admit card in the gallery carries it.
+- `{{student.barcode}}` / `{{staff.barcode}}` print the attendance barcode.
+- **Transfer Certificate rule**: no TC (template studio or the old certificate screen) while fees are pending — `issue_document` / `issue_certificate` call `_tc_fee_gate`. Fee settings choose "every fee" (default) or "every instalment due till today". The issue screen shows the clearance (fees, library books, school property, hostel bed) and disables Issue until fees are clear.

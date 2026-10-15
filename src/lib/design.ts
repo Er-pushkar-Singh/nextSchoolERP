@@ -6,7 +6,7 @@
  * placeholders its data builder supplies, and (optionally) starter designs in PRESETS.
  */
 
-export type ItemType = "text" | "rect" | "ellipse" | "line" | "image" | "photo" | "logo" | "qr" | "signature" | "seal";
+export type ItemType = "text" | "rect" | "ellipse" | "line" | "image" | "photo" | "logo" | "qr" | "barcode" | "signature" | "seal";
 export type Item = {
   id: string; type: ItemType;
   x: number; y: number; w: number; h: number; rot: number;     // mm, mm, mm, mm, degrees
@@ -44,7 +44,7 @@ export function normalizeDesign(raw: unknown): Design {
   const items = (Array.isArray(d.items) ? d.items : []).slice(0, 200).flatMap((it): Item[] => {
     const o = (it && typeof it === "object" ? it : {}) as Record<string, unknown>;
     const type = o.type as ItemType;
-    if (!["text", "rect", "ellipse", "line", "image", "photo", "logo", "qr", "signature", "seal"].includes(type)) return [];
+    if (!["text", "rect", "ellipse", "line", "image", "photo", "logo", "qr", "barcode", "signature", "seal"].includes(type)) return [];
     const base: Item = {
       id: typeof o.id === "string" && /^[a-z0-9_-]{1,24}$/i.test(o.id) ? o.id : `i${Math.random().toString(36).slice(2, 9)}`, type,
       x: r2(clamp(o.x, -300, 600)), y: r2(clamp(o.y, -300, 600)), w: r2(clamp(o.w, 0.5, 600, 20)), h: r2(clamp(o.h, 0.2, 600, 10)), rot: r2(clamp(o.rot, -360, 360)),
@@ -59,7 +59,8 @@ export function normalizeDesign(raw: unknown): Design {
         fill: colour(o.fill, "transparent"), radius: clamp(o.radius, 0, 100, 0) }];
     }
     if (type === "image") return [{ ...base, src: https(o.src), fit: o.fit === "contain" ? "contain" : "cover", radius: clamp(o.radius, 0, 100, 0) }];
-    if (type === "photo" || type === "logo" || type === "qr" || type === "signature" || type === "seal") return [{ ...base, ...(type === "qr" ? { text: o.text === "staff.qr" ? "staff.qr" : "student.qr" } : {}), radius: clamp(o.radius, 0, 100, 0), stroke: colour(o.stroke, "transparent"), sw: clamp(o.sw, 0, 5, 0) }];
+    if (type === "barcode") return [{ ...base, text: o.text === "staff.barcode" ? "staff.barcode" : "student.barcode" }];
+    if (type === "photo" || type === "logo" || type === "qr" || type === "signature" || type === "seal") return [{ ...base, ...(type === "qr" ? { text: o.text === "staff.qr" ? "staff.qr" : o.text === "doc.verify_qr" ? "doc.verify_qr" : "student.qr" } : {}), radius: clamp(o.radius, 0, 100, 0), stroke: colour(o.stroke, "transparent"), sw: clamp(o.sw, 0, 5, 0) }];
     return [{ ...base, fill: colour(o.fill, type === "line" ? "transparent" : "#e5e7eb"), stroke: colour(o.stroke, type === "line" ? "#111111" : "transparent"), sw: clamp(o.sw, 0, 20, type === "line" ? 0.4 : 0),
       radius: clamp(o.radius, 0, 100, 0) }];
   });
@@ -89,8 +90,9 @@ export function compileDesign(input: unknown): string {
     if (i.type === "image") {
       return `<div style="${pos}overflow:hidden;${i.radius ? `border-radius:${i.radius}mm;` : ""}">${i.src ? `<img src="${esc(i.src)}" alt="" style="width:100%;height:100%;object-fit:${i.fit}">` : ""}</div>`;
     }
+    if (i.type === "barcode") return `<div style="${pos}overflow:hidden;background:#ffffff">${i.text === "staff.barcode" ? "{{staff.barcode}}" : "{{student.barcode}}"}</div>`;
     const border = i.sw ? `border:${i.sw}mm solid ${i.stroke};` : "";
-    return `<div style="${pos}overflow:hidden;${border}${i.radius ? `border-radius:${i.radius}mm;` : ""}">${i.type === "photo" ? "{{student.photo}}" : i.type === "signature" ? "{{school.signature}}" : i.type === "seal" ? "{{school.seal}}" : i.type === "qr" ? (i.text === "staff.qr" ? "{{staff.qr}}" : "{{student.qr}}") : "{{school.logo}}"}</div>`;
+    return `<div style="${pos}overflow:hidden;${border}${i.radius ? `border-radius:${i.radius}mm;` : ""}">${i.type === "photo" ? "{{student.photo}}" : i.type === "signature" ? "{{school.signature}}" : i.type === "seal" ? "{{school.seal}}" : i.type === "qr" ? (i.text === "staff.qr" ? "{{staff.qr}}" : i.text === "doc.verify_qr" ? "{{doc.verify_qr}}" : "{{student.qr}}") : "{{school.logo}}"}</div>`;
   });
   const bgi = d.bgImage ? `background-image:url('${esc(d.bgImage)}');background-size:cover;background-position:center;` : "";
   return `<div style="position:relative;width:${d.w}mm;height:${d.h}mm;background:${d.bg};${bgi}overflow:hidden;box-sizing:border-box;margin:0 auto">${parts.join("")}</div>`;
@@ -139,7 +141,8 @@ const human = (k: string) => k.split(".").pop()!.replace(/_/g, " ");
 export function withSample(html: string): string {
   return html.replace(/\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/g, (_, k: string) => {
     if (k === "student.photo") return `<div style="width:100%;height:100%;background:linear-gradient(135deg,#cbd5e1,#94a3b8);display:flex;align-items:flex-end;justify-content:center"><div style="width:44%;height:44%;border-radius:50%;background:#e2e8f0;margin-bottom:12%"></div></div>`;
-    if (k === "student.qr" || k === "staff.qr") return `<div style="width:100%;height:100%;background:repeating-conic-gradient(#111 0 25%,#fff 0 50%) 0 0/20% 20%;border:2px solid #111;box-sizing:border-box"></div>`;
+    if (k === "student.barcode" || k === "staff.barcode") return `<div style="width:100%;height:100%;background:repeating-linear-gradient(90deg,#111 0 0.5mm,#fff 0.5mm 0.9mm,#111 0.9mm 1.6mm,#fff 1.6mm 2mm,#111 2mm 2.3mm,#fff 2.3mm 3mm)"></div>`;
+    if (k === "student.qr" || k === "staff.qr" || k === "doc.verify_qr") return `<div style="width:100%;height:100%;background:repeating-conic-gradient(#111 0 25%,#fff 0 50%) 0 0/20% 20%;border:2px solid #111;box-sizing:border-box"></div>`;
     if (k === "school.signature") return `<div style="width:100%;height:100%;display:flex;align-items:flex-end;justify-content:center;font-family:cursive;font-size:16px;color:#1e3a8a;border-bottom:1px solid #94a3b8">Signature</div>`;
     if (k === "school.seal") return `<div style="width:100%;height:100%;border:2px dashed #1d4ed8;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;color:#1d4ed8;font-weight:700">SEAL</div>`;
     if (k === "school.logo") return `<div style="width:100%;height:100%;border-radius:50%;background:#1d4ed8;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:10px">SPS</div>`;
@@ -158,6 +161,11 @@ const R = (x: number, y: number, w: number, h: number, fill: string, o: Partial<
 const L = (x: number, y: number, w: number, o: Partial<Item> = {}): Item => ({ id: uid(), type: "line", x, y, w, h: 0.4, rot: 0, stroke: "#111111", sw: 0.4, ...o });
 const PH = (x: number, y: number, w: number, h: number, o: Partial<Item> = {}): Item => ({ id: uid(), type: "photo", x, y, w, h, rot: 0, radius: 2, stroke: "#ffffff", sw: 0.6, ...o });
 const QR = (x: number, y: number, w: number, o: Partial<Item> = {}): Item => ({ id: uid(), type: "qr", x, y, w, h: w, rot: 0, text: "student.qr", ...o });
+const BC = (x: number, y: number, w: number, h: number, o: Partial<Item> = {}): Item => ({ id: uid(), type: "barcode", x, y, w, h, rot: 0, text: "student.barcode", ...o });
+const VQ = (x: number, y: number, w: number): Item[] => [
+  { id: uid(), type: "qr", x, y, w, h: w, rot: 0, text: "doc.verify_qr", name: "Verification QR" },
+  T(x - 4, y + w + 0.5, w + 8, 4, "Scan to verify", { size: 6, align: "center", color: "#475569" }),
+];
 const SG = (x: number, y: number, w: number, h: number, o: Partial<Item> = {}): Item => ({ id: uid(), type: "signature", x, y, w, h, rot: 0, ...o });
 const SL = (x: number, y: number, w: number, h: number, o: Partial<Item> = {}): Item => ({ id: uid(), type: "seal", x, y, w, h, rot: 0, ...o });
 const LG = (x: number, y: number, w: number, h: number, o: Partial<Item> = {}): Item => ({ id: uid(), type: "logo", x, y, w, h, rot: 0, ...o });
@@ -202,6 +210,35 @@ export const PRESETS: Preset[] = [
       T(30, 24, 38, 22, "Class: {{student.class_section}}   Roll: {{student.roll_no}}\nAdm. no.: {{student.admission_no}}\nFather: {{student.father_name}}\nDOB: {{student.dob}}   Blood: {{student.blood_group}}\nPhone: {{student.phone}}", { size: 7.5, lh: 1.55 }),
       QR(68, 26, 16),
       R(0, 48, 86, 6, "#0f766e"), T(0, 48, 86, 6, "{{school.address}}, {{school.city}} · {{school.phone}}", { size: 6, color: "#ffffff", align: "center", valign: "middle" }),
+    ] }),
+  },
+  {
+    key: "id_student_barcode", name: "Student ID card — with barcode", module: "students", kind: "id_card", category: "id_card", audience: "student",
+    description: "54 × 86 mm card with photo and a barcode for scanner attendance at the gate.",
+    build: () => ({ v: 1, w: 54, h: 86, bg: "#ffffff", items: [
+      R(0, 0, 54, 24, "#1e3a8a"),
+      LG(3, 3, 9, 9), T(13, 2.5, 39, 10, "{{school.name}}", { size: 8, weight: 800, color: "#ffffff", upper: true, valign: "middle", lh: 1.15 }),
+      T(3, 13, 48, 4.5, "STUDENT IDENTITY CARD · {{doc.session}}", { size: 6, weight: 700, color: "#bfdbfe", align: "center", ls: 3 }),
+      PH(16, 19, 22, 27, { radius: 2, stroke: "#ffffff", sw: 0.8 }),
+      T(2, 47, 50, 6, "{{student.name}}", { size: 10.5, weight: 800, align: "center", valign: "middle" }),
+      T(2, 53, 50, 4.5, "Class {{student.class_section}} · Roll {{student.roll_no}}", { size: 7.5, align: "center", color: "#1e3a8a", weight: 700 }),
+      T(5, 58, 44, 9, "Adm. no.: {{student.admission_no}}\nFather: {{student.father_name}} · {{student.phone}}", { size: 6.3, lh: 1.45, align: "center" }),
+      BC(5, 68.5, 44, 9),
+      T(5, 77.5, 44, 3.5, "Scan at the gate for attendance", { size: 5.5, align: "center", color: "#475569" }),
+      R(0, 81.5, 54, 4.5, "#1e3a8a"), T(0, 81.5, 54, 4.5, "Valid until {{doc.valid_until}}", { size: 6, color: "#ffffff", align: "center", valign: "middle", weight: 700 }),
+    ] }),
+  },
+  {
+    key: "id_staff_barcode", name: "Staff ID card — with barcode", module: "staff", kind: "id_card", category: "id_card", audience: "staff",
+    description: "86 × 54 mm staff card with a barcode for the attendance scanner.",
+    build: () => ({ v: 1, w: 86, h: 54, bg: "#ffffff", items: [
+      R(0, 0, 86, 12, "#7c3aed"), LG(3, 1.5, 9, 9), T(14, 1, 70, 10, "{{school.name}}", { size: 9.5, weight: 800, color: "#ffffff", upper: true, valign: "middle" }),
+      T(4, 15, 78, 7, "{{staff.name}}", { size: 13, weight: 800, valign: "middle" }),
+      T(4, 22, 78, 5, "{{staff.designation}} · {{staff.department}}", { size: 8.5, color: "#5b21b6", weight: 700 }),
+      T(4, 28, 50, 10, "Employee code: {{staff.emp_code}}\nPhone: {{staff.phone}}", { size: 7.5, lh: 1.5 }),
+      BC(4, 39, 52, 10, { text: "staff.barcode" }),
+      QR(66, 28, 16, { text: "staff.qr" }),
+      T(58, 45, 26, 5, "Valid {{doc.valid_until}}", { size: 6, align: "center", color: "#475569" }),
     ] }),
   },
   {
@@ -438,3 +475,11 @@ export const TEMPLATE_MODULES: { module: string; name: string; icon: string; kin
 ];
 
 export const presetByKey = (k: string) => PRESETS.find((p) => p.key === k);
+
+// Every marksheet, report card and certificate in the gallery carries a verification QR (bottom left): scanning it opens
+// the public page that shows the document as issued and the student's details — so a forged copy is caught at once.
+for (const p of PRESETS) {
+  if (!["marksheet", "report_card_design", "result_certificate", "bonafide", "dob_certificate", "migration_certificate", "admit_card"].includes(p.key)) continue;
+  const build = p.build;
+  p.build = () => { const d = build(); const s = d.w < 160 ? 14 : 20; return { ...d, items: [...d.items, ...VQ(10, d.h - s - 12, s)] }; };
+}

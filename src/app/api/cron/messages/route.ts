@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { processOutbox } from "@/lib/messages";
-import { runFeeReminderJob } from "@/lib/message-events";
+import { runAssetOverdueJob, runFeeReminderJob } from "@/lib/message-events";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,14 +15,16 @@ export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
   if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) return NextResponse.json({ error: "unauthorised" }, { status: 401 });
   try {
-    const reminders = req.nextUrl.searchParams.get("job") === "reminders" ? await runFeeReminderJob() : null;
+    const daily = req.nextUrl.searchParams.get("job") === "reminders";
+    const reminders = daily ? await runFeeReminderJob() : null;
+    const assets = daily ? await runAssetOverdueJob() : null;
     let total = { sent: 0, failed: 0, retry: 0, picked: 0 };
     for (let i = 0; i < 4; i++) {
       const r = await processOutbox({ limit: 50 });
       total = { sent: total.sent + r.sent, failed: total.failed + r.failed, retry: total.retry + r.retry, picked: total.picked + r.picked };
       if (r.picked < 50) break;
     }
-    return NextResponse.json({ ok: true, reminders, ...total });
+    return NextResponse.json({ ok: true, reminders, assets, ...total });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }

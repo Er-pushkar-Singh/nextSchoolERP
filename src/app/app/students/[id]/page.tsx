@@ -14,6 +14,7 @@ import { fmtTime } from "@/lib/transport";
 import { addConcession, applyConcessions, newPortalLink, removeConcession, setStudentStatus } from "../../_actions/students";
 import { blockStudent, deleteStudent, unblockStudent } from "../../_actions/people";
 import { setMessageOptOut } from "../../_actions/messages";
+import { ClearanceCard, PropertyCard } from "@/components/inventory/PropertyCard";
 
 export default async function StudentPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ ok?: string; error?: string }> }) {
   const { id } = await params;
@@ -187,6 +188,11 @@ ${link}`) : null;
           )}
         </div>
       )}
+
+      <div className="grid gap-5 md:grid-cols-2">
+        <ClearanceCard supabase={supabase} sid={school.id} studentId={id} />
+        {(can("inventory.assign.view") || can("inventory.items.view")) && <PropertyCard supabase={supabase} sid={school.id} kind="student" id={id} />}
+      </div>
 
       {photoUrl && (
         <div className="flex items-center gap-3 print:hidden">

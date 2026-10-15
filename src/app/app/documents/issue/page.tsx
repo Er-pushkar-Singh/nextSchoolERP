@@ -32,6 +32,11 @@ export default async function Issue({ searchParams }: { searchParams: Promise<{ 
     : { data: [] };
   const declared = ((res ?? []) as unknown as { exams: { id: string; name: string; sort: number } | { id: string; name: string; sort: number }[] | null }[])
     .map((r) => (Array.isArray(r.exams) ? r.exams[0] : r.exams)).filter(Boolean).sort((a, b) => b!.sort - a!.sort) as { id: string; name: string; sort: number }[];
+  // a Transfer Certificate waits until the fees are paid (the database enforces it too)
+  const isTc = t.on_issue === "mark_transferred" || String(t.numbering_prefix ?? "").toUpperCase() === "TC";
+  const { data: clr } = isTc && stu ? await supabase.rpc("student_clearance", { sid: school.id, stu }) : { data: null };
+  const clearance = clr as { owed: number; books_out: number; assets_out: number; hostel_bed: boolean; fees_clear: boolean; mode: string } | null;
+  const tcBlocked = Boolean(clearance && !clearance.fees_clear);
   const owed = (dues ?? []).reduce((a, d) => a + Math.max(0, Number(d.amount) - Number(d.concession) + Number(d.fine) - Number(d.paid)), 0);
   const fields = (t.fields as TemplateField[]) ?? [];
   const known = new Set(fields.map((f) => f.key));
@@ -50,6 +55,19 @@ export default async function Issue({ searchParams }: { searchParams: Promise<{ 
         {s && !s.father_name && <Badge value="due" text="Father's name is missing on the record" />}
         {s && s.status !== "active" && <Badge value="contacted" text={`Status: ${s.status.replace("_", " ")}`} />}
       </div>
+      {clearance && (
+        <Card title={tcBlocked ? "Transfer Certificate on hold — fees pending" : "Clearance"} icon="fees">
+          {tcBlocked ? (
+            <p className="m-0 text-[14px]">₹{Number(clearance.owed).toLocaleString("en-IN")} is still pending ({clearance.mode === "all" ? "every fee of the student must be paid" : "every instalment due till today must be paid"}).
+              {" "}<Link href={`/app/fees/collect?student=${stu}`} className="font-semibold">Collect the fee →</Link></p>
+          ) : <p className="m-0 text-[14px] text-[#15803d]">All fees are paid.</p>}
+          <div className="mt-2 flex flex-wrap gap-2 text-[13px]">
+            {clearance.books_out > 0 && <Badge value="high" text={`${clearance.books_out} library book(s) not returned`} />}
+            {clearance.assets_out > 0 && <Badge value="high" text={`${clearance.assets_out} school item(s) not returned`} />}
+            {clearance.hostel_bed && <Badge value="high" text="Still has a hostel bed — vacate it" />}
+          </div>
+        </Card>
+      )}
       <Card title="Details" description="Name, parents, class and the other fields come from the record at the moment of issue.">
         <form action={issueDocument} className="grid gap-3 sm:grid-cols-4">
           <input type="hidden" name="template_id" value={tplId} />
@@ -72,7 +90,7 @@ export default async function Issue({ searchParams }: { searchParams: Promise<{ 
           {t.one_per_student && (prev ?? []).length > 0 && (
             <label className="flex items-center gap-2 text-[14px] text-ink sm:col-span-4"><input type="checkbox" name="duplicate" value="1" className="h-4 w-4" /> Duplicate copy (already issued: {(prev ?? []).map((p) => p.doc_no).join(", ")})</label>
           )}
-          <div className="sm:col-span-4"><Submit>Issue</Submit> <Link href={`/app/documents/templates/${tplId}`} className="ml-3 text-[13px]">View / edit template</Link></div>
+          <div className="sm:col-span-4">{tcBlocked ? <button type="button" disabled className="btn btn-primary cursor-not-allowed border-0 opacity-50">Issue (fees pending)</button> : <Submit>Issue</Submit>} <Link href={`/app/documents/templates/${tplId}`} className="ml-3 text-[13px]">View / edit template</Link></div>
         </form>
       </Card>
     </div>

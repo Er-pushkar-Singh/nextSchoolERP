@@ -737,18 +737,28 @@
     },
     {
       "code": "inventory",
-      "name": "Inventory & sales",
+      "name": "Inventory & assets",
       "group": "Operations",
       "tier": "Phase 3",
       "submodules": [
         {
           "code": "items",
-          "name": "Items & stock",
+          "name": "Items, rooms & stock",
           "actions": [
             "view",
             "create",
             "edit",
             "delete"
+          ],
+          "built": true
+        },
+        {
+          "code": "assign",
+          "name": "Assign, return & repairs",
+          "actions": [
+            "view",
+            "create",
+            "edit"
           ],
           "built": true
         },
@@ -764,7 +774,7 @@
         },
         {
           "code": "sales",
-          "name": "Uniform, book & stationery sales",
+          "name": "Uniform, book & stationery shop",
           "actions": [
             "view",
             "create",
@@ -1186,6 +1196,10 @@
         "inventory.sales": [
           "school",
           "view"
+        ],
+        "inventory.assign": [
+          "school",
+          "view"
         ]
       }
     },
@@ -1323,6 +1337,10 @@
           "create",
           "edit",
           "print"
+        ],
+        "inventory.assign": [
+          "school",
+          "view"
         ]
       }
     },
@@ -1466,6 +1484,10 @@
           "view",
           "create",
           "print"
+        ],
+        "inventory.assign": [
+          "school",
+          "view"
         ]
       }
     },
@@ -1559,6 +1581,12 @@
           "view",
           "create",
           "print"
+        ],
+        "inventory.assign": [
+          "school",
+          "view",
+          "create",
+          "edit"
         ]
       }
     },
@@ -1804,6 +1832,10 @@
         "reports.overview": [
           "school",
           "view"
+        ],
+        "inventory.assign": [
+          "school",
+          "view"
         ]
       }
     },
@@ -1847,6 +1879,16 @@
           "own",
           "view",
           "create"
+        ],
+        "inventory.assign": [
+          "school",
+          "view",
+          "create",
+          "edit"
+        ],
+        "inventory.items": [
+          "school",
+          "view"
         ]
       }
     },
@@ -1898,6 +1940,16 @@
         "wellbeing.medical": [
           "school",
           "view"
+        ],
+        "inventory.items": [
+          "school",
+          "view"
+        ],
+        "inventory.assign": [
+          "school",
+          "view",
+          "create",
+          "edit"
         ]
       }
     },

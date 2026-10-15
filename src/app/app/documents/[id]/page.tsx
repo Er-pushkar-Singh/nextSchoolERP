@@ -5,7 +5,8 @@ import { Flash, PageHeader, Submit } from "@/components/ui/ui";
 import { PrintButton } from "@/components/ui/PrintButton";
 import { fmtDate } from "@/lib/format";
 import { sanitizeHtml, withPhoto } from "@/lib/html-sanitize";
-import { withQr } from "@/lib/qr";
+import { withQr, withVerify } from "@/lib/qr";
+import { withBarcode } from "@/lib/barcode";
 import { signedPhotoUrls } from "@/lib/doc-photo";
 import { getBranding, withBrand } from "@/lib/branding";
 import { DocSheet } from "@/components/DocSheet";
@@ -20,7 +21,7 @@ export default async function IssuedDocument({ params, searchParams }: { params:
   if (!d) notFound();
   const photos = d.student_id ? await signedPhotoUrls(school.id, [d.student_id]) : new Map<string, string>();
   const branding = await getBranding(supabase, school.id);
-  const html = withBrand(withQr(withPhoto(sanitizeHtml(d.html), d.student_id ? photos.get(d.student_id) ?? null : null)), branding);
+  const html = withVerify(withBarcode(withBrand(withQr(withPhoto(sanitizeHtml(d.html), d.student_id ? photos.get(d.student_id) ?? null : null)), branding)), d.id);
   const width = d.page_size === "card" ? `${d.card_width_mm ?? 86}mm` : d.page_size === "A5" ? "148mm" : "210mm";
   const cancelled = d.status === "cancelled";
 

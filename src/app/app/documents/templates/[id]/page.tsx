@@ -5,7 +5,8 @@ import { Card, Flash, PageHeader, Table, td } from "@/components/ui/ui";
 import { TemplateEditor, type Tpl } from "@/components/TemplateEditor";
 import { fmtDate } from "@/lib/format";
 import { sanitizeHtml, withPhoto } from "@/lib/html-sanitize";
-import { withQr } from "@/lib/qr";
+import { withQr, withVerify } from "@/lib/qr";
+import { withBarcode } from "@/lib/barcode";
 import { cleanSearch, fullName } from "@/lib/format";
 import { restoreVersion } from "../../../_actions/documents";
 
@@ -38,7 +39,7 @@ export default async function TemplatePage({ params, searchParams }: { params: P
     if (!preview && !error) previewError = "Preview appears once the school has a receipt (receipt template) or a student with dues (demand / statement).";
   } else if (stu || stf) {
     const { data, error } = await supabase.rpc("preview_document", { tpl: id, stu, stf });
-    if (error) previewError = error.message; else preview = withQr(withPhoto(sanitizeHtml(String(data ?? "")), null));
+    if (error) previewError = error.message; else preview = withVerify(withBarcode(withQr(withPhoto(sanitizeHtml(String(data ?? "")), null))), null);
   }
   const w = t.page_size === "card" ? `${t.card_width_mm}mm` : t.page_size === "A5" ? "148mm" : "210mm";
 

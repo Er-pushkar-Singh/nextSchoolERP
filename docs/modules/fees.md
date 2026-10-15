@@ -99,3 +99,15 @@ Earlier bug: a template created from the gallery under another code was never fo
 
 ## Pagination (15 Oct 2026)
 Defaulters, receipts, cheques, promises to pay, refunds, fee structure (cards per class, 5 / 10 / 20) and fee reports (two pagers: `page`/`size` and `opage`/`osize`) are paged; totals above a table always cover the whole selection, not just the page. `Pagination` / `pageParams` accept custom `sizes`, `pageKey` and `sizeKey`.
+
+## One money trail per student (15 Oct 2026, migration `0039`)
+Everything another module charges a student becomes a due on the **fee account** (collected at the one counter, one ledger, one receipt), through `charge_student()` with a source key so nothing is billed twice:
+| Source | Head | Key |
+|---|---|---|
+| UP Board registration / exam form fee (on start or fee change) | Board Registration Fee | `board:<registration>` |
+| Library fine of a student (on return) | Library Fine | `libfine:<issue>` |
+| Discipline fine (principal sets it per incident) | Discipline Fine | `disc:<incident>:<student>` |
+| Damaged / lost school property | Damage / Loss Recovery | `asset:<assignment>` |
+| Shop bill added to the fee account | Uniform & Books | `sale:<sale>` |
+| Hostel / transport fee | Hostel Fee / Transport | as before |
+Payment flows back: a paid board fee fills "Fee received on", a paid library fine marks the fine paid. Cancelling the source removes an unpaid charge. Staff fines (library) are still collected at the library into the day book. The student profile shows "Clearance & other charges"; `student_charges()` lists them. **TC clearance** setting: `fee_settings.tc_clearance` (`all` | `due_till_today`).

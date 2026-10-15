@@ -163,6 +163,7 @@ export default async function BoardStudent({ params, searchParams }: { params: P
                 </fieldset>
                 {!locked && <div className="flex items-end"><Submit variant="secondary">Save</Submit></div>}
               </form>
+              <p className="m-0 mt-3 text-[13px] text-muted">The registration fee is on the student&apos;s fee account (head “Board Registration Fee”) — collect it at the <Link href={`/app/fees/collect?student=${id}`}>fee counter</Link>; “Fee received on” fills itself when it is paid.</p>
             </Card>
           )}
 

@@ -41,6 +41,7 @@ export default async function FeeSettings({ searchParams }: { searchParams: Prom
             <Check name="concession_approval" label="Concessions need the principal's approval" hint="A concession entered by an accountant waits as “pending” and is billed only after approval." on={!!s?.concession_approval} />
             <Check name="advance_allowed" label="Accept more than the amount due (kept as advance)" hint="Off: a payment larger than the dues is refused." on={s?.advance_allowed ?? true} />
             <div className="max-w-xs"><Input label="Bank charge for a bounced cheque (₹)" name="bounce_charge" type="number" step="0.01" min={0} defaultValue={s?.bounce_charge ?? 0} /></div>
+            <div className="max-w-md"><Select label="Transfer Certificate needs" name="tc_clearance" defaultValue={(s as { tc_clearance?: string } | null)?.tc_clearance ?? "all"} options={[["all", "Every fee of the student paid (full fee)"], ["due_till_today", "Every instalment due till today paid"]]} /></div>
             <Input label="Receipt footer" name="receipt_footer" defaultValue={s?.receipt_footer} hint="Printed at the bottom of every receipt, e.g. “Fees once paid are not refundable.”" />
           </div>
         </Card>

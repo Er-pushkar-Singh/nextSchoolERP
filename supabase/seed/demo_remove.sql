@@ -13,6 +13,16 @@ begin
   select id into sid from public.schools where code = v_code;
   if sid is null then raise exception 'No school with code "%".', v_code; end if;
 
+  -- school property held by demo people or of demo items goes first (assignments keep their people)
+  if to_regclass('public.inventory_assignments') is not null then
+    delete from public.inventory_repairs where school_id = sid and item_id in (select id from public.inventory_items where school_id = sid and sku like 'DEMO-A%');
+    delete from public.inventory_assignments where school_id = sid and (item_id in (select id from public.inventory_items where school_id = sid and sku like 'DEMO-A%')
+       or student_id in (select id from public.students where school_id = sid and (admission_no like 'DEMO-%' or admission_no like 'SCALE-%'))
+       or staff_id in (select id from public.staff where school_id = sid and emp_code like 'DEMO-E%'));
+    delete from public.inventory_items where school_id = sid and sku like 'DEMO-A%';
+    delete from public.inventory_locations l where l.school_id = sid and l.building = 'DEMO block'
+       and not exists (select 1 from public.inventory_assignments a where a.location_id = l.id);
+  end if;
   -- students created by "Admit" from demo applications, then the seeded ones
   -- receipts first: they are not removed automatically with a student
   delete from public.fee_receipts where school_id = sid and student_id in (

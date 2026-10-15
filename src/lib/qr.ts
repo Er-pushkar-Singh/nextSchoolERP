@@ -1,4 +1,5 @@
 import QRCode from "qrcode";
+import { appUrl } from "./brand";
 
 /** A QR code as an SVG data URL, built without any network call (works inside print pages and templates). */
 export function qrDataUrl(text: string, dark = "#000000"): string {
@@ -14,4 +15,10 @@ export function qrDataUrl(text: string, dark = "#000000"): string {
 /** Fills every QR slot (<img data-qr="code">) of a rendered document. */
 export function withQr(html: string): string {
   return html.replace(/<img([^>]*?)data-qr="([0-9a-f]{12})"([^>]*?)src=""/g, (_m, a: string, code: string, b: string) => `<img${a}data-qr="${code}"${b}src="${qrDataUrl(code)}"`);
+}
+
+/** Fills the verification QR (<img data-verify="1">) with the link to this document's public verification page. */
+export function withVerify(html: string, docId: string | null): string {
+  const url = docId && /^[0-9a-f-]{36}$/.test(docId) ? appUrl(`/verify/${docId}`) : appUrl("/verify/sample");
+  return html.replace(/<img([^>]*?)data-verify="1"([^>]*?)src=""/g, (_m, a: string, b: string) => `<img${a}data-verify="1"${b}src="${qrDataUrl(url)}"`);
 }

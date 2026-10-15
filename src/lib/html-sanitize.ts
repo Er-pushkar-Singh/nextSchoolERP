@@ -3,7 +3,7 @@
 
 const TAGS = new Set(["div", "span", "p", "br", "hr", "b", "strong", "i", "em", "u", "small", "sub", "sup", "center", "h1", "h2", "h3", "h4", "h5", "h6",
   "table", "thead", "tbody", "tfoot", "tr", "td", "th", "ul", "ol", "li", "img", "blockquote", "pre", "font"]);
-const ATTRS = new Set(["style", "class", "colspan", "rowspan", "width", "height", "align", "valign", "src", "alt", "data-photo", "data-qr", "data-brand", "border", "cellpadding", "cellspacing", "size", "color"]);
+const ATTRS = new Set(["style", "class", "colspan", "rowspan", "width", "height", "align", "valign", "src", "alt", "data-photo", "data-qr", "data-brand", "data-barcode", "data-verify", "border", "cellpadding", "cellspacing", "size", "color"]);
 const VOID = new Set(["br", "hr", "img"]);
 
 function cleanStyle(v: string) {

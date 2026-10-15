@@ -143,7 +143,8 @@ export default async function Library({ searchParams }: { searchParams: Promise<
                     )}
                     {open && edit && <form action={renewBook}><input type="hidden" name="back" value={back} /><input type="hidden" name="id" value={i.id} /><button className="cursor-pointer border-0 bg-transparent p-0 text-[13px] text-blue underline">Renew</button></form>}
                     {remind && <a href={remind} target="_blank" rel="noopener noreferrer">WhatsApp parent</a>}
-                    {!open && i.fine > 0 && !i.fine_paid_on && edit && (
+                    {!open && i.fine > 0 && !i.fine_paid_on && i.member_kind === "student" && <Link href={`/app/fees/collect?student=${i.member_id}`} className="font-semibold">On fee account →</Link>}
+                    {!open && i.fine > 0 && !i.fine_paid_on && edit && i.member_kind === "staff" && (
                       <form action={collectLibraryFine} className="flex items-center gap-1.5">
                         <input type="hidden" name="back" value={back} /><input type="hidden" name="id" value={i.id} />
                         <select name="mode" className="input !min-h-8 !py-1 text-[13px]" aria-label="Payment mode"><option value="cash">Cash</option><option value="upi">UPI</option><option value="cheque">Cheque</option></select>

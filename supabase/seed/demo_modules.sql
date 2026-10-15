@@ -220,6 +220,70 @@ begin
     end;
   end if;
 
+  -- ── School property: rooms, assets in rooms, laptops with staff, kits with students, repairs ──
+  if to_regclass('public.inventory_assignments') is not null and not exists (select 1 from public.inventory_items where school_id = sid and sku like 'DEMO-A%') then
+    declare fan uuid; tube uuid; bench uuid; desk uuid; chair uuid; proj uuid; pc uuid; lap uuid; kit uuid; key1 uuid; r record; k int := 0; j jsonb;
+    begin
+      insert into public.inventory_locations (school_id, name, kind, class_id, section_id, building)
+      select sid, 'Class ' || c.name || '-' || sec.name, 'classroom', c.id, sec.id, 'DEMO block'
+        from public.sections sec join public.classes c on c.id = sec.class_id
+       where c.school_id = sid and not exists (select 1 from public.inventory_locations l where l.school_id = sid and l.name = 'Class ' || c.name || '-' || sec.name)
+       order by c.sort, sec.name limit 30;
+      insert into public.inventory_locations (school_id, name, kind, building) values
+        (sid, 'Computer lab', 'lab', 'DEMO block'), (sid, 'Science lab', 'lab', 'DEMO block'), (sid, 'Principal''s office', 'office', 'DEMO block'),
+        (sid, 'Staff room', 'staffroom', 'DEMO block'), (sid, 'Sports room', 'other', 'DEMO block')
+      on conflict do nothing;
+      insert into public.inventory_items (school_id, sku, name, category, kind, cost, reorder_level) values (sid, 'DEMO-A-FAN', 'Ceiling fan', 'Electrical', 'asset', 2200, 4) returning id into fan;
+      insert into public.inventory_items (school_id, sku, name, category, kind, cost, reorder_level) values (sid, 'DEMO-A-TUBE', 'LED tube light', 'Electrical', 'asset', 350, 10) returning id into tube;
+      insert into public.inventory_items (school_id, sku, name, category, kind, cost, reorder_level) values (sid, 'DEMO-A-BENCH', 'Student bench (2-seater)', 'Furniture & fittings', 'asset', 3200, 5) returning id into bench;
+      insert into public.inventory_items (school_id, sku, name, category, kind, cost, reorder_level) values (sid, 'DEMO-A-TDESK', 'Teacher''s table', 'Furniture & fittings', 'asset', 4500, 1) returning id into desk;
+      insert into public.inventory_items (school_id, sku, name, category, kind, cost, reorder_level) values (sid, 'DEMO-A-CHAIR', 'Chair', 'Furniture & fittings', 'asset', 900, 5) returning id into chair;
+      insert into public.inventory_items (school_id, sku, name, category, kind, cost, reorder_level) values (sid, 'DEMO-A-PROJ', 'Projector', 'Computers & IT', 'asset', 32000, 0) returning id into proj;
+      insert into public.inventory_items (school_id, sku, name, category, kind, cost, reorder_level) values (sid, 'DEMO-A-PC', 'Desktop computer', 'Computers & IT', 'asset', 38000, 1) returning id into pc;
+      insert into public.inventory_items (school_id, sku, name, category, kind, cost, reorder_level) values (sid, 'DEMO-A-LAP', 'Laptop', 'Computers & IT', 'asset', 45000, 1) returning id into lap;
+      insert into public.inventory_items (school_id, sku, name, category, kind, cost, reorder_level) values (sid, 'DEMO-A-KIT', 'Cricket kit', 'Sports', 'asset', 6500, 1) returning id into kit;
+      insert into public.inventory_items (school_id, sku, name, category, kind, cost, reorder_level) values (sid, 'DEMO-A-KEY', 'Lab key set', 'Office', 'asset', 150, 0) returning id into key1;
+      insert into public.inventory_items (school_id, sku, name, category, kind, cost, reorder_level, unit) values (sid, 'DEMO-A-CHALK', 'Chalk box', 'Stationery', 'consumable', 40, 20, 'box');
+      perform public.inventory_adjust(sid, fan, 80, 'opening', 'DEMO');
+      perform public.inventory_adjust(sid, tube, 140, 'opening', 'DEMO');
+      perform public.inventory_adjust(sid, bench, 650, 'opening', 'DEMO');
+      perform public.inventory_adjust(sid, desk, 35, 'opening', 'DEMO');
+      perform public.inventory_adjust(sid, chair, 70, 'opening', 'DEMO');
+      perform public.inventory_adjust(sid, proj, 4, 'opening', 'DEMO');
+      perform public.inventory_adjust(sid, pc, 26, 'opening', 'DEMO');
+      perform public.inventory_adjust(sid, lap, 8, 'opening', 'DEMO');
+      perform public.inventory_adjust(sid, kit, 3, 'opening', 'DEMO');
+      perform public.inventory_adjust(sid, key1, 4, 'opening', 'DEMO');
+      perform public.inventory_adjust(sid, (select id from public.inventory_items where school_id = sid and sku = 'DEMO-A-CHALK'), 18, 'opening', 'DEMO');
+      -- every classroom: 2 fans, 4 tube lights, benches, a teacher's table and a chair
+      for r in select id from public.inventory_locations where school_id = sid and kind = 'classroom' and building = 'DEMO block' order by name loop
+        perform public.inventory_assign(sid, fan, 2, 'location', r.id, null, null, null, 'DEMO');
+        perform public.inventory_assign(sid, tube, 4, 'location', r.id, null, null, null, 'DEMO');
+        perform public.inventory_assign(sid, bench, 18, 'location', r.id, null, null, null, 'DEMO');
+        perform public.inventory_assign(sid, desk, 1, 'location', r.id, null, null, null, 'DEMO');
+        perform public.inventory_assign(sid, chair, 1, 'location', r.id, null, null, null, 'DEMO');
+      end loop;
+      perform public.inventory_assign(sid, pc, 20, 'location', (select id from public.inventory_locations where school_id = sid and name = 'Computer lab'), null, null, null, 'DEMO');
+      perform public.inventory_assign(sid, proj, 1, 'location', (select id from public.inventory_locations where school_id = sid and name = 'Computer lab'), null, null, 'PRJ-01', 'DEMO');
+      perform public.inventory_assign(sid, fan, 3, 'location', (select id from public.inventory_locations where school_id = sid and name = 'Staff room'), null, null, null, 'DEMO');
+      -- laptops and keys with staff (one overdue), a cricket kit with a student (overdue)
+      for r in select id from public.staff where school_id = sid and status = 'active' order by emp_code nulls last limit 4 loop
+        k := k + 1;
+        j := public.inventory_assign(sid, lap, 1, 'staff', r.id, null, case when k = 1 then public.today_ist() + 1 else public.today_ist() + 60 end, 'LT-00' || k, 'DEMO');
+        if k = 1 then update public.inventory_assignments set due_back = public.today_ist() - 6, assigned_on = public.today_ist() - 40 where id = (j ->> 'id')::uuid; end if;
+        if k = 2 then perform public.inventory_assign(sid, key1, 1, 'staff', r.id, null, null, 'KEY-LAB-1', 'DEMO'); end if;
+      end loop;
+      for r in select id from public.students where school_id = sid and status = 'active' order by admission_no desc limit 2 loop
+        j := public.inventory_assign(sid, kit, 1, 'student', r.id, null, public.today_ist() + 3, null, 'DEMO');
+        update public.inventory_assignments set due_back = public.today_ist() - 2, assigned_on = public.today_ist() - 9 where id = (j ->> 'id')::uuid;
+      end loop;
+      -- a fan that came back needing repair, and a projector fault reported
+      select id into r from public.inventory_assignments where school_id = sid and item_id = fan and status = 'active' order by created_at limit 1;
+      if r.id is not null then perform public.inventory_return(sid, r.id, 1, 'needs_repair', 'Fan making noise (demo)'); end if;
+      perform public.inventory_report_fault(sid, proj, 1, 'Image flickering (demo)', (select id from public.inventory_locations where school_id = sid and name = 'Computer lab'));
+    end;
+  end if;
+
   -- ── Messages: a few outbox rows so the screen is not empty ──
   if to_regclass('public.message_outbox') is not null and not exists (select 1 from public.message_outbox where school_id = sid and created_by_name = 'DEMO') then
     insert into public.message_outbox (school_id, channel, event, to_addr, recipient_name, student_id, subject, body, status, attempts, last_error, provider_ref, account_source, created_by_name, created_at, sent_at, dedupe_key)

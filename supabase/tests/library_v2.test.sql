@@ -80,14 +80,25 @@ begin
   perform public.library_issue(a, b1, 'L2');
   perform pg_temp.check((select status = 'fulfilled' from public.library_reservations where book_id = b1 limit 1), 'issuing to the reserving member fulfils the reservation');
 
-  -- fine collection posts to the day book
-  perform public.library_collect_fine(a, i1, 'cash');
+  -- a student's fine goes to the fee account (one place to pay); nothing is collected twice
   perform pg_temp.act_admin();
-  perform pg_temp.check((select count(*) from public.vouchers where school_id = a and narration like 'Library fine%' and amount = 10 and status = 'posted') = 1, 'a collected fine becomes a posted receipt voucher');
+  perform pg_temp.check((select d.amount = 10 and d.student_id = s1 from public.fee_dues d where d.source_key = 'libfine:' || i1), 'a student''s library fine becomes a due on the fee account');
   perform pg_temp.act_as(lb);
-  begin perform public.library_collect_fine(a, i1, 'cash'); perform pg_temp.check(false, 'twice');
-  exception when others then perform pg_temp.check(sqlerrm like '%no fine to collect%', 'a fine cannot be collected twice'); end;
+  begin perform public.library_collect_fine(a, i1, 'cash'); perform pg_temp.check(false, 'collect student');
+  exception when others then perform pg_temp.check(sqlerrm like '%fee account%', 'the librarian is told to collect it at the fee counter'); end;
 
+  -- a staff member has no fee account: the fine is collected at the library and posted to the day book
+  perform pg_temp.act_admin();
+  update public.library_issues set issued_on = d - 40, due_on = d - 8 where staff_id = w1 and returned_on is null;
+  perform pg_temp.act_as(lb);
+  i2 := (select id from public.library_issues where staff_id = w1 and returned_on is null);
+  perform public.library_return(a, i2);
+  perform public.library_collect_fine(a, i2, 'cash');
+  perform pg_temp.act_admin();
+  perform pg_temp.check((select count(*) from public.vouchers where school_id = a and narration like 'Library fine%' and status = 'posted') = 1, 'a staff fine collected at the library becomes a posted receipt voucher');
+  perform pg_temp.act_as(lb);
+  begin perform public.library_collect_fine(a, i2, 'cash'); perform pg_temp.check(false, 'twice');
+  exception when others then perform pg_temp.check(sqlerrm like '%no fine to collect%', 'a fine cannot be collected twice'); end;
   -- lost book charges its price and removes a copy
   i2 := (select id from public.library_issues where book_id = b2 and returned_on is null);
   j := public.library_return(a, i2, true);

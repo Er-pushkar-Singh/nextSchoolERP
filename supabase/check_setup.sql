@@ -754,7 +754,10 @@ with expected(mig, kind, name, extra) as (values
   ('0041', 'function', 'verify_document', ''),
   ('0041', 'function', 'attendance_close_day', ''),
   ('0041', 'function', 'attendance_clear', ''),
-  ('0041', 'function', 'attendance_scan_feed', '')
+  ('0041', 'function', 'attendance_scan_feed', ''),
+  ('0042', 'function', 'render_document', ''),
+  ('0042', 'function', 'document_data', ''),
+  ('0042', 'column', 'staff', 'probation_months')
 ),
 missing as (
   select e.* from expected e

@@ -9,7 +9,13 @@ import { DOC_BUCKET } from "@/lib/student-docs";
 const ids = (f: FormData, k: string) => f.getAll(k).map(String).filter((x) => /^[0-9a-f-]{36}$/.test(x));
 const back = (f: FormData, fallback: string) => {
   const b = String(f.get("back") ?? "");
-  return b.startsWith("/app/") ? b : fallback;
+  if (!b.startsWith("/app/") || b.includes("//")) return fallback;
+  // an earlier flash message must not ride along
+  const [path, hash] = b.split("#");
+  const [base, query = ""] = path.split("?");
+  const q = new URLSearchParams(query);
+  q.delete("ok"); q.delete("error");
+  return `${base}${q.size ? `?${q}` : ""}${hash ? `#${hash}` : ""}`;
 };
 
 /* ───────────── Students ───────────── */
@@ -83,7 +89,7 @@ export async function bulkStudents(f: FormData) {
 export async function blockStaff(f: FormData) {
   const { supabase, school } = await requirePerm("hr.staff.block");
   const id = uuid(f, "id");
-  const to = `/app/hr/staff/${id}`;
+  const to = back(f, `/app/hr/staff/${id}`);
   const { error } = await supabase.rpc("block_staff", { sid: school.id, p_staff: id, p_reason: str(f, "reason", 200) ?? "", p_till: date(f, "till") });
   revalidatePath(to);
   go(to, error ? { error: errMsg(error) } : { ok: "Blocked. If this person has an ERP login, they can no longer use it." });
@@ -92,7 +98,7 @@ export async function blockStaff(f: FormData) {
 export async function unblockStaff(f: FormData) {
   const { supabase, school } = await requirePerm("hr.staff.block");
   const id = uuid(f, "id");
-  const to = `/app/hr/staff/${id}`;
+  const to = back(f, `/app/hr/staff/${id}`);
   const { error } = await supabase.rpc("unblock_staff", { sid: school.id, p_staff: id });
   revalidatePath(to);
   go(to, error ? { error: errMsg(error) } : { ok: "Unblocked." });

@@ -65,3 +65,17 @@ export function Pagination({ total, page, size, basePath, params, sizes = PAGE_S
     </nav>
   );
 }
+
+/**
+ * One pager among several on the same page (own ?<pageKey>= / ?<sizeKey>=, other query values kept).
+ *   const p = pager(sp, "lp", "ls");   query.range(...p.range)   <Pagination {...p.props(total, "/app/x")} />
+ */
+export function pager(sp: Record<string, string | undefined>, pageKey = "page", sizeKey = "size", fallback = 10, sizes: readonly number[] = [10, 25, 50]) {
+  const { page, size, offset } = pageParams({ page: sp[pageKey], size: sp[sizeKey] }, fallback, sizes);
+  const params: Record<string, string | undefined> = {};
+  for (const [k, v] of Object.entries(sp)) if (v && k !== pageKey && k !== sizeKey && k !== "ok" && k !== "error") params[k] = v;
+  return {
+    page, size, offset, range: [offset, offset + size - 1] as [number, number],
+    props: (total: number, basePath: string) => ({ total, page, size, basePath, params, sizes, pageKey, sizeKey }),
+  };
+}

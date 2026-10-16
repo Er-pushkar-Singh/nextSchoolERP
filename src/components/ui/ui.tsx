@@ -25,9 +25,9 @@ export function PageHeader({ title, subtitle, actions, back, icon }: { title: st
   );
 }
 
-export function Card({ title, actions, children, className = "", icon, description }: { title?: string; actions?: React.ReactNode; children: React.ReactNode; className?: string; icon?: IconName; description?: React.ReactNode }) {
+export function Card({ title, actions, children, className = "", icon, description, id }: { id?: string; title?: string; actions?: React.ReactNode; children: React.ReactNode; className?: string; icon?: IconName; description?: React.ReactNode }) {
   return (
-    <section className={`rounded-[14px] border border-line bg-white p-5 shadow-[var(--shadow-card)] ${className}`}>
+    <section id={id} className={`scroll-mt-20 rounded-[14px] border border-line bg-white p-5 shadow-[var(--shadow-card)] ${className}`}>
       {(title || actions) && (
         <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2.5">

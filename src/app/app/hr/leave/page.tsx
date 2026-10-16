@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireSchool } from "@/lib/school";
 import { redirect } from "next/navigation";
 import { Badge, Card, Empty, Flash, Input, PageHeader, Select, Submit, Table, Textarea, td } from "@/components/ui/ui";
+import { Pagination, pager } from "@/components/ui/Pagination";
 import { fmtDate, money, todayIST } from "@/lib/format";
 import { LEAVE_KINDS, monthName, QUOTA_KINDS } from "@/lib/hr";
 import { applyLeave, cancelLeave, decideLeave } from "../../_actions/hr";
@@ -12,7 +13,7 @@ type Leave = {
 };
 const sel = "id,staff_id,kind,from_date,to_date,half_day,days,reason,status,decided_by_name,decision_note,created_at,staff(name,designation)";
 
-export default async function LeavePage({ searchParams }: { searchParams: Promise<{ status?: string; ok?: string; error?: string }> }) {
+export default async function LeavePage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const ctx = await requireSchool();
   const { supabase, school, session, can, canSchool } = ctx;
   if (!ctx.canAny("hr.leave.view", "hr.leave.create", "hr.leave.approve")) redirect("/app?denied=1");
@@ -25,18 +26,19 @@ export default async function LeavePage({ searchParams }: { searchParams: Promis
   const d1 = session?.start_date ?? `${todayIST().slice(0, 4)}-01-01`, d2 = session?.end_date ?? `${todayIST().slice(0, 4)}-12-31`;
   const status = ["pending", "approved", "rejected", "cancelled"].includes(sp.status ?? "") ? sp.status! : null;
 
-  const [{ data: mine }, { data: myStaff }, { data: used }, { data: pending }, { data: recent }, { data: staffList }, { data: slips }] = await Promise.all([
-    me ? supabase.from("staff_leaves").select(sel).eq("staff_id", me).order("from_date", { ascending: false }).limit(30) : Promise.resolve({ data: [] }),
+  const pw = pager(sp, "wp", "ws"), pm = pager(sp, "mp", "ms"), ps = pager(sp, "sp", "ss"), pa = pager(sp, "page", "size", 25, [25, 50, 100]);
+  const [{ data: mine, count: mineN }, { data: myStaff }, { data: used }, { data: pending, count: pendingN }, { data: recent, count: recentN }, { data: staffList }, { data: slips, count: slipN }] = await Promise.all([
+    me ? supabase.from("staff_leaves").select(sel, { count: "exact" }).eq("staff_id", me).order("from_date", { ascending: false }).range(...pm.range) : Promise.resolve({ data: [], count: 0 }),
     me ? supabase.from("staff").select("name,leave_quota").eq("id", me).maybeSingle() : Promise.resolve({ data: null }),
     supabase.rpc("leave_summary", { sid: school.id, d1, d2 }),
-    approver ? supabase.from("staff_leaves").select(sel).eq("school_id", school.id).eq("status", "pending").order("from_date").limit(200) : Promise.resolve({ data: [] }),
+    approver ? supabase.from("staff_leaves").select(sel, { count: "exact" }).eq("school_id", school.id).eq("status", "pending").order("from_date").order("id").range(...pw.range) : Promise.resolve({ data: [], count: 0 }),
     seeAll ? (() => {
-      let q = supabase.from("staff_leaves").select(sel).eq("school_id", school.id).order("from_date", { ascending: false }).limit(100);
+      let q = supabase.from("staff_leaves").select(sel, { count: "exact" }).eq("school_id", school.id).order("from_date", { ascending: false }).order("id").range(pa.offset, pa.offset + pa.size - 1);
       if (status) q = q.eq("status", status);
       return q;
-    })() : Promise.resolve({ data: [] }),
+    })() : Promise.resolve({ data: [], count: 0 }),
     forOthers ? supabase.from("staff").select("id,name").eq("school_id", school.id).eq("status", "active").order("name") : Promise.resolve({ data: [] }),
-    me ? supabase.from("payslips").select("id,net,paid_on,payroll_runs(month)").eq("staff_id", me).limit(12) : Promise.resolve({ data: [] }),
+    me ? supabase.from("payroll_runs").select("month,payslips!inner(id,net,paid_on,staff_id)", { count: "exact" }).eq("payslips.staff_id", me).order("month", { ascending: false }).range(...ps.range) : Promise.resolve({ data: [], count: 0 }),
   ]);
   const M = (mine ?? []) as unknown as Leave[];
   const U = (used ?? []) as { staff_id: string; kind: string; days: number }[];
@@ -45,8 +47,7 @@ export default async function LeavePage({ searchParams }: { searchParams: Promis
   const kind = new Map(LEAVE_KINDS);
   const canApply = can("hr.leave.create") && (me || forOthers);
   const P = (pending ?? []) as unknown as Leave[];
-  const S = ((slips ?? []) as unknown as { id: string; net: number; paid_on: string | null; payroll_runs: { month: string } | null }[])
-    .sort((a, b) => (b.payroll_runs?.month ?? "").localeCompare(a.payroll_runs?.month ?? ""));
+  const S = ((slips ?? []) as unknown as { month: string; payslips: { id: string; net: number; paid_on: string | null }[] }[]).flatMap((r) => r.payslips.map((x) => ({ ...x, payroll_runs: { month: r.month } })));
   const dates = (l: Leave) => `${fmtDate(l.from_date)}${l.to_date !== l.from_date ? ` – ${fmtDate(l.to_date)}` : ""}${l.half_day ? " (half day)" : ""}`;
 
   return (
@@ -104,6 +105,7 @@ export default async function LeavePage({ searchParams }: { searchParams: Promis
               ))}
             </ul>
           ) : <p className="m-0 text-[14px] text-muted">Nothing waiting.</p>}
+          <div className="mt-3"><Pagination {...pw.props(pendingN ?? 0, "/app/hr/leave")} /></div>
         </Card>
       )}
 
@@ -123,6 +125,7 @@ export default async function LeavePage({ searchParams }: { searchParams: Promis
               ))}
             </Table>
           ) : <p className="m-0 text-[14px] text-muted">No leave requests yet.</p>}
+          <div className="mt-3"><Pagination {...pm.props(mineN ?? 0, "/app/hr/leave")} /></div>
         </Card>
       )}
 
@@ -136,6 +139,7 @@ export default async function LeavePage({ searchParams }: { searchParams: Promis
               </li>
             ))}
           </ul>
+          <div className="mt-3"><Pagination {...ps.props(slipN ?? 0, "/app/hr/leave")} /></div>
         </Card>
       )}
 
@@ -162,6 +166,7 @@ export default async function LeavePage({ searchParams }: { searchParams: Promis
               ))}
             </Table>
           ) : <Empty>No leave recorded.</Empty>}
+          <Pagination {...pa.props(recentN ?? 0, "/app/hr/leave")} />
         </>
       )}
     </div>

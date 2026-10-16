@@ -30,7 +30,7 @@ The top-level [`README.md`](../README.md) is the product / setup guide; these do
 | 12 | Parent page | [modules/parent-portal.md](modules/parent-portal.md) | none — secret link | Built |
 | 13 | Homework & study material | [modules/homework.md](modules/homework.md) | `homework.*` | Built (step 5) |
 | 14 | Transport | [modules/transport.md](modules/transport.md) | `transport.*` | Built (step 5; GPS tracking: not yet) |
-| 15 | Staff & payroll (HR) | [modules/hr-payroll.md](modules/hr-payroll.md) | `hr.*` | Built (step 5) |
+| 15 | Staff & payroll (HR) | [modules/hr-payroll.md](modules/hr-payroll.md) | `hr.*` | Built (step 5; step 40: logins, reset password, HR letters, pagination) |
 | 16 | Library | [modules/library.md](modules/library.md) | `library.*` | Built (step 5; v2 step 30: card issue, rules, reservations, fines → day book) |
 | 27 | Health & discipline | [modules/health-discipline.md](modules/health-discipline.md) | `wellbeing.*` | Built (step 31) |
 | 28 | Hostel | [modules/hostel.md](modules/hostel.md) | `hostel.*` | Built (step 32) |

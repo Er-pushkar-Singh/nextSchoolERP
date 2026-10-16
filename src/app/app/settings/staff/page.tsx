@@ -2,6 +2,10 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { requirePerm } from "@/lib/school";
 import { Badge, Card, Empty, Flash, Input, PageHeader, Submit, Table, td } from "@/components/ui/ui";
+import { Pagination, pageParams } from "@/components/ui/Pagination";
+import { Modal } from "@/components/ui/Modal";
+import { resetStaffPassword } from "../../_actions/staff-login";
+import { cleanSearch } from "@/lib/format";
 import { CopyButton } from "@/components/CopyButton";
 import { getClasses } from "@/lib/erp";
 import { appUrl } from "@/lib/brand";
@@ -13,20 +17,30 @@ import { setLoginBlocked } from "../../_actions/people";
 type Role = { id: string; name: string; kind: string; code: string };
 type Member = { user_id: string; name: string | null; email: string | null; phone: string | null; blocked_at: string | null; blocked_till: string | null };
 
-export default async function Staff({ searchParams }: { searchParams: Promise<{ user?: string; ok?: string; error?: string }> }) {
+export default async function Staff({ searchParams }: { searchParams: Promise<{ user?: string; q?: string; page?: string; size?: string; ok?: string; error?: string }> }) {
   const { supabase, school, user, can } = await requirePerm("settings.users.view");
   const sp = await searchParams;
   const raw = (await cookies()).get("erp_newpw")?.value;
   let newpw: { email: string; pw: string } | null = null;
   try { newpw = raw ? JSON.parse(raw) : null; } catch { newpw = null; }
 
-  const [{ data: members }, { data: mr }, { data: roles }, classes, { data: subjects }, { data: assigns }] = await Promise.all([
-    supabase.from("school_members").select("user_id,name,email,phone,blocked_at,blocked_till").eq("school_id", school.id).order("name"),
-    supabase.from("member_roles").select("user_id,role_id").eq("school_id", school.id),
+  const { page, size, offset } = pageParams(sp);
+  const q = cleanSearch(sp.q ?? "").trim();
+  let mq = supabase.from("school_members").select("user_id,name,email,phone,blocked_at,blocked_till", { count: "exact" }).eq("school_id", school.id);
+  if (q) mq = mq.or(`name.ilike.%${q}%,email.ilike.%${q}%,phone.ilike.%${q}%`);
+  const [{ data: members, count: memberN }, { data: roles }, classes, { data: subjects }, { count: everyone }] = await Promise.all([
+    mq.order("name").order("user_id").range(offset, offset + size - 1),
     supabase.from("roles").select("id,name,kind,code").eq("school_id", school.id).order("created_at"),
     getClasses(supabase, school.id),
     supabase.from("subjects").select("id,name").eq("school_id", school.id).order("sort"),
-    supabase.from("staff_assignments").select("id,user_id,section_id,subject_id,is_class_teacher").eq("school_id", school.id),
+    supabase.from("school_members").select("user_id", { count: "exact", head: true }).eq("school_id", school.id),
+  ]);
+  const selId = sp.user && /^[0-9a-f-]{36}$/.test(sp.user) ? sp.user : null;
+  const wanted = [...new Set([...(members ?? []).map((m) => m.user_id), ...(selId ? [selId] : [])])];
+  const [{ data: mr }, { data: assigns }, { data: selRow }] = await Promise.all([
+    wanted.length ? supabase.from("member_roles").select("user_id,role_id").eq("school_id", school.id).in("user_id", wanted) : Promise.resolve({ data: [] }),
+    wanted.length ? supabase.from("staff_assignments").select("id,user_id,section_id,subject_id,is_class_teacher").eq("school_id", school.id).in("user_id", wanted) : Promise.resolve({ data: [] }),
+    selId && !(members ?? []).some((m) => m.user_id === selId) ? supabase.from("school_members").select("user_id,name,email,phone,blocked_at,blocked_till").eq("school_id", school.id).eq("user_id", selId).maybeSingle() : Promise.resolve({ data: null }),
   ]);
   const R = (roles ?? []) as Role[];
   const staffRoles = R.filter((r) => r.kind === "staff");
@@ -34,14 +48,16 @@ export default async function Staff({ searchParams }: { searchParams: Promise<{ 
   const secName = new Map(classes.flatMap((c) => c.sections.map((s) => [s.id, `${c.name}-${s.name}`] as [string, string])));
   const subName = new Map((subjects ?? []).map((s) => [s.id, s.name]));
   const M = (members ?? []) as Member[];
-  const sel = sp.user ? M.find((m) => m.user_id === sp.user) : undefined;
+  const sel = selId ? (M.find((m) => m.user_id === selId) ?? ((selRow as Member | null) ?? undefined)) : undefined;
+  const pageQs = new URLSearchParams(Object.entries({ q: q || undefined, page: sp.page, size: sp.size }).filter(([, v]) => v) as [string, string][]).toString();
+  const here = `/app/settings/staff${pageQs ? `?${pageQs}` : ""}`;
   const selRoles = sel ? new Set(rolesOf(sel.user_id).map((r) => r.id)) : new Set<string>();
   const { data: overrides } = sel ? await supabase.from("member_overrides").select("perm_key,effect,scope").eq("school_id", school.id).eq("user_id", sel.user_id) : { data: [] };
   const allPerms = catalog.modules.flatMap((m) => m.submodules.flatMap((s) => s.actions.map((a) => ({ key: `${m.code}.${s.code}.${a}`, label: `${m.name} › ${s.name} › ${a}` }))));
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader icon="students" title="Staff & access" subtitle={`${M.length} people · roles decide what each person can do`} back={{ href: "/app/settings", label: "Settings centre" }} />
+      <PageHeader icon="students" title="Staff & access" subtitle={`${everyone ?? M.length} people · roles decide what each person can do`} back={{ href: "/app/settings", label: "Settings centre" }} />
       <Flash ok={sp.ok} error={sp.error} />
       {newpw && (
         <div role="status" className="rounded-[12px] border-2 border-wa bg-wa-tint p-4 text-[14px] text-[#0b4f2c]">
@@ -51,7 +67,13 @@ export default async function Staff({ searchParams }: { searchParams: Promise<{ 
         </div>
       )}
 
-      <Table head={["Name", "Email / phone", "Roles", "Assigned to", ""]} minWidth={760}>
+      <form className="flex flex-wrap items-end gap-2">
+        <div className="w-full sm:w-80"><Input label="Search people" name="q" defaultValue={sp.q} placeholder="Name, email or phone" /></div>
+        <button className="btn btn-sm btn-secondary cursor-pointer">Search</button>
+        {q && <Link href="/app/settings/staff" className="pb-2 text-[14px]">Clear</Link>}
+      </form>
+
+      {M.length ? <Table head={["Name", "Email / phone", "Roles", "Assigned to", "Actions"]} minWidth={820}>
         {M.map((m) => {
           const a = (assigns ?? []).filter((x) => x.user_id === m.user_id);
           return (
@@ -60,11 +82,25 @@ export default async function Staff({ searchParams }: { searchParams: Promise<{ 
               <td className={td}>{m.email}<div className="text-[12px] text-muted">{m.phone ?? ""}</div></td>
               <td className={td}><span className="flex flex-wrap gap-1">{rolesOf(m.user_id).map((r) => <Badge key={r.id} value="contacted" text={r.name} />)}</span></td>
               <td className={`${td} text-[13px]`}>{a.length ? a.map((x) => `${secName.get(x.section_id) ?? "?"}${x.is_class_teacher ? " (class teacher)" : x.subject_id ? ` ${subName.get(x.subject_id) ?? ""}` : ""}`).join(", ") : <span className="text-muted">—</span>}</td>
-              <td className={td}><Link href={`/app/settings/staff?user=${m.user_id}`}>Manage</Link></td>
+              <td className={td}>
+                <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
+                  <Link href={`/app/settings/staff?user=${m.user_id}${pageQs ? `&${pageQs}` : ""}`}>Manage</Link>
+                  {can("settings.users.edit") && m.user_id !== user.id && (
+                    <Modal label="Reset password" variant="link" size="sm" title={`Reset password — ${m.name ?? m.email}`}>
+                      <form action={resetStaffPassword} className="flex flex-col gap-3">
+                        <input type="hidden" name="user_id" value={m.user_id} /><input type="hidden" name="back" value={here} />
+                        <p className="m-0 text-[14px]">A new temporary password is generated for <b>{m.email ?? m.name}</b>. The old one stops working at once; the new one is shown <b>only once</b> on the next screen.</p>
+                        <div><Submit>Reset password</Submit></div>
+                      </form>
+                    </Modal>
+                  )}
+                </span>
+              </td>
             </tr>
           );
         })}
-      </Table>
+      </Table> : <Empty>{q ? "Nobody matches this search." : "No staff yet."}</Empty>}
+      <Pagination total={memberN ?? 0} page={page} size={size} basePath="/app/settings/staff" params={{ q: q || undefined }} />
 
       {sel && (
         <Card title={`Manage: ${sel.name ?? sel.email}`} actions={<Link href="/app/settings/staff" className="text-[14px]">Close</Link>}>
@@ -168,7 +204,7 @@ export default async function Staff({ searchParams }: { searchParams: Promise<{ 
             <div><Submit>Add staff</Submit></div>
           </form>
         </Card>
-      ) : !M.length && <Empty>No staff yet.</Empty>}
+      ) : null}
     </div>
   );
 }

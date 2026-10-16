@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requirePerm } from "@/lib/school";
 import { Badge, Card, Empty, Flash, Input, PageHeader, Submit, Table, td } from "@/components/ui/ui";
+import { Pagination, pageParams } from "@/components/ui/Pagination";
 import { fmtDate, money, todayIST } from "@/lib/format";
 import { monthName } from "@/lib/hr";
 import { generatePayroll } from "../../_actions/hr";
@@ -8,11 +9,12 @@ import { savePayrollSettings } from "../../_actions/payroll2";
 
 type Run = { id: string; month: string; status: string; approved_at: string | null; payslips: { net: number; paid_on: string | null }[] };
 
-export default async function Payroll({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string }> }) {
+export default async function Payroll({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string; page?: string; size?: string }> }) {
   const { supabase, school, can } = await requirePerm("hr.payroll.view");
   const sp = await searchParams;
-  const [{ data }, { count: unset }, { data: cfg }] = await Promise.all([
-    supabase.from("payroll_runs").select("id,month,status,approved_at,payslips(net,paid_on)").eq("school_id", school.id).order("month", { ascending: false }).limit(36),
+  const { page, size, offset } = pageParams(sp, 12, [12, 24, 48]);
+  const [{ data, count: runN }, { count: unset }, { data: cfg }] = await Promise.all([
+    supabase.from("payroll_runs").select("id,month,status,approved_at,payslips(net,paid_on)", { count: "exact" }).eq("school_id", school.id).order("month", { ascending: false }).range(offset, offset + size - 1),
     supabase.from("staff").select("id", { count: "exact", head: true }).eq("school_id", school.id).eq("status", "active").eq("earnings", "[]"),
     supabase.from("payroll_settings").select("*").eq("school_id", school.id).maybeSingle(),
   ]);
@@ -91,6 +93,7 @@ export default async function Payroll({ searchParams }: { searchParams: Promise<
           })}
         </Table>
       ) : <Empty>No payroll yet.</Empty>}
+      <Pagination total={runN ?? 0} page={page} size={size} sizes={[12, 24, 48]} basePath="/app/hr/payroll" params={{}} />
     </div>
   );
 }

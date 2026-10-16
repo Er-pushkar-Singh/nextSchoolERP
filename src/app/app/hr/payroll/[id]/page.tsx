@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePerm } from "@/lib/school";
 import { Badge, Card, Flash, Input, PageHeader, Stat, Submit, Table, td } from "@/components/ui/ui";
+import { Pagination, pageParams } from "@/components/ui/Pagination";
 import { fmtDate, money, todayIST } from "@/lib/format";
 import { monthName } from "@/lib/hr";
 import { deleteRun, markPaid, setRunStatus, updatePayslip } from "../../../_actions/hr";
@@ -14,26 +15,33 @@ type Slip = {
 };
 const MODES: [string, string][] = [["bank_transfer", "Bank transfer"], ["cash", "Cash"], ["cheque", "Cheque"], ["upi", "UPI"]];
 
-export default async function PayrollRun({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ ok?: string; error?: string }> }) {
+export default async function PayrollRun({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
   const { supabase, school, can } = await requirePerm("hr.payroll.view");
   const sp = await searchParams;
   const { data: run } = await supabase.from("payroll_runs").select("id,month,status,approved_at").eq("id", id).eq("school_id", school.id).maybeSingle();
   if (!run) notFound();
-  const { data } = await supabase.from("payslips")
+  // totals and the staff-name order come from a light list of the whole run; only one page of full rows is loaded
+  const { page, size, offset } = pageParams(sp, 25, [25, 50, 100]);
+  const { data: light } = await supabase.from("payslips").select("id,gross,total_deductions,net,paid_on,staff(name)").eq("run_id", id).eq("school_id", school.id).limit(5000);
+  const L = ((light ?? []) as unknown as { id: string; gross: number; total_deductions: number; net: number; paid_on: string | null; staff: { name: string } | { name: string }[] | null }[])
+    .map((x) => ({ ...x, name: (Array.isArray(x.staff) ? x.staff[0]?.name : x.staff?.name) ?? "" })).sort((x, y) => x.name.localeCompare(y.name) || x.id.localeCompare(y.id));
+  const pageIds = L.slice(offset, offset + size).map((x) => x.id);
+  const { data } = pageIds.length ? await supabase.from("payslips")
     .select("id,staff_id,working_days,lop_days,gross,total_deductions,adjustment,adjustment_note,net,paid_on,pay_mode,pay_ref,att_lop,advance_recovery,pf_employee,esi_employee,prof_tax,employer_pf,employer_esi,staff(name,emp_code,designation,bank_account,ifsc)")
-    .eq("run_id", id);
-  const P = ((data ?? []) as unknown as Slip[]).sort((a, b) => (a.staff?.name ?? "").localeCompare(b.staff?.name ?? ""));
+    .in("id", pageIds) : { data: [] };
+  const order = new Map(pageIds.map((x, i) => [x, i]));
+  const P = ((data ?? []) as unknown as Slip[]).sort((x, y) => (order.get(x.id) ?? 0) - (order.get(y.id) ?? 0));
   const draft = run.status === "draft";
   const editable = draft && can("hr.payroll.edit");
-  const sum = (k: "gross" | "total_deductions" | "net") => P.reduce((t, p) => t + Number(p[k]), 0);
-  const unpaid = P.filter((p) => !p.paid_on);
+  const sum = (k: "gross" | "total_deductions" | "net") => L.reduce((t, p) => t + Number(p[k]), 0);
+  const unpaid = L.filter((p) => !p.paid_on);
 
   return (
     <div className="flex flex-col gap-5">
       <PageHeader icon="payroll" title={`Payroll · ${monthName(run.month)}`} back={{ href: "/app/hr/payroll", label: "Payroll" }}
-        subtitle={<><Badge value={draft ? "draft" : "paid"} text={draft ? "Draft — can be changed" : `Approved ${fmtDate(run.approved_at)} — locked`} /> {P.length} payslips</>}
+        subtitle={<><Badge value={draft ? "draft" : "paid"} text={draft ? "Draft — can be changed" : `Approved ${fmtDate(run.approved_at)} — locked`} /> {L.length} payslips</>}
         actions={<>
           {can("hr.payroll.export") && <a href={`/app/hr/payroll/${id}/export`} className="btn btn-sm btn-secondary">Bank sheet (CSV)</a>}
           {can("hr.payroll.export") && <a href={`/app/hr/payroll/${id}/statutory`} className="btn btn-sm btn-secondary">PF / ESI / PT (CSV)</a>}
@@ -87,15 +95,17 @@ export default async function PayrollRun({ params, searchParams }: { params: Pro
           </tr>
         ))}
       </Table>
+      <Pagination total={L.length} page={page} size={size} basePath={`/app/hr/payroll/${id}`} params={{}} />
 
       {!draft && unpaid.length > 0 && can("hr.payroll.edit") && (
-        <Card title="Record salary payment" description="For the ticked rows above.">
+        <Card title="Record salary payment" description="For the ticked rows on this page — or tick the box below for every unpaid payslip of the month (all pages).">
           <div className="grid gap-3 sm:grid-cols-4">
             <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">Paid on<input form="paid" name="paid_on" type="date" defaultValue={todayIST()} className="input !min-h-10 !py-2 text-[15px] font-normal" /></label>
             <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">Mode
               <select form="paid" name="pay_mode" defaultValue="bank_transfer" className="input !min-h-10 !py-2 text-[15px] font-normal">{MODES.map(([v, t]) => <option key={v} value={v}>{t}</option>)}</select>
             </label>
             <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">Reference (UTR / cheque no.)<input form="paid" name="pay_ref" className="input !min-h-10 !py-2 text-[15px] font-normal" /></label>
+            <label className="flex items-center gap-2 text-[14px] sm:col-span-4"><input form="paid" type="checkbox" name="all_unpaid" value="1" /> Mark all {unpaid.length} unpaid payslips of this month as paid (ignores the ticks)</label>
             <div className="flex items-end"><button form="paid" name="run_id" value={id} className="btn btn-sm btn-primary cursor-pointer">Mark paid</button></div>
           </div>
         </Card>
@@ -104,7 +114,7 @@ export default async function PayrollRun({ params, searchParams }: { params: Pro
       {draft && can("hr.payroll.edit") && (
         <form action={deleteRun}><input type="hidden" name="id" value={id} /><button className="cursor-pointer border-0 bg-transparent p-0 text-[13px] text-error underline">Delete this draft</button></form>
       )}
-      {!P.length && <p className="m-0 text-[14px] text-muted">No payslips — set salary structures on staff records and run the payroll again.</p>}
+      {!L.length && <p className="m-0 text-[14px] text-muted">No payslips — set salary structures on staff records and run the payroll again.</p>}
     </div>
   );
 }

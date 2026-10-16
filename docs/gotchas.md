@@ -85,3 +85,10 @@ Things that have already bitten this project. Check here before debugging someth
 - **Pickers need their own lookup.** A librarian or warden has no access to the student profile, so `/api/lookup?kind=student` goes through the security-definer `student_lookup()` (each permission checked with its own scope) instead of reading `students` under RLS.
 - **Several pickers with the same `name`.** An empty `EntityPicker` still submits `name=""`; when pairing rows with a role field (discipline incident), pair by position and drop empty ids afterwards.
 - **`date`/`time` render rule.** `Date.now()` in a server page is flagged by the React purity lint; use `todayIST()` / `nowMs()` from `lib/format`.
+
+## Step 40 traps (16 Oct 2026)
+- **A school must never reset a shared login.** One sign-in can belong to several schools (and to the platform team). `resetStaffPassword` first checks, with the service key, that the person is a member of *this school only* and not in `platform_admins` (`passwordResetBlocker`); otherwise any school could take over another school's user.
+- **One-time password cookie is path-scoped.** `showPasswordOnce("/app/hr", …)` is only sent to pages under `/app/hr`; resetting from Settings → Staff uses `/app/settings/staff`. `staffBack()` / the action choose the path from the `back` value — new screens that reset passwords must pass a `back` under one of those two paths.
+- **Several pagers on one page.** Use `pager(sp, "xp", "xs")` per list (distinct keys); a pager keeps the other lists' query values. Order a paged list by a stable tie-breaker (`id`) too, or rows can repeat between pages.
+- **Ordering by an embedded column.** `staff(name)` can't be relied on to order the parent; the payroll run page loads a light list, sorts by name in code and fetches full rows for the page ids. Paged payslips on a profile come from `payroll_runs` with `payslips!inner(...)` filtered by staff.
+- **Letter wording.** `staff.his_her` is lower case (`his` / `her` / `the`) — never start a sentence with it; use `{{staff.name}}`.

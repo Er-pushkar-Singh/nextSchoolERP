@@ -135,6 +135,13 @@ Object.assign(SAMPLE, {
   "exam.marks_html": '<table style="width:100%;border-collapse:collapse;font-size:11px"><tr style="background:#eef1f6"><th style="border:1px solid #444;padding:4px 8px;text-align:left">Subject</th><th style="border:1px solid #444;padding:4px">Max</th><th style="border:1px solid #444;padding:4px">Pass</th><th style="border:1px solid #444;padding:4px">Marks</th><th style="border:1px solid #444;padding:4px">Grade</th></tr><tr><td style="border:1px solid #444;padding:4px 8px">English</td><td style="border:1px solid #444;text-align:center">100</td><td style="border:1px solid #444;text-align:center">33</td><td style="border:1px solid #444;text-align:center">84</td><td style="border:1px solid #444;text-align:center">A2</td></tr><tr><td style="border:1px solid #444;padding:4px 8px">Mathematics</td><td style="border:1px solid #444;text-align:center">100</td><td style="border:1px solid #444;text-align:center">33</td><td style="border:1px solid #444;text-align:center">79</td><td style="border:1px solid #444;text-align:center">B1</td></tr></table>',
   "exam.all_html": '<table style="width:100%;border-collapse:collapse;font-size:11px"><tr><th style="border:1px solid #444;padding:4px 8px;text-align:left">Subject</th><th style="border:1px solid #444;padding:4px">Unit Test</th><th style="border:1px solid #444;padding:4px">Half Yearly</th></tr><tr><td style="border:1px solid #444;padding:4px 8px">English</td><td style="border:1px solid #444;text-align:center">21/25</td><td style="border:1px solid #444;text-align:center">84/100</td></tr></table>',
 });
+Object.assign(SAMPLE, {
+  "staff.mr_ms": "Ms.", "staff.he_she": "she", "staff.his_her": "her", "staff.him_her": "her", "staff.address": "45, Jankipuram, Lucknow", "staff.gross": "42,500", "staff.gross_words": "Forty Two Thousand Five Hundred Rupees Only",
+  "staff.net": "38,900", "staff.net_words": "Thirty Eight Thousand Nine Hundred Rupees Only", "staff.probation_months": "6", "staff.service_years": "8 years 3 months", "staff.leaving_date": "30/09/2026",
+  "extra.report_by": "01/04/2027", "extra.accept_by": "15/03/2027", "extra.confirmed_from": "01/01/2027", "extra.new_salary": "46,000", "extra.effective_from": "01/04/2027", "extra.purpose": "a bank loan",
+  "extra.resigned_on": "01/09/2026",
+  "staff.earnings_html": '<table style="width:100%;border-collapse:collapse;font-size:11px"><tr style="background:#eef1f6"><th style="border:1px solid #444;padding:4px 8px;text-align:left">Salary component</th><th style="border:1px solid #444;padding:4px 8px;text-align:right">Rs. per month</th></tr><tr><td style="border:1px solid #444;padding:4px 8px">Basic</td><td style="border:1px solid #444;padding:4px 8px;text-align:right">30,000.00</td></tr><tr><td style="border:1px solid #444;padding:4px 8px">HRA</td><td style="border:1px solid #444;padding:4px 8px;text-align:right">12,500.00</td></tr><tr style="font-weight:bold"><td style="border:1px solid #444;padding:4px 8px">Net monthly salary</td><td style="border:1px solid #444;padding:4px 8px;text-align:right">38,900.00</td></tr></table>',
+});
 const human = (k: string) => k.split(".").pop()!.replace(/_/g, " ");
 
 /** Replaces {{placeholders}} with sample values (for the designer and the gallery thumbnails). */
@@ -438,13 +445,14 @@ export const PRESETS: Preset[] = [
 export type TemplateKind = { key: string; name: string; ready: boolean; note?: string; presets: string[] };
 export const TEMPLATE_MODULES: { module: string; name: string; icon: string; kinds: TemplateKind[] }[] = [
   { module: "students", name: "Students", icon: "students", kinds: [
-    { key: "id_card", name: "ID card", ready: true, presets: ["id_student_portrait", "id_student_landscape"] },
+    { key: "id_card", name: "ID card", ready: true, presets: ["id_student_portrait", "id_student_landscape", "id_student_barcode"] },
     { key: "certificate", name: "Certificates (bonafide, DOB, migration…)", ready: true, presets: ["bonafide", "dob_certificate", "migration_certificate"] },
     { key: "letter", name: "Letters & notices", ready: true, presets: ["letterhead"] },
   ] },
   { module: "staff", name: "Staff & HR", icon: "hr", kinds: [
-    { key: "id_card", name: "Staff ID card", ready: true, presets: ["id_staff"] },
-    { key: "letter", name: "Experience / appointment letter", ready: true, presets: ["letterhead"], note: "Uses the letterhead; staff placeholders are available." },
+    { key: "id_card", name: "Staff ID card", ready: true, presets: ["id_staff", "id_staff_barcode"] },
+    { key: "letter", name: "HR letters (offer, appointment, confirmation, increment, salary, experience, relieving, NOC, warning)", ready: true,
+      presets: ["offer_letter", "appointment_letter", "confirmation_letter", "increment_letter", "salary_certificate", "experience_letter", "relieving_letter", "staff_noc", "warning_letter"] },
     { key: "payslip", name: "Payslip layout", ready: false, presets: [], note: "Planned — needs the payroll data builder." },
   ] },
   { module: "fees", name: "Fees", icon: "fees", kinds: [
@@ -476,6 +484,61 @@ export const TEMPLATE_MODULES: { module: string; name: string; icon: string; kin
 
 export const presetByKey = (k: string) => PRESETS.find((p) => p.key === k);
 
+/* ───────────── HR letters (staff) ───────────── */
+// One A4 layout for every letter a school gives an employee: letterhead, reference, addressee, body, signature and seal.
+const hrLetter = (title: string, body: string, brand = "#1e3a8a"): Design => ({ v: 1, w: 210, h: 297, bg: "#ffffff", items: [
+  ...letterhead(210, brand),
+  T(12, 34, 110, 6, "Ref.: {{doc.no}}", { size: 10, weight: 700 }), T(110, 34, 88, 6, "Date: {{doc.date}}", { size: 10, weight: 700, align: "right" }),
+  T(12, 44, 186, 10, title, { size: 16, weight: 800, align: "center", underline: true, valign: "middle", upper: true }),
+  T(16, 58, 120, 22, "To,\n{{staff.mr_ms}} {{staff.name}}\n{{staff.address}}", { size: 11, lh: 1.5 }),
+  T(16, 84, 178, 150, body, { size: 11.5, lh: 1.75, align: "justify" }),
+  SL(20, 238, 26, 26), SG(140, 240, 50, 15), L(136, 257, 58), T(136, 259, 58, 12, "Principal / Manager\n{{school.name}}", { size: 9.5, align: "center", lh: 1.4 }),
+  L(12, 280, 186, { stroke: "#cbd5e1", sw: 0.3 }), T(12, 282, 186, 6, "{{school.name}} · {{school.phone}} · {{school.email}}", { size: 8, align: "center", color: "#64748b" }),
+] });
+
+export const HR_LETTERS: Preset[] = [
+  { key: "offer_letter", name: "Offer letter", module: "staff", kind: "letter", category: "letter", audience: "staff",
+    description: "Offer of employment: post, department, monthly salary and the date to report.",
+    fields: [{ key: "report_by", label: "Report for duty by", type: "date", required: true }, { key: "accept_by", label: "Accept this offer by", type: "date" }],
+    build: () => hrLetter("Offer of employment", "Dear {{staff.name}},\n\nWith reference to your application and the interview held, we are pleased to offer you the post of {{staff.designation}} in the {{staff.department}} department of {{school.name}}.\n\nYour gross monthly salary will be Rs. {{staff.gross}} ({{staff.gross_words}}). You are requested to report for duty on or before {{extra.report_by}} with your original certificates, identity proof and two photographs.\n\nKindly sign and return a copy of this letter as your acceptance by {{extra.accept_by}}. We look forward to welcoming you to the school.") },
+  { key: "appointment_letter", name: "Appointment / joining letter", module: "staff", kind: "letter", category: "letter", audience: "staff",
+    description: "Appointment with joining date, employee code, salary, probation and notice period.",
+    build: () => hrLetter("Appointment letter", "Dear {{staff.name}},\n\nWe are pleased to appoint you as {{staff.designation}} ({{staff.department}}) at {{school.name}} with effect from {{staff.joining_date}}. Your employee code is {{staff.emp_code}}.\n\n1. Salary: Rs. {{staff.gross}} per month ({{staff.gross_words}}), as per the salary structure attached in the school records.\n2. Probation: {{staff.probation_months}} months from the date of joining, after which your services may be confirmed in writing.\n3. Notice: either side may end this appointment with one month's notice or one month's salary in lieu of notice.\n4. You will follow the rules, timings and code of conduct of the school as amended from time to time.\n\nWe welcome you to the school family and wish you a long and rewarding association.") },
+  { key: "confirmation_letter", name: "Confirmation of service", module: "staff", kind: "letter", category: "letter", audience: "staff",
+    description: "Confirms the employee after the probation period.",
+    fields: [{ key: "confirmed_from", label: "Confirmed with effect from", type: "date", required: true }],
+    build: () => hrLetter("Confirmation of service", "Dear {{staff.name}},\n\nOn the successful completion of your probation period, the management is pleased to confirm your services as {{staff.designation}} ({{staff.department}}) with effect from {{extra.confirmed_from}}.\n\nAll other terms of your appointment dated {{staff.joining_date}} remain unchanged. We appreciate your work and look forward to your continued contribution.") },
+  { key: "increment_letter", name: "Salary increment letter", module: "staff", kind: "letter", category: "letter", audience: "staff",
+    description: "Revised monthly salary from a date.",
+    fields: [{ key: "new_salary", label: "Revised gross salary (Rs.)", type: "number", required: true }, { key: "effective_from", label: "Effective from", type: "date", required: true }],
+    build: () => hrLetter("Salary revision", "Dear {{staff.name}},\n\nIn recognition of your performance and dedication, the management is pleased to revise your gross monthly salary from Rs. {{staff.gross}} to Rs. {{extra.new_salary}} with effect from {{extra.effective_from}}.\n\nWe thank you for your contribution to the school and wish you continued success.") },
+  { key: "salary_certificate", name: "Salary certificate", module: "staff", kind: "letter", category: "letter", audience: "staff",
+    description: "For a bank loan, visa or rent: post, joining date and monthly salary with its breakup.",
+    fields: [{ key: "purpose", label: "Purpose", type: "text" }],
+    build: () => ({ ...hrLetter("Salary certificate", "This is to certify that {{staff.mr_ms}} {{staff.name}} (Employee code {{staff.emp_code}}) is working with {{school.name}} as {{staff.designation}} in the {{staff.department}} department since {{staff.joining_date}}.\n\nThe present gross monthly salary of {{staff.name}} is Rs. {{staff.gross}} ({{staff.gross_words}}) and the net monthly salary after deductions is Rs. {{staff.net}}. The breakup is given below.\n\nThis certificate is issued at the request of {{staff.name}} for {{extra.purpose}}.") }) },
+  { key: "experience_letter", name: "Experience certificate", module: "staff", kind: "letter", category: "letter", audience: "staff",
+    description: "Period of service, post and conduct — on leaving the school.",
+    fields: [{ key: "conduct", label: "Work and conduct", type: "text" }],
+    build: () => hrLetter("Experience certificate", "This is to certify that {{staff.mr_ms}} {{staff.name}} (Employee code {{staff.emp_code}}) worked with {{school.name}} as {{staff.designation}} in the {{staff.department}} department from {{staff.joining_date}} to {{staff.leaving_date}} ({{staff.service_years}}).\n\nDuring this period {{staff.his_her}} work and conduct were found to be {{extra.conduct}}.\n\nWe wish {{staff.him_her}} every success in the future.") },
+  { key: "relieving_letter", name: "Relieving letter", module: "staff", kind: "letter", category: "letter", audience: "staff",
+    description: "Formal release after resignation, with the last working day.",
+    fields: [{ key: "resigned_on", label: "Resignation letter dated", type: "date" }],
+    build: () => hrLetter("Relieving letter", "Dear {{staff.name}},\n\nWith reference to your resignation letter dated {{extra.resigned_on}}, you are relieved from the services of {{school.name}} at the close of working hours on {{staff.leaving_date}}.\n\nYou held the post of {{staff.designation}} ({{staff.department}}) from {{staff.joining_date}}. Your full and final settlement will be made as per the school rules after the clearance of school property and dues.\n\nWe thank you for your services and wish you the very best.") },
+  { key: "staff_noc", name: "No objection certificate (staff)", module: "staff", kind: "letter", category: "letter", audience: "staff",
+    description: "The school has no objection to the employee's purpose (higher studies, passport, exam …).",
+    fields: [{ key: "purpose", label: "No objection for", type: "text", required: true }],
+    build: () => hrLetter("No objection certificate", "This is to certify that {{staff.mr_ms}} {{staff.name}}, {{staff.designation}} (Employee code {{staff.emp_code}}), is a regular employee of {{school.name}} since {{staff.joining_date}}.\n\nThe school has no objection to {{staff.his_her}} {{extra.purpose}}, provided it does not affect {{staff.his_her}} duties at the school.") },
+  { key: "warning_letter", name: "Warning / show-cause letter", module: "staff", kind: "letter", category: "letter", audience: "staff",
+    description: "A written warning with the matter and the date to reply.",
+    fields: [{ key: "matter", label: "The matter", type: "text", required: true }, { key: "reply_by", label: "Reply by", type: "date" }],
+    build: () => hrLetter("Show-cause notice", "Dear {{staff.name}},\n\nIt has come to the notice of the management that {{extra.matter}}.\n\nYou are hereby asked to explain your position in writing by {{extra.reply_by}}, failing which the management will take a suitable decision without further reference to you.", "#b91c1c") },
+];
+// the salary certificate also prints the salary breakup
+for (const p of HR_LETTERS) if (p.key === "salary_certificate") {
+  const b = p.build;
+  p.build = () => { const d = b(); return { ...d, items: [...d.items, T(16, 178, 178, 55, "{{staff.earnings_html}}", { size: 10 })] }; };
+}
+PRESETS.push(...HR_LETTERS);
 // Every marksheet, report card and certificate in the gallery carries a verification QR (bottom left): scanning it opens
 // the public page that shows the document as issued and the student's details — so a forged copy is caught at once.
 for (const p of PRESETS) {

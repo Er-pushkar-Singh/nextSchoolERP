@@ -98,6 +98,9 @@ Still open:
 - Apply `setup.sql` (includes the 12 Oct 2026 security fix) to the production Supabase project, then click-test every module.
 - Dashboard widgets for step-5 modules; README screenshots / user guide for schools.
 
+## Done in step 40 (16 Oct 2026)
+HR: login and one-time password when a staff member is added, **Reset password** and all action buttons on every staff row, HR letters (joining / appointment, offer, confirmation, increment, salary certificate, experience, relieving, NOC, warning) issued from the staff profile, pagination on every HR table. Apply migration `0042`.
+
 ## Done in step 37–39 (15 Oct 2026)
 Inventory rebuilt as **school property** (rooms, give / take back / move, repairs, emails to holders, recovery to the fee account), **one money trail** (board fee, library / discipline fines, damage recovery on the fee account), **TC only after fees are paid**, **barcode attendance** (scan station, finish the day, barcode cards, barcodes on ID cards) and **verification QR** on marksheets and certificates with a public `/verify` page. Apply migrations `0039` … `0041`.
 

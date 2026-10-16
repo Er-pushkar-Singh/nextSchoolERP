@@ -5,6 +5,8 @@ import { Pagination, pageParams } from "@/components/ui/Pagination";
 import { cleanSearch, fmtDate, money, todayIST } from "@/lib/format";
 import { STAFF_KINDS } from "@/lib/hr";
 import { importLogins, saveStaff } from "../_actions/hr";
+import { readPasswordOnce } from "@/lib/logins";
+import { CredentialsBanner, StaffActions } from "@/components/hr/StaffActions";
 
 const SORTS: [string, string][] = [["name", "Name"], ["code", "Employee code"], ["joined", "Newest joined"], ["designation", "Designation"]];
 
@@ -23,12 +25,16 @@ export default async function StaffDirectory({ searchParams }: { searchParams: P
   const q = cleanSearch(sp.q ?? "").trim();
   const dept = (sp.department ?? "").slice(0, 60) || null;
 
-  const [listQ, countsQ, deptQ, leaveQ] = await Promise.all([
+  const canLoginCreate = can("settings.users.create");
+  const [listQ, countsQ, deptQ, leaveQ, rolesQ, cred] = await Promise.all([
     supabase.rpc("staff_list", { sid: school.id, p_q: q || null, p_kind: kind, p_department: dept, p_status: status, p_login: login, p_blocked: blocked, p_sort: sort, p_limit: size, p_offset: offset }),
     supabase.rpc("staff_counts", { sid: school.id }),
     supabase.from("staff").select("department").eq("school_id", school.id).not("department", "is", null).limit(1000),
     supabase.rpc("leave_summary", { sid: school.id, d1: todayIST(), d2: todayIST() }),
+    canLoginCreate ? supabase.from("roles").select("id,name").eq("school_id", school.id).eq("kind", "staff").order("created_at") : Promise.resolve({ data: [] }),
+    readPasswordOnce(),
   ]);
+  const roles = (rolesQ.data ?? []) as { id: string; name: string }[];
   const S = (listQ.data ?? []) as Row[];
   const total = S[0]?.total ? Number(S[0].total) : 0;
   const counts = new Map(((countsQ.data ?? []) as { status: string; n: number; blocked: number; with_login: number }[]).map((c) => [c.status, c]));
@@ -41,6 +47,8 @@ export default async function StaffDirectory({ searchParams }: { searchParams: P
   const kindName = new Map(STAFF_KINDS);
   const params = { q: q || undefined, status: status === "active" ? undefined : status, kind: kind ?? undefined, department: dept ?? undefined, login: login ?? undefined, blocked: blocked ?? undefined, sort: sort === "name" ? undefined : sort };
   const filtered = Boolean(q || kind || dept || login || blocked);
+  const here = `/app/hr${(() => { const q = new URLSearchParams(Object.entries(sp).filter(([k, v]) => v && k !== "ok" && k !== "error") as [string, string][]).toString(); return q ? `?${q}` : ""; })()}`;
+  const rowCan = { edit: can("hr.staff.edit"), block: can("hr.staff.block"), loginCreate: canLoginCreate, loginEdit: can("settings.users.edit"), letters: can("documents.issue.view") };
   const exportQs = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][]).toString();
 
   return (
@@ -52,6 +60,7 @@ export default async function StaffDirectory({ searchParams }: { searchParams: P
           <Link href="/app/hr/leave" className="btn btn-sm btn-secondary">Leave</Link>
         </>} />
       <Flash ok={sp.ok} error={sp.error} />
+      <CredentialsBanner cred={cred} school={school.name} />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Working staff" value={active} hint={left ? `${left} have left` : undefined} icon="hr" />
@@ -74,7 +83,7 @@ export default async function StaffDirectory({ searchParams }: { searchParams: P
 
       {listQ.error && <Flash error={`Could not load staff: ${listQ.error.message}`} />}
       {S.length ? (
-        <Table head={["Name", "Designation", "Type", "Phone", "Joined", ...(can("hr.payroll.view") ? ["Monthly gross"] : []), ""]} minWidth={760}>
+        <Table head={["Name", "Designation", "Type", "Phone", "Joined", ...(can("hr.payroll.view") ? ["Monthly gross"] : []), "Status", "Actions"]} minWidth={980}>
           {S.map((s) => (
             <tr key={s.id} className={s.blocked ? "bg-[#fff7f6]" : ""}>
               <td className={td}><Link href={`/app/hr/staff/${s.id}`} className="font-semibold">{s.name}</Link>{s.emp_code && <span className="ml-1 font-mono text-[12px] text-muted">{s.emp_code}</span>}</td>
@@ -91,6 +100,7 @@ export default async function StaffDirectory({ searchParams }: { searchParams: P
                   {s.user_id && <Badge value="contacted" text="Login" />}
                 </span>
               </td>
+              <td className={td}><StaffActions s={{ id: s.id, name: s.name, email: s.email, user_id: s.user_id, status: s.status, blocked: s.blocked }} back={here} roles={roles} can={rowCan} /></td>
             </tr>
           ))}
         </Table>
@@ -98,7 +108,7 @@ export default async function StaffDirectory({ searchParams }: { searchParams: P
       <Pagination total={total} page={page} size={size} basePath="/app/hr" params={params} />
 
       {can("hr.staff.create") && (
-        <Card title="Add staff" icon="hr" description="Teachers, office staff, drivers, guards, helpers — anyone on the payroll."
+        <Card id="add" title="Add staff" icon="hr" description="Teachers, office staff, drivers, guards, helpers — anyone on the payroll."
           actions={<form action={importLogins}><Submit>Add everyone with a login</Submit></form>}>
           <form action={saveStaff} className="grid gap-3 sm:grid-cols-4">
             <Input label="Full name" name="name" required className="sm:col-span-2" />
@@ -106,9 +116,20 @@ export default async function StaffDirectory({ searchParams }: { searchParams: P
             <Select label="Type" name="kind" defaultValue="teaching" options={STAFF_KINDS} />
             <Input label="Designation" name="designation" placeholder="PGT Physics" />
             <Input label="Department" name="department" placeholder="Science" />
-            <Input label="Phone" name="phone" type="tel" />
+            <Select label="Gender" name="gender" blank="—" options={[["F", "Female"], ["M", "Male"], ["O", "Other"]]} />
             <Input label="Date of joining" name="joining_date" type="date" />
-            <div className="flex items-end sm:col-span-4"><Submit>Add staff member</Submit></div>
+            <Input label="Phone" name="phone" type="tel" />
+            <Input label="Email" name="email" type="email" placeholder="name@example.com" hint="Needed for the ERP login" />
+            <Input label="Probation (months)" name="probation_months" type="number" min={0} defaultValue={6} hint="Printed on the appointment letter" />
+            <Input label="Qualification" name="qualification" placeholder="M.Sc., B.Ed." />
+            {canLoginCreate && (
+              <fieldset className="m-0 rounded-[12px] border border-line bg-blue-soft/40 p-3 sm:col-span-4">
+                <label className="flex items-center gap-2 text-[14px] font-semibold text-ink"><input type="checkbox" name="create_login" defaultChecked /> Create an ERP login now (user name = the email above)</label>
+                <p className="m-0 mt-1 text-[13px] text-muted">A temporary password is generated and shown once after saving — copy it and give it to the staff member.</p>
+                <div className="mt-2 grid gap-1 sm:grid-cols-3">{roles.map((r) => <label key={r.id} className="flex items-center gap-2 text-[14px]"><input type="checkbox" name="role_ids" value={r.id} /> {r.name}</label>)}</div>
+              </fieldset>
+            )}
+            <div className="flex flex-wrap items-center gap-3 sm:col-span-4"><Submit>Add staff member</Submit><span className="text-[13px] text-muted">The joining / appointment letter and other HR letters are ready on the next screen.</span></div>
           </form>
         </Card>
       )}

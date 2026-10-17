@@ -106,3 +106,15 @@ export async function cancelDocument(f: FormData) {
   revalidatePath(HUB);
   go(`${HUB}/${id}`, error ? { error: errMsg(error) } : { ok: "Cancelled. It stays on record." });
 }
+
+/** Admit cards for a class from an examination's date sheet (one card per student; a student keeps one card per examination). */
+export async function issueAdmitCards(f: FormData) {
+  const { supabase, school, myName } = await requirePerm("documents.issue.create");
+  const tpl = uuid(f, "template_id"), exam = uuid(f, "exam_id"), cls = uuid(f, "class_id"), sec = uuid(f, "section_id");
+  const back = `/app/exams/${exam ?? ""}`;
+  if (!tpl || !exam || !cls) go(back, { error: "Choose the template and the class." });
+  const { data, error } = await supabase.rpc("issue_admit_cards", { sid: school.id, tpl, p_exam: exam, p_class: cls, p_section: sec, p_extra: { centre: str(f, "centre", 80) ?? "" }, p_by: myName || null });
+  revalidatePath(HUB);
+  if (error) go(back, { error: errMsg(error) });
+  go(`${HUB}/bulk?template=${tpl}&class_id=${cls}${sec ? `&section_id=${sec}` : ""}`, { ok: data ? `Issued ${data} admit card(s). Print the sheet below.` : "Nothing new to issue — every student already has this examination's admit card." });
+}

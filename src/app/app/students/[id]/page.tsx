@@ -15,6 +15,9 @@ import { addConcession, applyConcessions, newPortalLink, removeConcession, setSt
 import { blockStudent, deleteStudent, unblockStudent } from "../../_actions/people";
 import { setMessageOptOut } from "../../_actions/messages";
 import { ClearanceCard, PropertyCard } from "@/components/inventory/PropertyCard";
+import { FamilyLoginCard } from "@/components/family/FamilyLoginCard";
+import { CredentialsBanner } from "@/components/hr/StaffActions";
+import { readPasswordOnce } from "@/lib/logins";
 
 export default async function StudentPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ ok?: string; error?: string }> }) {
   const { id } = await params;
@@ -42,6 +45,7 @@ export default async function StudentPage({ params, searchParams }: { params: Pr
       : Promise.resolve({ data: null }),
     can("library.circulation.view") ? supabase.from("library_issues").select("id,due_on,library_books(title)").eq("student_id", id).is("returned_on", null).order("due_on") : Promise.resolve({ data: [] }),
   ]);
+  const cred = await readPasswordOnce();
   const [{ data: sensRow }, { data: docRows }, { data: contactRows }, { data: enrolRows }] = await Promise.all([
     can("students.sensitive.view") ? supabase.from("student_sensitive").select("*").eq("student_id", id).maybeSingle() : Promise.resolve({ data: null }),
     can("students.documents.view") ? supabase.from("student_documents").select("id,doc_type,title,status,file_name,due_by,uploaded_by_name,uploaded_at,verified_by_name,verified_at,reject_reason,remark,size_bytes,file_path").eq("student_id", id).order("created_at") : Promise.resolve({ data: [] }),
@@ -95,6 +99,7 @@ ${link}`) : null;
         actions={fees && !isNaN(due) && can("fees.collection.create") && due > 0 ? <Link href={`/app/fees/collect?student=${id}`} className="btn btn-sm btn-primary">Collect fee</Link> : undefined}
       />
       <Flash ok={sp.ok} error={sp.error} />
+      <CredentialsBanner cred={cred} school={school.name} />
       {s.status === "admission_pending" && (
         <div role="note" className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-[#cfd9f7] bg-blue-tint px-4 py-3 text-[14px] text-blue-strong">
           <span><b>Admission in progress.</b> No class or section yet — they are given at the last step, after the admission fee is paid.</span>
@@ -114,6 +119,10 @@ ${link}`) : null;
         <Stat label="Attendance (session)" value={att.length ? `${pct(present, att.length)}%` : "—"} hint={`${present}/${att.length} days`} />
         <Stat label="Admitted" value={fmtDate(s.admission_date)} />
       </div>
+
+      {(can("settings.users.view") || canLink) && s.status === "active" && (
+        <FamilyLoginCard supabase={supabase} studentId={id} schoolCode={school.code} admissionNo={s.admission_no} studentUserId={s.user_id ?? null} canCreate={can("settings.users.create") && can("students.profile.edit")} canReset={can("settings.users.edit")} />
+      )}
 
       {canLink && <Card title="Parent page">
         <p className="mt-0 text-[14px]">One private link for parents — fees due with UPI pay, receipts, attendance, results and notices. No app or password needed.</p>

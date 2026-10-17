@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { LuArrowLeftRight, LuCircleAlert, LuShieldCheck } from "react-icons/lu";
 import { requireSchool } from "@/lib/school";
@@ -43,6 +44,7 @@ const NAV: Entry[] = [
     { href: "/app/attendance/barcode", label: "Barcode scanner", any: ["attendance.students.create", "attendance.staff.create"] },
     { href: "/app/attendance", label: "Mark attendance", any: ["attendance.students.view"] },
     { href: "/app/attendance/register", label: "Monthly register", any: ["attendance.students.view"] },
+    { href: "/app/attendance/leave", label: "Student leave", any: ["attendance.leave.view"] },
     { href: "/app/attendance/scan", label: "Scan QR (camera)", any: ["attendance.students.create", "attendance.staff.create"] },
     { href: "/app/attendance/barcodes", label: "Barcode cards", any: ["attendance.students.view", "attendance.staff.view"] },
     { href: "/app/attendance/staff", label: "Staff attendance", any: ["attendance.staff.view"] },
@@ -67,6 +69,7 @@ const NAV: Entry[] = [
     { href: "/app/exams/online", label: "Online exams", any: ["exams.setup.view", "exams.marks.view"] },
     { href: "/app/exams/questions", label: "Question bank", any: ["exams.setup.view", "exams.marks.view"] },
   ] },
+  { key: "inbox", label: "Parent messages", icon: "notices", href: "/app/inbox", any: ["comms.messages.view"] },
   { key: "homework", label: "Homework & material", icon: "homework", href: "/app/homework", any: ["homework.homework.view", "homework.material.view"] },
   { key: "library", label: "Library", icon: "library", items: [
     { href: "/app/library", label: "Issue & return", any: ["library.circulation.view"] },
@@ -158,12 +161,14 @@ const NAV: Entry[] = [
     { href: "/app/settings/notifications", label: "Notifications", any: ["settings.school.view"] },
     { href: "/app/settings/billing", label: "Plan & billing", any: ["settings.billing.view"] },
     { href: "/app/settings/audit", label: "Audit log", any: ["settings.audit.view"] },
+    { href: "/app/settings/backups", label: "Backups & export", any: ["settings.backups.view", "settings.backups.create"] },
   ] },
   { key: "support", label: "Help & support", icon: "support", href: "/app/support", any: ["support.tickets.view"] },
 ];
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const { supabase, school, session, memberships, isPlatform, groups, user, canAny, can, roleNames, myName, subState, subEnd, subGrace, support } = await requireSchool();
+  const { supabase, school, session, memberships, isPlatform, groups, user, canAny, can, roleNames, myName, subState, subEnd, subGrace, support, familyOnly } = await requireSchool();
+  if (familyOnly) redirect("/family");
   const { data: ann } = await supabase.rpc("my_announcements", { sid: school.id });
   const nav: NavEntry[] = NAV.flatMap((n): NavEntry[] => {
     if (n.items) {

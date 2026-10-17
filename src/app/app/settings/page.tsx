@@ -30,7 +30,7 @@ export default async function SettingsCentre({ searchParams }: { searchParams: P
     { name: "Connections & billing", tiles: [
       { href: "/app/settings/integrations", title: "Integrations", text: "Razorpay, Cloudinary, email, SMS and WhatsApp — keys stored encrypted.", icon: "integrations", show: can("settings.integrations.view"), meta: `${connected} of 5 connected` },
       { href: "/app/settings/billing", title: "Plan & billing", text: "Your subscription, invoices and online payment.", icon: "billing", show: can("settings.billing.view"), meta: `${school.plan.charAt(0).toUpperCase()}${school.plan.slice(1)} plan` },
-      { href: "/app/settings", title: "Backups & data export", text: "Nightly backups to Cloudinary and one-click export. Arriving in the next update.", icon: "backups", show: can("settings.backups.view"), soon: true },
+      { href: "/app/settings/backups", title: "Backups & data export", text: "Download your school's data any time — one file or table by table — with a history of who exported what.", icon: "backups", show: can("settings.backups.view") || can("settings.backups.create") },
     ] },
   ];
   return (

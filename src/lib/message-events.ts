@@ -278,3 +278,21 @@ export async function runAssetOverdueJob() {
   }
   return { queued };
 }
+/** The parent is told when a leave request is approved or rejected. */
+export function notifyLeaveDecided(schoolId: string, leaveId: string, by?: string | null) {
+  return safe("leave decided", async () => {
+    const db = supabaseAdmin();
+    if (!db) return;
+    const { data: l } = await db.from("student_leaves").select("id,student_id,from_date,to_date,status,decision_note").eq("id", leaveId).eq("school_id", schoolId).maybeSingle();
+    if (!l || !["approved", "rejected"].includes(l.status)) return;
+    const [s] = await students(schoolId, [l.student_id]);
+    if (!s) return;
+    const school = await schoolName(schoolId);
+    const dates = l.from_date === l.to_date ? fmtDate(l.from_date) : `${fmtDate(l.from_date)} to ${fmtDate(l.to_date)}`;
+    await queueMessages({
+      schoolId, event: "leave_decided", by,
+      recipients: [{ name: fullName(s), phone: s.guardian_phone, email: s.guardian_email, studentId: s.id, optedOut: s.msg_opt_out, dedupe: `leave_decided:${l.id}:${l.status}`,
+        vars: { student: fullName(s), decision: l.status, dates, note: l.decision_note ?? "", school } }],
+    });
+  });
+}

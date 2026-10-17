@@ -1,7 +1,7 @@
 /* School preferences (schools.prefs jsonb). Missing keys fall back to these defaults. */
 
 export type Channel = "sms" | "email" | "whatsapp";
-export type NotifyEvent = "fee_receipt" | "fee_reminder" | "absent" | "exam_result" | "notice" | "admission" | "birthday" | "asset_assigned" | "asset_returned" | "asset_overdue";
+export type NotifyEvent = "fee_receipt" | "fee_reminder" | "absent" | "exam_result" | "notice" | "admission" | "birthday" | "asset_assigned" | "asset_returned" | "asset_overdue" | "leave_decided";
 export type SchoolPrefs = {
   timezone?: string;
   date_format?: "DD/MM/YYYY" | "DD-MMM-YYYY" | "YYYY-MM-DD";
@@ -23,6 +23,7 @@ export const NOTIFY_EVENTS: { code: NotifyEvent; name: string; who: string; defa
   { code: "birthday", name: "Birthday wishes", who: "Student and staff — morning of the birthday", defaults: { sms: false, email: false, whatsapp: false } },
   { code: "asset_assigned", name: "School property given", who: "Staff member, or the parent of a student — what was given, until when", defaults: { sms: false, email: true, whatsapp: false } },
   { code: "asset_returned", name: "School property returned", who: "Staff member, or the parent of a student — acknowledgement of the return", defaults: { sms: false, email: true, whatsapp: false } },
+  { code: "leave_decided", name: "Leave decision", who: "Parent — when a leave request is approved or rejected", defaults: { sms: false, email: true, whatsapp: true } },
   { code: "asset_overdue", name: "Property not returned on time", who: "Staff member, or the parent of a student — weekly until it is back", defaults: { sms: false, email: true, whatsapp: true } },
 ];
 

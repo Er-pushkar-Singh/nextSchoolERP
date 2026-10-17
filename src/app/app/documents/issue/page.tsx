@@ -30,7 +30,11 @@ export default async function Issue({ searchParams }: { searchParams: Promise<{ 
   const { data: res } = stu && ((t.fields as TemplateField[]) ?? []).some((f) => f.type === "exam")
     ? await supabase.from("exam_results").select("exam_id,exams(id,name,sort)").eq("student_id", stu).eq("school_id", school.id)
     : { data: [] };
-  const declared = ((res ?? []) as unknown as { exams: { id: string; name: string; sort: number } | { id: string; name: string; sort: number }[] | null }[])
+  // an admit card is for an examination that is still to be written: list the session's exams, not the declared ones
+  const forAdmit = ((t.fields as TemplateField[]) ?? []).some((f) => f.key === "exam_ref");
+  const { data: allExams } = forAdmit && ((t.fields as TemplateField[]) ?? []).some((f) => f.type === "exam")
+    ? await supabase.from("exams").select("id,name,sort").eq("school_id", school.id).order("sort") : { data: [] };
+  const declared = forAdmit ? ((allExams ?? []) as { id: string; name: string; sort: number }[]).reverse() : ((res ?? []) as unknown as { exams: { id: string; name: string; sort: number } | { id: string; name: string; sort: number }[] | null }[])
     .map((r) => (Array.isArray(r.exams) ? r.exams[0] : r.exams)).filter(Boolean).sort((a, b) => b!.sort - a!.sort) as { id: string; name: string; sort: number }[];
   // a Transfer Certificate waits until the fees are paid (the database enforces it too)
   const isTc = t.on_issue === "mark_transferred" || String(t.numbering_prefix ?? "").toUpperCase() === "TC";
@@ -76,7 +80,7 @@ export default async function Issue({ searchParams }: { searchParams: Promise<{ 
           <Input label="Issue date" name="issued_on" type="date" defaultValue={todayIST()} />
           {fields.map((f) => f.type === "exam" ? (
             <Select key={f.key} label={f.label} name={`x_${f.key}`} required={f.required} className="sm:col-span-2" blank="Choose the examination…"
-              options={(declared ?? []).map((e) => [e.id, e.name] as [string, string])} hint={!(declared ?? []).length ? "No exam has a declared result yet." : undefined} />
+              options={(declared ?? []).map((e) => [e.id, e.name] as [string, string])} hint={!(declared ?? []).length ? (forAdmit ? "Create the examination and its date sheet first." : "No exam has a declared result yet.") : undefined} />
           ) : (
             <Input key={f.key} label={f.label} name={`x_${f.key}`} type={f.type === "number" ? "number" : f.type === "date" ? "date" : "text"} required={f.required} className={f.type === "text" ? "sm:col-span-2" : ""} />
           ))}

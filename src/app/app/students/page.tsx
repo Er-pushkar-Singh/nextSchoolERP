@@ -62,6 +62,18 @@ export default async function Students({ searchParams }: { searchParams: Promise
         actions={<>
           {can("students.profile.export") && <a href={`/app/students/export${exportQs ? `?${exportQs}` : ""}`} className="btn btn-sm btn-secondary">Export CSV</a>}
           {canWrite && can("students.import.create") && <ButtonLink href="/app/students/import" variant="secondary">Import CSV</ButtonLink>}
+          {can("settings.users.create") && can("students.profile.edit") && (
+            <Modal label="Parent logins" variant="secondary" size="sm" title="Create parent & student app logins">
+              <form action="/app/students/family-logins" method="post" target="_blank" className="flex flex-col gap-3">
+                <p className="m-0 text-[14px] text-muted">Makes a login for the parent of every student in the section (the mobile number is the user name; brothers and sisters share one login) and opens a printable sheet with the passwords. Parents who already have a login are skipped.</p>
+                <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">Section
+                  <select name="section_id" required className="input !min-h-10 !py-2 font-normal"><option value="">Choose a section…</option>{sections.map(([id, l]) => <option key={id} value={id}>{l}</option>)}</select>
+                </label>
+                <label className="flex items-center gap-2 text-[14px]"><input type="checkbox" name="include_students" /> Also give each student their own login (Student ID = school code / admission no.)</label>
+                <div><button className="btn btn-primary cursor-pointer">Create logins &amp; open sheet</button></div>
+              </form>
+            </Modal>
+          )}
           {canWrite && <ButtonLink href="/app/students/new">New admission</ButtonLink>}
         </>} />
       <Flash ok={sp.ok} error={sp.error} />

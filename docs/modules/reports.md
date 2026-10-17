@@ -38,3 +38,6 @@ One place for the principal and trustees: how many students, how many present, h
 
 ## Gaps & ideas
 Scheduled PDF to the management on Monday, year-on-year comparison, teacher-wise results, fee forecast, saved report views, drill-down from a chart bar to the student list.
+
+## UDISE+ student-level sheet (step 42, 17 Oct 2026)
+Reports → UDISE+ strength → **Student-level sheet (CSV)** (`/app/reports/udise/students`): every active student with the fields the UDISE+ student form asks for that the system holds (name, gender, DOB, class, social category, religion, nationality, mother tongue, parents, mobile, address, district, block, PIN, state, rural / urban, distance, PEN, APAAR, whether an Aadhaar document is on record — the number is never exported) and a **Missing** column for what the office must fix before data entry. It is a working sheet: the official DCF layout changes every year, so map the columns when the portal opens.

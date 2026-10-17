@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase/server";
 import { SCHOOL_COOKIE } from "@/lib/school";
+import { loginEmail } from "@/lib/logins";
 
 export async function signIn(_prev: { error?: string } | undefined, f: FormData) {
   const email = String(f.get("email") ?? "").trim();
@@ -11,7 +12,7 @@ export async function signIn(_prev: { error?: string } | undefined, f: FormData)
   const next = String(f.get("next") ?? "/app");
   if (!email || !password) return { error: "Enter email and password." };
   const supabase = await supabaseServer();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const { error } = await supabase.auth.signInWithPassword({ email: loginEmail(email), password });
   if (error) return { error: "Wrong email or password." };
   redirect(next.startsWith("/") && !next.startsWith("//") ? next : "/app");
 }

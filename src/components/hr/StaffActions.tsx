@@ -21,7 +21,7 @@ export function CredentialsBanner({ cred, school }: { cred: { email: string; pw:
   return (
     <div role="status" className="rounded-[12px] border-2 border-wa bg-wa-tint p-4 text-[14px] text-[#0b4f2c]">
       <b>Share these sign-in details privately — shown only once:</b>
-      <p className="my-2 font-mono">{appUrl("/login")}<br />Email: {cred.email}<br />Temporary password: {cred.pw}</p>
+      <p className="my-2 font-mono">{appUrl("/login")}<br />Login: {cred.email}<br />Temporary password: {cred.pw}</p>
       <CopyButton text={msg} label="Copy message" />
     </div>
   );

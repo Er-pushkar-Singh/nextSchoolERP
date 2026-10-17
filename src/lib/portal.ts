@@ -18,3 +18,8 @@ export const portalStudent = cache(async (token: string) => {
     schools: { id: string; name: string; address: string | null; city: string | null; phone: string | null; email: string | null; upi_id: string | null; bank_details: string | null; status: string; grade_scale: { min: number; grade: string }[]; board: string; affiliation_no: string | null; principal_name: string | null; pincode: string | null };
   } };
 });
+
+/** Where a sub-page (receipt, bus map, payment return) goes back to: the signed-in family portal or the secret-link page. */
+export function portalHome(token: string, ret?: string | null) {
+  return ret && ret.startsWith("/family/") && /^[0-9a-f-]{36}$/.test(ret.slice(8)) ? ret : `/p/${token}`;
+}

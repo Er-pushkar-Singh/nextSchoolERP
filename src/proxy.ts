@@ -22,4 +22,4 @@ export async function proxy(request: NextRequest) {
   return response;
 }
 
-export const config = { matcher: ["/app/:path*", "/platform/:path*", "/group/:path*"] };
+export const config = { matcher: ["/app/:path*", "/platform/:path*", "/group/:path*", "/family/:path*"] };

@@ -35,3 +35,6 @@ Libs: `src/lib/integrations.ts` (`resolveIntegration`, `sendEmail`, `sendSms`, `
 
 ## Gaps & ideas
 Actually sending automatic SMS/WhatsApp/email on events (prefs + integrations exist; senders are wired only for tests), backups (`settings.backups`), per-class section capacity.
+
+## Backups & data export (step 42, 17 Oct 2026, migration `0044`)
+**Settings → Backups & export** (`settings.backups`): *Download full export* (one JSON with every table the person may read — streamed, so large schools work; staff bank / PAN details and stored document layouts are left out), *one table as CSV* (students, fees, attendance, marks, staff …), and a paged **history** (`backup_log`: who, when, tables, rows, size). The export runs as the signed-in user, so row-level security decides what is in it. Table list: `src/lib/backup.ts`. This is the school's own copy; the platform's database backups are separate (Supabase).

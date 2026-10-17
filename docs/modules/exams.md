@@ -47,3 +47,6 @@ Admit cards (`exams.admit_cards`), co-scholastic grades and remarks, attendance 
 - Student functions are `service_role` only (`exam_login`, `exam_start`, `exam_state`, `exam_answer`, `exam_event`, `exam_submit`, `exam_result`); the browser talks to `/api/exam`.
 - Tests: `exam_results.test.sql` (17 checks), `online_exams.test.sql` (33 checks).
 - Gaps: short-answer / essay questions with manual marking, images in questions, question-level analytics, proctoring by camera, re-attempt by teacher, student logins (step 26 of the plan) instead of DOB.
+
+## Admit cards from the date sheet (step 42, 17 Oct 2026, migration `0044`)
+The date sheet (date, time, room per class and subject) already lives on the exam page. **Exam → Admit cards** issues one card per student of a class (`issue_admit_cards()`): photo, roll number, centre and the student's **own date sheet** (`{{exam.datesheet_html}}`, built by the database from `exam_subjects` for the student's class). The gallery design *Exam admit card* (A4) asks the question `exam_ref` (the examination, listed from the session's exams — not only declared ones); a student keeps one card per examination, running it again skips the ones already issued. Single cards can be issued from the student's documents screen with the same template. Tests: `admit_cards.test.sql`.

@@ -84,6 +84,14 @@ export const EVENTS: Record<MsgEvent, EventDef> = {
       hi: "प्रिय {{holder}}, {{qty}} × {{item}} ({{condition}}) वापस प्राप्त हो गया है। धन्यवाद। — {{school}}",
     },
   },
+  leave_decided: {
+    name: "Leave decision", vars: ["student", "decision", "dates", "note", "school"],
+    subject: { en: "Leave {{decision}} — {{student}}", hi: "अवकाश {{decision}} — {{student}}" },
+    text: {
+      en: "Dear Parent, the leave request of {{student}} for {{dates}} has been {{decision}}. {{note}} — {{school}}",
+      hi: "प्रिय अभिभावक, {{student}} के {{dates}} के अवकाश का अनुरोध {{decision}} किया गया है। {{note}} — {{school}}",
+    },
+  },
   asset_overdue: {
     name: "Property not returned on time", vars: ["holder", "item", "qty", "due_back", "school"],
     subject: { en: "Please return {{item}} — {{school}}", hi: "कृपया {{item}} लौटाएँ — {{school}}" },
@@ -171,7 +179,7 @@ export async function queueMessages(o: { schoolId: string | null; event: MsgEven
     prefs = (s?.prefs ?? null) as SchoolPrefs | null;
     for (const r of t ?? []) override.set(`${r.channel}|${r.language}`, { subject: r.subject, body: r.body, provider_template: r.provider_template });
   }
-  const isNotify = o.schoolId !== null && o.event in { fee_receipt: 1, fee_reminder: 1, absent: 1, exam_result: 1, notice: 1, admission: 1, birthday: 1, asset_assigned: 1, asset_returned: 1, asset_overdue: 1 };
+  const isNotify = o.schoolId !== null && o.event in { fee_receipt: 1, fee_reminder: 1, absent: 1, exam_result: 1, notice: 1, admission: 1, birthday: 1, asset_assigned: 1, asset_returned: 1, asset_overdue: 1, leave_decided: 1 };
   const wanted: Channel[] = (o.channels ?? (def.platform ? (["email"] as Channel[]) : CHANNELS)).filter((c) => !isNotify || o.channels || notifyOn(prefs, o.event as NotifyEvent, c));
   const have = new Set<Channel>();
   await Promise.all(wanted.map(async (c) => { if (await resolveIntegration(o.schoolId, c)) have.add(c); }));

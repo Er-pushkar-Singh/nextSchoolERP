@@ -321,7 +321,8 @@
             "view",
             "create",
             "approve"
-          ]
+          ],
+          "built": true
         },
         {
           "code": "staff",
@@ -381,7 +382,8 @@
             "view",
             "create",
             "print"
-          ]
+          ],
+          "built": true
         }
       ]
     },
@@ -604,7 +606,8 @@
           "actions": [
             "view",
             "create"
-          ]
+          ],
+          "built": true
         },
         {
           "code": "outbox",
@@ -921,7 +924,8 @@
           "actions": [
             "view",
             "create"
-          ]
+          ],
+          "built": true
         },
         {
           "code": "audit",

@@ -27,7 +27,7 @@ The top-level [`README.md`](../README.md) is the product / setup guide; these do
 | 9 | Exams & results | [modules/exams.md](modules/exams.md) | `exams.*` | Built (admit cards: not yet) |
 | 10 | Fees | [modules/fees.md](modules/fees.md) | `fees.*` | Built (Fees 2.0: split / advance / cheques / refunds / online, step 10) |
 | 11 | Notices | [modules/notices.md](modules/notices.md) | `comms.notices` | Built (templates, calendar, messages: not yet) |
-| 12 | Parent page | [modules/parent-portal.md](modules/parent-portal.md) | none — secret link | Built |
+| 12 | Parent page & family portal (parent / student logins, PWA) | [modules/parent-portal.md](modules/parent-portal.md) | none — secret link; `attendance.leave`, `comms.messages` | Built (step 41: logins, leave, messages) |
 | 13 | Homework & study material | [modules/homework.md](modules/homework.md) | `homework.*` | Built (step 5) |
 | 14 | Transport | [modules/transport.md](modules/transport.md) | `transport.*` | Built (step 5; GPS tracking: not yet) |
 | 15 | Staff & payroll (HR) | [modules/hr-payroll.md](modules/hr-payroll.md) | `hr.*` | Built (step 5; step 40: logins, reset password, HR letters, pagination) |
@@ -47,7 +47,7 @@ The top-level [`README.md`](../README.md) is the product / setup guide; these do
 | 22 | Accounts (day book & vouchers) | [modules/accounts.md](modules/accounts.md) | `accounts.*` | Built (step 20) |
 | 21 | Template studio (visual designer, gallery, module registry) | [modules/templates.md](modules/templates.md) | `documents.templates` | Built (step 16) |
 
-Not built yet (permissions exist, no screens): UDISE+ file export, parent / student logins, student leave, backups, and the sub-modules marked "not yet" above — see [roadmap.md](roadmap.md).
+Not built yet: the official UDISE+ DCF file layout (a student-level working sheet exists), OTP-by-SMS sign-in and push notifications for the family portal, exam re-evaluation, and the items in [roadmap.md](roadmap.md).
 
 ## Each module doc has the same sections
 

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requirePerm } from "@/lib/school";
 import { errMsg, go, oneOf, str, uuid } from "@/lib/action-util";
 import { ensureLogin, showPasswordOnce } from "@/lib/logins";
+import { staffBack } from "@/lib/staff-login";
 import catalog from "@/lib/catalog.json";
 
 const STAFF = "/app/settings/staff";
@@ -70,7 +71,7 @@ export async function removeStaff(f: FormData) {
 export async function addAssignment(f: FormData) {
   const { supabase, school } = await requirePerm("academics.allocation.create", "academics.allocation.edit");
   const uid = uuid(f, "user_id");
-  const back = `${STAFF}?user=${uid}`;
+  const back = staffBack(f, `${STAFF}?user=${uid}`);
   const sections = ids(f, "section_ids");
   const subject = uuid(f, "subject_id");
   const isCt = f.get("is_class_teacher") === "on";
@@ -82,13 +83,14 @@ export async function addAssignment(f: FormData) {
     if (!error) added++;
     else if (!/duplicate|unique/i.test(error.message)) go(back, { error: errMsg(error) });
   }
-  go(back, { ok: `Assigned ${added} new section(s).` });
+  revalidatePath("/app/hr");
+  go(back, { ok: added ? `Assigned ${added} new section(s). The teacher now sees those classes' students.` : "Already assigned." });
 }
 
 export async function removeAssignment(f: FormData) {
   const { supabase, school } = await requirePerm("academics.allocation.delete", "academics.allocation.edit");
   const { error } = await supabase.from("staff_assignments").delete().eq("id", uuid(f, "id")!).eq("school_id", school.id);
-  go(`${STAFF}?user=${uuid(f, "user_id")}`, error ? { error: errMsg(error) } : { ok: "Assignment removed." });
+  go(staffBack(f, `${STAFF}?user=${uuid(f, "user_id")}`), error ? { error: errMsg(error) } : { ok: "Assignment removed." });
 }
 
 export async function setOverride(f: FormData) {

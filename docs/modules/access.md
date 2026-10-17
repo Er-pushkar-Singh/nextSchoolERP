@@ -38,3 +38,6 @@ Every module. **HR staff records** (`staff` table, [hr-payroll.md](hr-payroll.md
 
 ## Gaps & ideas
 Parent / student logins (model supports them, no screens), bulk role assignment, invite by email instead of temporary password.
+
+## Role editor (16 Oct 2026)
+`/app/settings/roles/[id]` shows **every** action a sub-module offers — the *Block / unblock* column was missing, so `students.profile.block` and `hr.staff.block` could not be given to a custom role (`catalog.actions` now lists `block`). Each module has **All / None** buttons, the header row and the sub-module column stay in view while scrolling, and the "(coming)" tag is removed from Integrations and Audit log (both exist). Table headers are sticky app-wide (`Table` component and a CSS rule for `.overflow-x-auto > table`).

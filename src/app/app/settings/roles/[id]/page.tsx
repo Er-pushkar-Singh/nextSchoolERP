@@ -2,8 +2,10 @@ import { notFound } from "next/navigation";
 import { requirePerm } from "@/lib/school";
 import { Badge, Flash, Input, PageHeader, Submit } from "@/components/ui/ui";
 import catalog from "@/lib/catalog.json";
+import { ModuleTools } from "@/components/settings/ModuleTools";
 import { deleteRole, resetRole, saveRolePermissions } from "../../../_actions/access";
 
+// every action any sub-module offers gets a column (block / unblock used to be missing)
 const ACTIONS = Object.keys(catalog.actions) as (keyof typeof catalog.actions)[];
 
 export default async function RoleEditor({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ ok?: string; error?: string }> }) {
@@ -39,36 +41,36 @@ export default async function RoleEditor({ params, searchParams }: { params: Pro
             <Input label="Description" name="description" defaultValue={role.description} />
           </div>
         )}
-        <div className="overflow-x-auto rounded-[12px] border border-line bg-white">
-          <table className="w-full border-collapse text-[14px]" style={{ minWidth: 980 }}>
-            <thead>
+        <div className="max-h-[calc(100vh-13rem)] overflow-auto rounded-[12px] border border-line bg-white">
+          <table className="w-full border-separate border-spacing-0 text-[14px]" style={{ minWidth: 1040 }}>
+            <thead className="sticky top-0 z-10">
               <tr className="bg-surface-alt text-left text-ink">
-                <th className="px-3 py-2">Module · sub-module</th>
-                {ACTIONS.map((a) => <th key={a} className="px-2 py-2 text-center font-semibold">{catalog.actions[a]}</th>)}
-                <th className="px-3 py-2">Scope</th>
+                <th className="sticky left-0 z-20 border-b border-line-strong bg-surface-alt px-3 py-2.5">Module · sub-module</th>
+                {ACTIONS.map((a) => <th key={a} className="border-b border-line-strong bg-surface-alt px-2 py-2.5 text-center font-semibold">{catalog.actions[a]}</th>)}
+                <th className="border-b border-line-strong bg-surface-alt px-3 py-2.5">Scope</th>
               </tr>
             </thead>
             {catalog.modules.map((m) => (
               <tbody key={m.code}>
-                <tr className="border-t-2 border-line-strong bg-surface-alt/60">
-                  <td colSpan={ACTIONS.length + 2} className="px-3 py-2 font-bold text-ink">
-                    {m.name} <span className="font-normal text-[12px] text-muted">· {m.tier}</span> {off.has(m.code) && <Badge value="draft" text="Switched off for this school" />}
+                <tr className="bg-blue-soft">
+                  <td colSpan={ACTIONS.length + 2} className="border-y border-line-strong px-3 py-2 font-bold text-ink">
+                    {m.name} <span className="font-normal text-[12px] text-muted">· {m.tier}</span> {off.has(m.code) && <Badge value="draft" text="Switched off for this school" />}{editable && <ModuleTools label={m.name} />}
                   </td>
                 </tr>
                 {m.submodules.map((s) => {
                   const sub = `${m.code}.${s.code}`;
                   const cur = s.actions.map((a) => has.get(`${sub}.${a}`)).find(Boolean) ?? (role.kind === "family" ? "child" : "school");
                   return (
-                    <tr key={sub} className="border-t border-line">
-                      <td className="px-3 py-1.5 pl-6">{s.name} {!("built" in s && s.built) && <span className="text-[11px] text-muted">(coming)</span>}</td>
+                    <tr key={sub} className="hover:bg-blue-soft/40">
+                      <td className="sticky left-0 z-[1] border-t border-line bg-white px-3 py-1.5 pl-6">{s.name} {!("built" in s && s.built) && <span className="text-[11px] text-muted">(coming)</span>}</td>
                       {ACTIONS.map((a) => (
-                        <td key={a} className="px-2 py-1.5 text-center">
+                        <td key={a} className="border-t border-line px-2 py-1.5 text-center">
                           {s.actions.includes(a) ? (
                             <input type="checkbox" name={`p:${sub}.${a}`} defaultChecked={has.has(`${sub}.${a}`)} disabled={!editable} aria-label={`${s.name} ${a}`} className="h-4 w-4" />
                           ) : <span className="text-line-strong">·</span>}
                         </td>
                       ))}
-                      <td className="px-3 py-1.5">
+                      <td className="border-t border-line px-3 py-1.5">
                         <select name={`s:${sub}`} defaultValue={cur} disabled={!editable} className="rounded-md border border-line px-1.5 py-1 text-[13px]" aria-label={`${s.name} scope`}>
                           {scopes.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                         </select>

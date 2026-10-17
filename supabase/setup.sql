@@ -749,9 +749,9 @@ insert into public.erp_submodules (code, module_code, name, built, sort) values
   ('settings.billing', 'settings', 'Subscription & billing', true, 1),
   ('settings.users', 'settings', 'Staff logins', true, 2),
   ('settings.roles', 'settings', 'Roles & permissions', true, 3),
-  ('settings.integrations', 'settings', 'Payment gateway, Cloudinary, SMS', false, 4),
+  ('settings.integrations', 'settings', 'Payment gateway, Cloudinary, SMS', true, 4),
   ('settings.backups', 'settings', 'Backups & data export', false, 5),
-  ('settings.audit', 'settings', 'Audit log', false, 6),
+  ('settings.audit', 'settings', 'Audit log', true, 6),
   ('support.tickets', 'support', 'Support tickets to CodersDuniya', true, 0)
 on conflict (code) do update set name = excluded.name, built = excluded.built, sort = excluded.sort;
 

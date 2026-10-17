@@ -8,7 +8,8 @@
     "approve": "Approve",
     "export": "Export",
     "print": "Print",
-    "publish": "Publish"
+    "publish": "Publish",
+    "block": "Block / unblock"
   },
   "scopes": {
     "school": "Whole school",
@@ -911,7 +912,8 @@
           "actions": [
             "view",
             "edit"
-          ]
+          ],
+          "built": true
         },
         {
           "code": "backups",
@@ -926,7 +928,8 @@
           "name": "Audit log",
           "actions": [
             "view"
-          ]
+          ],
+          "built": true
         }
       ]
     },

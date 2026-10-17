@@ -28,7 +28,7 @@ export function CredentialsBanner({ cred, school }: { cred: { email: string; pw:
 }
 
 /** Everything that can be done to one staff member, as small buttons (list rows and the profile header). */
-export function StaffActions({ s, back, roles, can, profile = false }: { s: StaffLite; back: string; roles: RoleLite[]; can: StaffCan; profile?: boolean }) {
+export function StaffActions({ s, back, roles, can, profile = false, sections = [] }: { s: StaffLite; back: string; roles: RoleLite[]; can: StaffCan; profile?: boolean; sections?: [string, string][] }) {
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
       {!profile && <Link href={`/app/hr/staff/${s.id}`}>Open</Link>}
@@ -43,6 +43,12 @@ export function StaffActions({ s, back, roles, can, profile = false }: { s: Staf
             <fieldset className="m-0 border-0 p-0"><legend className="mb-1 text-[13px] font-semibold text-ink">Roles</legend>
               <div className="grid gap-1 sm:grid-cols-2">{roles.map((r) => <label key={r.id} className="flex items-center gap-2 text-[14px]"><input type="checkbox" name="role_ids" value={r.id} /> {r.name}</label>)}</div>
             </fieldset>
+            {sections.length > 0 && (
+              <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">Class teacher of (optional)
+                <select name="class_section_id" className="input !min-h-10 !py-2 text-[15px] font-normal"><option value="">— none —</option>{sections.map(([id, l]) => <option key={id} value={id}>{l}</option>)}</select>
+                <span className="text-[12px] font-normal text-muted">A teacher sees only the students of the classes assigned to them.</span>
+              </label>
+            )}
             <div><Submit>Create login</Submit></div>
           </form>
         </Modal>

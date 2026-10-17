@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requirePerm } from "@/lib/school";
 import { errMsg, go, str, uuid } from "@/lib/action-util";
 import { resetPassword, showPasswordOnce } from "@/lib/logins";
-import { grantStaffLogin, passwordResetBlocker, staffBack, validEmail } from "@/lib/staff-login";
+import { assignClassTeacher, grantStaffLogin, passwordResetBlocker, staffBack, validEmail } from "@/lib/staff-login";
 import { ensureHrLetters } from "@/lib/hr-letters";
 
 const ids = (f: FormData, k: string) => f.getAll(k).map(String).filter((x) => /^[0-9a-f-]{36}$/.test(x));
@@ -28,6 +28,8 @@ export async function createStaffLogin(f: FormData) {
   if ("error" in r) go(back, { error: r.error });
   const ok = r as { uid: string; pw?: string };
   if (ok.pw) await showPasswordOnce(pwPath(back), email!, ok.pw);
+  const ctErr = await assignClassTeacher(supabase, school.id, ok.uid, uuid(f, "class_section_id"));
+  if (ctErr) go(back, { error: `Login created, but the class could not be assigned: ${ctErr}` });
   await supabase.rpc("log_event", { p_action: "user.login_created", p_school: school.id, p_entity: "staff", p_entity_id: s!.id, p_details: { email } });
   revalidatePath("/app/hr");
   go(back, { ok: ok.pw ? `Login created for ${email}. Copy the sign-in details below and give them to ${s!.name}.` : `${email} already had a sign-in — linked to ${s!.name} with the chosen roles.` });

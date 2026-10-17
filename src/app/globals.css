@@ -189,3 +189,10 @@ button[data-loading] svg { display: none; }
 @media print {
   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 }
+
+/* Sticky table headers: a table inside a scrolling box keeps its header in view while the rows scroll. */
+@media screen {
+  .overflow-x-auto:has(> table) { max-height: calc(100vh - 9rem); overflow: auto; }
+  .overflow-x-auto > table > thead > tr > th { position: sticky; top: 0; z-index: 11; background-color: inherit; box-shadow: 0 1px 0 rgba(15, 23, 42, 0.12); }
+  .overflow-x-auto > table > thead > tr:not([class*="bg-"]) > th { background-color: #fff; }
+}

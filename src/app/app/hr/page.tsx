@@ -5,6 +5,7 @@ import { Pagination, pageParams } from "@/components/ui/Pagination";
 import { cleanSearch, fmtDate, money, todayIST } from "@/lib/format";
 import { STAFF_KINDS } from "@/lib/hr";
 import { importLogins, saveStaff } from "../_actions/hr";
+import { getClasses, sectionOptions } from "@/lib/erp";
 import { readPasswordOnce } from "@/lib/logins";
 import { CredentialsBanner, StaffActions } from "@/components/hr/StaffActions";
 
@@ -26,14 +27,16 @@ export default async function StaffDirectory({ searchParams }: { searchParams: P
   const dept = (sp.department ?? "").slice(0, 60) || null;
 
   const canLoginCreate = can("settings.users.create");
-  const [listQ, countsQ, deptQ, leaveQ, rolesQ, cred] = await Promise.all([
+  const [listQ, countsQ, deptQ, leaveQ, rolesQ, cred, classes] = await Promise.all([
     supabase.rpc("staff_list", { sid: school.id, p_q: q || null, p_kind: kind, p_department: dept, p_status: status, p_login: login, p_blocked: blocked, p_sort: sort, p_limit: size, p_offset: offset }),
     supabase.rpc("staff_counts", { sid: school.id }),
     supabase.from("staff").select("department").eq("school_id", school.id).not("department", "is", null).limit(1000),
     supabase.rpc("leave_summary", { sid: school.id, d1: todayIST(), d2: todayIST() }),
     canLoginCreate ? supabase.from("roles").select("id,name").eq("school_id", school.id).eq("kind", "staff").order("created_at") : Promise.resolve({ data: [] }),
     readPasswordOnce(),
+    canLoginCreate ? getClasses(supabase, school.id) : Promise.resolve([]),
   ]);
+  const sections = sectionOptions(classes);
   const roles = (rolesQ.data ?? []) as { id: string; name: string }[];
   const S = (listQ.data ?? []) as Row[];
   const total = S[0]?.total ? Number(S[0].total) : 0;
@@ -100,7 +103,7 @@ export default async function StaffDirectory({ searchParams }: { searchParams: P
                   {s.user_id && <Badge value="contacted" text="Login" />}
                 </span>
               </td>
-              <td className={td}><StaffActions s={{ id: s.id, name: s.name, email: s.email, user_id: s.user_id, status: s.status, blocked: s.blocked }} back={here} roles={roles} can={rowCan} /></td>
+              <td className={td}><StaffActions s={{ id: s.id, name: s.name, email: s.email, user_id: s.user_id, status: s.status, blocked: s.blocked }} back={here} roles={roles} can={rowCan} sections={sections} /></td>
             </tr>
           ))}
         </Table>
@@ -127,6 +130,12 @@ export default async function StaffDirectory({ searchParams }: { searchParams: P
                 <label className="flex items-center gap-2 text-[14px] font-semibold text-ink"><input type="checkbox" name="create_login" defaultChecked /> Create an ERP login now (user name = the email above)</label>
                 <p className="m-0 mt-1 text-[13px] text-muted">A temporary password is generated and shown once after saving — copy it and give it to the staff member.</p>
                 <div className="mt-2 grid gap-1 sm:grid-cols-3">{roles.map((r) => <label key={r.id} className="flex items-center gap-2 text-[14px]"><input type="checkbox" name="role_ids" value={r.id} /> {r.name}</label>)}</div>
+                {sections.length > 0 && (
+                  <label className="mt-3 flex max-w-xs flex-col gap-1 text-[13px] font-semibold text-ink">Class teacher of (optional)
+                    <select name="class_section_id" className="input !min-h-10 !py-2 text-[15px] font-normal"><option value="">— none —</option>{sections.map(([id, l]) => <option key={id} value={id}>{l}</option>)}</select>
+                    <span className="text-[12px] font-normal text-muted">A teacher sees only the students of the classes assigned to them. More classes and subjects can be added on the profile.</span>
+                  </label>
+                )}
               </fieldset>
             )}
             <div className="flex flex-wrap items-center gap-3 sm:col-span-4"><Submit>Add staff member</Submit><span className="text-[13px] text-muted">The joining / appointment letter and other HR letters are ready on the next screen.</span></div>

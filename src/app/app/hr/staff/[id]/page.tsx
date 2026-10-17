@@ -12,6 +12,8 @@ import { CredentialsBanner, StaffActions } from "@/components/hr/StaffActions";
 import { readPasswordOnce } from "@/lib/logins";
 import { installHrLetters } from "../../../_actions/staff-login";
 import { HR_LETTERS } from "@/lib/design";
+import { ClassAssignments } from "@/components/hr/ClassAssignments";
+import { getClasses, sectionOptions } from "@/lib/erp";
 
 // joining / appointment letter first: it is the one handed over on the first day
 const LETTER_ORDER = ["appointment_letter", "offer_letter", "confirmation_letter", "increment_letter", "salary_certificate", "experience_letter", "relieving_letter", "staff_noc", "warning_letter"];
@@ -58,6 +60,13 @@ export default async function StaffPage({ params, searchParams }: { params: Prom
   ]);
   const usedOf = (k: string) => ((used ?? []) as { staff_id: string; kind: string; days: number }[]).filter((u) => u.staff_id === id && u.kind === k).reduce((t, u) => t + Number(u.days), 0);
   const P = ((slips ?? []) as unknown as { month: string; status: string; payslips: { id: string; net: number; paid_on: string | null }[] }[]).flatMap((r) => r.payslips.map((x) => ({ ...x, payroll_runs: { month: r.month, status: r.status } })));
+  // classes the login works with (a teacher sees only these students)
+  const [assignQ, subjectsQ, classRows] = await Promise.all([
+    s.user_id ? supabase.from("staff_assignments").select("id,section_id,subject_id,is_class_teacher").eq("school_id", school.id).eq("user_id", s.user_id).order("section_id") : Promise.resolve({ data: [] }),
+    s.user_id ? supabase.from("subjects").select("id,name").eq("school_id", school.id).order("sort") : Promise.resolve({ data: [] }),
+    getClasses(supabase, school.id),
+  ]);
+  const sections = sectionOptions(classRows);
   const takenLogins = new Set((linked ?? []).map((x) => x.user_id).filter((u) => u !== s.user_id));
   const loginOptions = (members ?? []).filter((m) => !takenLogins.has(m.user_id)).map((m) => [m.user_id, `${m.name ?? m.email}${m.name && m.email ? ` · ${m.email}` : ""}`] as [string, string]);
   const edit = can("hr.staff.edit");
@@ -69,7 +78,7 @@ export default async function StaffPage({ params, searchParams }: { params: Prom
   return (
     <div className="flex flex-col gap-5">
       <PageHeader icon="hr" title={s.name} back={{ href: "/app/hr", label: "Staff" }}
-        actions={<StaffActions profile s={{ id: s.id, name: s.name, email: s.email, user_id: s.user_id, status: s.status, blocked: isBlocked }} back={`/app/hr/staff/${id}`} roles={(staffRoles ?? []) as { id: string; name: string }[]}
+        actions={<StaffActions profile s={{ id: s.id, name: s.name, email: s.email, user_id: s.user_id, status: s.status, blocked: isBlocked }} back={`/app/hr/staff/${id}`} roles={(staffRoles ?? []) as { id: string; name: string }[]} sections={sections}
           can={{ edit, block: canBlock, loginCreate: can("settings.users.create"), loginEdit: can("settings.users.edit"), letters: false }} />}
         subtitle={<>{[s.designation, s.department, s.emp_code].filter(Boolean).join(" · ") || "—"} {s.status === "left" && <Badge value="cancelled" text={`Left ${fmtDate(s.leaving_date)}`} />}{isBlocked && <> <Badge value="overdue" text="Blocked" /></>}</>} />
       <Flash ok={sp.ok} error={sp.error} />
@@ -144,11 +153,16 @@ export default async function StaffPage({ params, searchParams }: { params: Prom
         ) : (
           <div className="flex flex-wrap items-center justify-between gap-3 text-[14px]">
             <span className="text-muted">No login yet — {s.name} cannot sign in. {can("settings.users.create") ? "Create one and hand over the temporary password." : "Ask an admin to create one."}</span>
-            <StaffActions profile s={{ id: s.id, name: s.name, email: s.email, user_id: null, status: s.status, blocked: isBlocked }} back={`/app/hr/staff/${id}`} roles={(staffRoles ?? []) as { id: string; name: string }[]}
+            <StaffActions profile s={{ id: s.id, name: s.name, email: s.email, user_id: null, status: s.status, blocked: isBlocked }} back={`/app/hr/staff/${id}`} roles={(staffRoles ?? []) as { id: string; name: string }[]} sections={sections}
               can={{ edit: false, block: false, loginCreate: can("settings.users.create"), loginEdit: false, letters: false }} />
           </div>
         )}
       </Card>
+
+      {s.user_id && (can("academics.allocation.view") || can("settings.users.view")) && (
+        <ClassAssignments userId={s.user_id} name={s.name} back={`/app/hr/staff/${id}#classes`} assignments={(assignQ.data ?? []) as { id: string; section_id: string; subject_id: string | null; is_class_teacher: boolean }[]}
+          sections={sections} subjects={(subjectsQ.data ?? []) as { id: string; name: string }[]} canEdit={can("academics.allocation.create") || can("academics.allocation.edit")} />
+      )}
 
       <form action={saveStaff} className="flex flex-col gap-5">
         <input type="hidden" name="id" value={s.id} />

@@ -18,12 +18,12 @@ export default function ModuleMap() {
   return (
     <div className="flex flex-col gap-5">
       <PageHeader icon="modules" title="Module map & default permissions" subtitle={`${catalog.modules.length} modules · ${catalog.modules.reduce((n, m) => n + m.submodules.length, 0)} sub-modules · ${roles.length} default roles. S = whole school, A = assigned, O = own, C = own children, Me = self.`} back={{ href: "/platform", label: "Schools" }} />
-      <div className="overflow-x-auto rounded-[12px] border border-line bg-white">
-        <table className="w-full border-collapse text-[12px]" style={{ minWidth: 1300 }}>
-          <thead>
+      <div className="max-h-[calc(100vh-10rem)] overflow-auto rounded-[12px] border border-line bg-white">
+        <table className="w-full border-separate border-spacing-0 text-[12px]" style={{ minWidth: 1300 }}>
+          <thead className="sticky top-0 z-10">
             <tr className="bg-surface-alt text-left">
-              <th className="px-2 py-2">Module · sub-module · actions</th>
-              {roles.map((r) => <th key={r.code} className="px-1 py-2 text-center font-semibold">{r.name.split(" /")[0]}</th>)}
+              <th className="sticky left-0 z-20 border-b border-line-strong bg-surface-alt px-2 py-2">Module · sub-module · actions</th>
+              {roles.map((r) => <th key={r.code} className="border-b border-line-strong bg-surface-alt px-1 py-2 text-center font-semibold">{r.name.split(" /")[0]}</th>)}
             </tr>
           </thead>
           {catalog.modules.map((m) => (

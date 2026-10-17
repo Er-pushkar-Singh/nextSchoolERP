@@ -146,10 +146,11 @@ export function ButtonLink({ href, children, variant = "primary" }: { href: stri
 
 export function Table({ head, children, minWidth = 760 }: { head: string[]; children: React.ReactNode; minWidth?: number }) {
   return (
-    <div className="overflow-x-auto rounded-[14px] border border-line bg-white shadow-[var(--shadow-card)]">
+    // the header stays in view while the rows scroll (the table scrolls inside its own box)
+    <div className="max-h-[calc(100vh-9rem)] overflow-auto rounded-[14px] border border-line bg-white shadow-[var(--shadow-card)]">
       <table className="w-full border-collapse text-[14px]" style={{ minWidth }}>
         <thead>
-          <tr className="bg-blue-soft text-left text-[12.5px] tracking-[0.02em] text-[#3d4f7a] uppercase">{head.map((h) => <th key={h} className="px-3 py-3 font-bold whitespace-nowrap">{h}</th>)}</tr>
+          <tr className="text-left text-[12.5px] tracking-[0.02em] text-[#3d4f7a] uppercase">{head.map((h, i) => <th key={`${h}${i}`} className="sticky top-0 z-[11] bg-blue-soft px-3 py-3 font-bold whitespace-nowrap shadow-[0_1px_0_rgba(15,23,42,0.12)]">{h}</th>)}</tr>
         </thead>
         <tbody>{children}</tbody>
       </table>

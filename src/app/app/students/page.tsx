@@ -16,7 +16,7 @@ type Row = { id: string; admission_no: string; first_name: string; middle_name: 
   status: string; class_name: string | null; section_name: string | null; gender: string | null; category: string | null; blocked: boolean; block_reason: string | null; balance: number; total: number };
 
 export default async function Students({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
-  const { supabase, school, can } = await requirePerm("students.profile.view");
+  const { supabase, school, can, canSchool, user } = await requirePerm("students.profile.view");
   const sp = await searchParams;
   const { page, size, offset } = pageParams(sp);
   const uuidOk = (v?: string) => (v && /^[0-9a-f-]{36}$/.test(v) ? v : null);
@@ -29,11 +29,14 @@ export default async function Students({ searchParams }: { searchParams: Promise
   const blocked = ["yes", "no"].includes(sp.blocked ?? "") ? sp.blocked! : null;
   const dues = ["yes", "no"].includes(sp.dues ?? "") ? sp.dues! : null;
 
-  const [classes, listQ, countsQ] = await Promise.all([
+  // a teacher (scope "assigned") sees only the sections assigned to them — say so when there are none
+  const assignedOnly = !canSchool("students.profile.view");
+  const [classes, listQ, countsQ, { count: myClasses }] = await Promise.all([
     getClasses(supabase, school.id),
     supabase.rpc("student_list", { sid: school.id, p_q: q || null, p_class: cls, p_section: sec, p_status: status, p_gender: gender, p_category: category,
       p_blocked: blocked, p_dues: dues, p_sort: sort, p_limit: size, p_offset: offset }),
     supabase.rpc("student_counts", { sid: school.id }),
+    assignedOnly ? supabase.from("staff_assignments").select("id", { count: "exact", head: true }).eq("school_id", school.id).eq("user_id", user.id) : Promise.resolve({ count: null }),
   ]);
   const rows = (listQ.data ?? []) as Row[];
   const total = rows[0]?.total ? Number(rows[0].total) : 0;
@@ -62,6 +65,11 @@ export default async function Students({ searchParams }: { searchParams: Promise
           {canWrite && <ButtonLink href="/app/students/new">New admission</ButtonLink>}
         </>} />
       <Flash ok={sp.ok} error={sp.error} />
+      {assignedOnly && myClasses === 0 && (
+        <div role="note" className="rounded-[12px] border border-[#f1d39a] bg-[#fff4e0] px-4 py-3 text-[14px] text-[#7a4b00]">
+          <b>No class is assigned to you yet</b>, so there are no students to show. Ask the principal or office to assign your class and subjects (Staff → your profile → Classes &amp; subjects, or Settings → Staff &amp; access).
+        </div>
+      )}
 
       <nav className="flex flex-wrap gap-2 text-[14px]" aria-label="Status">
         {STUDENT_STATUS.map(([k, l]) => {

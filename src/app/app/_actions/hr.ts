@@ -6,7 +6,7 @@ import { date, errMsg, go, num, oneOf, str, uuid } from "@/lib/action-util";
 import { todayIST } from "@/lib/format";
 import type { Line } from "@/lib/hr";
 import { showPasswordOnce } from "@/lib/logins";
-import { grantStaffLogin, staffBack, validEmail } from "@/lib/staff-login";
+import { assignClassTeacher, grantStaffLogin, staffBack, validEmail } from "@/lib/staff-login";
 import { ensureHrLetters } from "@/lib/hr-letters";
 
 /** Salary lines from inputs named <prefix>_name_<i> / <prefix>_amt_<i> */
@@ -70,6 +70,8 @@ export async function saveStaff(f: FormData) {
     const ok = r as { uid: string; pw?: string };
     if (ok.pw) await showPasswordOnce("/app/hr", email!, ok.pw);
     await supabase.rpc("log_event", { p_action: "user.login_created", p_school: school.id, p_entity: "staff", p_entity_id: sid, p_details: { email } });
+    const ctErr = await assignClassTeacher(supabase, school.id, ok.uid, uuid(f, "class_section_id"));
+    if (ctErr) go(`/app/hr/staff/${sid}`, { error: `Staff member and login created, but the class could not be assigned: ${ctErr}` });
     note = ok.pw ? " Sign-in details are shown below — copy them for the staff member." : ` ${email} already had a sign-in, so it is linked.`;
   }
   go(`/app/hr/staff/${sid}#letters`, { ok: `Staff member added.${note} Joining letter and other letters are ready under Letters. Set the salary structure for payroll.` });

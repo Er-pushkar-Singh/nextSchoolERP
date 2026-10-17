@@ -54,3 +54,11 @@ export function staffBack(f: FormData, fallback: string) {
   q.delete("ok"); q.delete("error");
   return `${base}${q.size ? `?${q}` : ""}${hash ? `#${hash}` : ""}`;
 }
+
+/** Makes the login the class teacher of a section — without an assignment an "assigned"-scope teacher sees no students at all. */
+export async function assignClassTeacher(supabase: SupabaseClient, schoolId: string, uid: string, sectionId: string | null): Promise<string | null> {
+  if (!sectionId) return null;
+  const { error } = await supabase.from("staff_assignments").insert({ school_id: schoolId, user_id: uid, section_id: sectionId, subject_id: null, is_class_teacher: true });
+  if (error && !/duplicate|unique/i.test(error.message)) return /row-level security|permission denied/i.test(error.message) ? "you can't assign classes — an admin can do it under Settings → Staff & access" : errMsg(error);
+  return null;
+}

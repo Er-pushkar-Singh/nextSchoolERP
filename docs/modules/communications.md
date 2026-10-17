@@ -51,3 +51,7 @@ Delivery receipts via provider webhooks, two-way parent–teacher inbox, per-sch
 
 ## Events added on 15 Oct 2026
 School property: `asset_assigned` and `asset_returned` (sent at once to the staff member / the student's parent / the room in-charge) and `asset_overdue` (weekly, from the daily job). Defaults: email on.
+
+## Step 41 additions (17 Oct 2026)
+- New event **`leave_decided`** (parent is told when a student leave is approved / rejected) — wording in Messages → Templates, switches in Settings → Notifications.
+- **Parent messages** (`comms.messages`): `family_messages`, one conversation per student between the family (portal) and the class team. Staff: **`/app/inbox`** (unread first, search, paging) and `/app/inbox/[studentId]` (reply). A teacher sees only the students of their sections. Messages are in-app (no outbox / provider needed); unread counts use `family_unread()`.

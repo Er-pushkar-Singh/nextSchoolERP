@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { portalStudent } from "@/lib/portal";
+import { portalHome, portalStudent } from "@/lib/portal";
 import { resolveIntegration } from "@/lib/integrations";
 import { createRazorpayLink } from "@/lib/razorpay";
 import { appUrl } from "@/lib/brand";
@@ -14,7 +14,10 @@ import { todayIST } from "@/lib/format";
  */
 export async function startOnlinePayment(f: FormData) {
   const token = String(f.get("token") ?? "");
-  const back = (q: string): never => redirect(`/p/${token}?${q}`);
+  // a signed-in family comes back to its portal, a secret-link visitor to the link page
+  const ret = String(f.get("ret") ?? "");
+  const home = portalHome(token, ret);
+  const back = (q: string): never => redirect(`${home}?${q}`);
   const { db, s } = await portalStudent(token);
   if (s.blocked_at && (!s.blocked_till || s.blocked_till >= todayIST())) back("pay_error=" + encodeURIComponent("This page is not available right now."));
   const amount = Math.round(Number(f.get("amount")) * 100) / 100;
@@ -34,7 +37,7 @@ export async function startOnlinePayment(f: FormData) {
       description: `School fee · ${s.first_name} ${s.last_name ?? ""} · Adm. ${s.admission_no}`.trim(),
       referenceId: String(oid),
       customer: { name: [s.first_name, s.last_name].filter(Boolean).join(" ") },
-      callbackUrl: appUrl(`/p/${token}?paid=1`),
+      callbackUrl: appUrl(`${home}?paid=1`),
       expireBy: Math.floor(Date.now() / 1000) + 3 * 24 * 3600,
     });
     await db.from("fee_online_orders").update({ link_id: link.id, link_url: link.url }).eq("id", oid as string);

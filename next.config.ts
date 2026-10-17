@@ -18,10 +18,17 @@ const nextConfig: NextConfig = {
   cacheComponents: false,
   poweredByHeader: false,
   reactStrictMode: true,
-  experimental: { serverActions: { bodySizeLimit: "3mb" } }, // logo / photo uploads
+  experimental: {
+    serverActions: { bodySizeLimit: "3mb" },   // logo / photo uploads
+    optimizePackageImports: ["react-icons/lu"], // only the icons a page uses are bundled
+  },
   turbopack: { rules: { "*.css": { loaders: ["@tailwindcss/turbopack"], as: "*.css" } } },
   async headers() {
-    return [{
+    return [
+      // the app icons never change under the same name; the service worker must always be re-checked
+      { source: "/icons/:path*", headers: [{ key: "Cache-Control", value: "public, max-age=604800, immutable" }] },
+      { source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache" }, { key: "Service-Worker-Allowed", value: "/family/" }] },
+      {
       source: "/:path*",
       headers: [
         { key: "Content-Security-Policy", value: csp },

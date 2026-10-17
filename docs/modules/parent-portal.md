@@ -24,3 +24,14 @@ Step-5 sections show only when `school_modules` has the module licensed and enab
 
 ## Gaps & ideas
 Online fee payment (Razorpay) with automatic receipt, parent leave request for the child, PTM booking, photo gallery, Hindi language toggle (`prefs.language`), installable PWA.
+
+## Parent & student logins — the family portal (step 41, 17 Oct 2026, migration `0043`)
+Parents and students now have real logins next to the secret link. They sign in on the normal sign-in page and land in **`/family`** (a login whose roles are all parent / student roles is sent there automatically; `requireSchool().familyOnly`).
+
+- **User names**: a parent signs in with the **mobile number** (stored as `<mobile>@family.erp.local`) or a real e-mail; a student with **`SCHOOLCODE/ADMISSION-NO`** (`<adm>.<code>@student.erp.local`). `loginEmail()` in `src/lib/logins.ts` turns what was typed into the real e-mail. One parent login serves all their children (brothers and sisters share a mobile number).
+- **Creating logins** (office): Students → **Parent logins** (a section at a time, optional student logins) or the student's own page → *Parent & student app login*. `POST /app/students/family-logins` creates the logins (`provisionFamily()` in `src/lib/family-admin.ts`) and answers with a **printable sheet** (passwords only on that page; per-row WhatsApp link). Existing parents are skipped. **Reset password** per parent / student (same rule as staff: refused for a login that also belongs to another school).
+- **Screens** (`src/app/family`): *Who* (child switcher) → **Home** (the same student page as the secret link: fees with Razorpay / UPI, receipts, attendance, results, homework, bus, library, notices — shared `ParentView`), **Leave** (apply / cancel / history), **Messages** (conversation with the class team, unread badge), **Account** (change password). Everything is paged.
+- **Safety**: `family_children()` / `is_my_child()` are the only way in; `requireChild(studentId)` 404s for anyone else's child. The home page reads with the service key *after* that check (like the secret link does).
+- **Install on the phone**: `/manifest.webmanifest` (`src/app/manifest.ts`), icons in `public/icons` (`node scripts/gen-icons.mjs`), `public/sw.js` (offline page; signed-in pages are never cached).
+- **Tests**: `family_portal.test.sql` (own children only, leave rules, LV in the register, class-team messages, isolation).
+- **Gaps**: OTP by SMS (needs an approved DLT template — until then the office hands over the printed password), push notifications, parent-teacher meeting booking, student-side timetable tab.

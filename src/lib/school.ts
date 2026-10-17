@@ -17,7 +17,7 @@ export type School = {
 
 export const SCHOOL_COOKIE = "erp_school";
 
-type Membership = { school_id: string; school_name: string; roles: string[]; viaGroup?: boolean };
+type Membership = { school_id: string; school_name: string; roles: string[]; viaGroup?: boolean; /** every role of this login here is a parent / student role */ familyOnly?: boolean };
 
 /** Signed-in user + the schools they belong to (through roles). */
 export const getMe = cache(async () => {
@@ -26,14 +26,15 @@ export const getMe = cache(async () => {
   const { data } = await supabase.auth.getUser();
   if (!data.user) redirect("/login");
   const [{ data: rows }, { data: pa }, { data: groups }] = await Promise.all([
-    supabase.from("member_roles").select("school_id, roles(name), schools(name)").eq("user_id", data.user.id),
+    supabase.from("member_roles").select("school_id, roles(name, kind), schools(name)").eq("user_id", data.user.id),
     supabase.from("platform_admins").select("user_id").eq("user_id", data.user.id).eq("active", true).maybeSingle(),
     supabase.from("group_members").select("group_id, role, school_groups(name)").eq("user_id", data.user.id),
   ]);
   const map = new Map<string, Membership>();
-  for (const r of (rows ?? []) as unknown as { school_id: string; roles: { name: string } | null; schools: { name: string } | null }[]) {
-    const m = map.get(r.school_id) ?? { school_id: r.school_id, school_name: r.schools?.name ?? "School", roles: [] };
+  for (const r of (rows ?? []) as unknown as { school_id: string; roles: { name: string; kind: string } | null; schools: { name: string } | null }[]) {
+    const m = map.get(r.school_id) ?? { school_id: r.school_id, school_name: r.schools?.name ?? "School", roles: [], familyOnly: true };
     if (r.roles?.name) m.roles.push(r.roles.name);
+    if (r.roles?.kind !== "family") m.familyOnly = false;
     map.set(r.school_id, m);
   }
   const G = (groups ?? []) as unknown as { group_id: string; role: string; school_groups: { name: string } | null }[];
@@ -49,14 +50,18 @@ export const getMe = cache(async () => {
   return { supabase, user: data.user, memberships: [...map.values()], isPlatform: Boolean(pa), groups: G.map((g) => ({ id: g.group_id, name: g.school_groups?.name ?? "Group", role: g.role })) };
 });
 
+/** The school that owns this host name (its own subdomain / custom domain), looked up beside the sign-in check, not after it. */
+const tenantByHost = cache(async (host: string) => {
+  if (!host || !supabaseConfigured()) return null;
+  const { data } = await (await supabaseServer()).rpc("tenant_by_host", { h: host });
+  return ((data ?? []) as { id: string }[])[0]?.id ?? null;
+});
+
 /** Current school (cookie, else first membership), current session and the user's permissions there. */
 export const requireSchool = cache(async () => {
-  const me = await getMe();
-  const jar = await cookies();
-  // A school's own subdomain / custom domain wins over the remembered choice
   const host = (await headers()).get("host") ?? "";
-  const { data: tenant } = host ? await me.supabase.rpc("tenant_by_host", { h: host }) : { data: null };
-  const hostSchool = ((tenant ?? []) as { id: string }[])[0]?.id ?? null;
+  // A school's own subdomain / custom domain wins over the remembered choice
+  const [me, hostSchool, jar] = await Promise.all([getMe(), tenantByHost(host), cookies()]);
   const wanted = hostSchool ?? jar.get(SCHOOL_COOKIE)?.value;
   // Group owners without a school role start on the group overview until they pick a branch
   if (!wanted && me.memberships.length && me.memberships.every((x) => x.viaGroup)) redirect("/group");
@@ -80,6 +85,7 @@ export const requireSchool = cache(async () => {
   if (!me.isPlatform && member?.blocked_at && (!member.blocked_till || member.blocked_till >= new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10))) redirect("/no-access?blocked=1");
   const map = new Map<string, Scope>(((perms ?? []) as { perm_key: string; scope: Scope }[]).map((p) => [p.perm_key, p.scope]));
   const can = (key: string) => map.has(key);
+  const familyOnly = !me.isPlatform && Boolean(me.memberships.find((x) => x.school_id === schoolId)?.familyOnly);
   const roleNames = me.memberships.find((x) => x.school_id === schoolId)?.roles ?? (me.isPlatform ? ["Platform admin"] : []);
   return {
     ...me,
@@ -95,6 +101,8 @@ export const requireSchool = cache(async () => {
     /** holds the permission for the whole school */
     canSchool: (key: string) => map.get(key) === "school",
     roleNames,
+    /** a parent / student login: it belongs in the family portal, not the staff app */
+    familyOnly,
     myName: member?.name ?? me.user.email ?? "",
     /** platform staff inside a school: the active support session, if any (writes need one) */
     support: support as { id: string; reason: string; expires_at: string } | null,

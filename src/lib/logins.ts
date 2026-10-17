@@ -45,3 +45,20 @@ export async function readPasswordOnce() {
   const raw = (await cookies()).get("erp_newpw")?.value;
   try { return raw ? (JSON.parse(raw) as { email: string; pw: string }) : null; } catch { return null; }
 }
+
+/* ───────── Family logins: a mobile number or a student id works as the user name ───────── */
+const slug = (t: string) => t.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
+/** The sign-in e-mail for a parent who has no e-mail address of their own: their mobile number. */
+export const mobileLoginEmail = (mobile: string) => `${mobile.replace(/\D/g, "").slice(-10)}@family.erp.local`;
+/** The sign-in e-mail for a student login: school code + admission number. */
+export const studentLoginEmail = (schoolCode: string, admissionNo: string) => `${slug(admissionNo)}.${slug(schoolCode)}@student.erp.local`;
+/** What a person types on the sign-in page → the e-mail the login really has. An e-mail is used as typed. */
+export function loginEmail(input: string): string {
+  const v = input.trim().toLowerCase();
+  if (v.includes("@")) return v;
+  const digits = v.replace(/[\s-]/g, "");
+  if (/^(\+?91)?[6-9]\d{9}$/.test(digits)) return mobileLoginEmail(digits);
+  const m = /^([^/:]+)[/:](.+)$/.exec(v);
+  if (m) return studentLoginEmail(m[1].trim(), m[2].trim());
+  return v;
+}

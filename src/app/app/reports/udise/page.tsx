@@ -19,7 +19,7 @@ export default async function Udise() {
   return (
     <div className="flex flex-col gap-5">
       <PageHeader icon="reports" title="UDISE+ strength" subtitle={`Enrolment by class, social category and gender — ${fmtDate(todayIST())}`} back={{ href: "/app/reports", label: "Reports" }}
-        actions={<>{can("reports.udise.export") || can("reports.overview.export") ? <a href="/app/reports/export?kind=udise" className="btn btn-sm btn-secondary">Download CSV</a> : null}<PrintButton label="Print" /></>} />
+        actions={<>{can("reports.udise.export") || can("reports.overview.export") ? <><a href="/app/reports/export?kind=udise" className="btn btn-sm btn-secondary">Strength CSV</a><a href="/app/reports/udise/students" className="btn btn-sm btn-secondary">Student-level sheet (CSV)</a></> : null}<PrintButton label="Print" /></>} />
       {U.length === 0 ? <Empty>No active students yet.</Empty> : (
         <div className="overflow-x-auto rounded-[14px] border border-line bg-white shadow-[var(--shadow-card)]">
           <table className="w-full border-collapse text-[13.5px]" style={{ minWidth: 640 + cats.length * 90 }}>

@@ -1,4 +1,4 @@
--- School ERP: full database setup (migrations 0001–0042 combined).
+-- School ERP: full database setup (migrations 0001–0045 combined).
 -- Paste into Supabase SQL Editor and Run. Safe to run again; existing data and members are kept.
 -- Works in its own Supabase project or next to the CodersDuniya website/CRM tables (no name clashes).
 
@@ -701,12 +701,12 @@ insert into public.erp_submodules (code, module_code, name, built, sort) values
   ('homework.homework', 'homework', 'Homework & classwork', true, 0),
   ('homework.material', 'homework', 'Study material', true, 1),
   ('attendance.students', 'attendance', 'Student attendance', true, 0),
-  ('attendance.leave', 'attendance', 'Student leave requests', false, 1),
+  ('attendance.leave', 'attendance', 'Student leave requests', true, 1),
   ('attendance.staff', 'attendance', 'Staff attendance', true, 2),
   ('exams.setup', 'exams', 'Exams, subjects & grading', true, 0),
   ('exams.marks', 'exams', 'Marks entry', true, 1),
   ('exams.results', 'exams', 'Report cards & publishing', true, 2),
-  ('exams.admit_cards', 'exams', 'Date sheet & admit cards', false, 3),
+  ('exams.admit_cards', 'exams', 'Date sheet & admit cards', true, 3),
   ('fees.structure', 'fees', 'Fee heads & structure', true, 0),
   ('fees.dues', 'fees', 'Generate dues', true, 1),
   ('fees.collection', 'fees', 'Fee collection', true, 2),
@@ -724,7 +724,7 @@ insert into public.erp_submodules (code, module_code, name, built, sort) values
   ('comms.broadcast', 'comms', 'WhatsApp / SMS messages', true, 1),
   ('comms.templates', 'comms', 'Message templates', true, 2),
   ('comms.calendar', 'comms', 'Events calendar', true, 3),
-  ('comms.messages', 'comms', 'Parent–teacher messages', false, 4),
+  ('comms.messages', 'comms', 'Parent–teacher messages', true, 4),
   ('comms.outbox', 'comms', 'Message outbox & log', true, 5),
   ('transport.routes', 'transport', 'Routes, stops & vehicles', true, 0),
   ('transport.allocation', 'transport', 'Student allocation', true, 1),
@@ -750,7 +750,7 @@ insert into public.erp_submodules (code, module_code, name, built, sort) values
   ('settings.users', 'settings', 'Staff logins', true, 2),
   ('settings.roles', 'settings', 'Roles & permissions', true, 3),
   ('settings.integrations', 'settings', 'Payment gateway, Cloudinary, SMS', true, 4),
-  ('settings.backups', 'settings', 'Backups & data export', false, 5),
+  ('settings.backups', 'settings', 'Backups & data export', true, 5),
   ('settings.audit', 'settings', 'Audit log', true, 6),
   ('support.tickets', 'support', 'Support tickets to CodersDuniya', true, 0)
 on conflict (code) do update set name = excluded.name, built = excluded.built, sort = excluded.sort;
@@ -14926,5 +14926,697 @@ begin
 end $$;
 revoke execute on function public.document_data(uuid, uuid, uuid, text, date, date, jsonb) from public, anon, authenticated;
 revoke execute on function public.document_data_exam(uuid, uuid, uuid, text, date, date, jsonb) from public, anon, authenticated;
+
+notify pgrst, 'reload schema';
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Step 41: Parent & student logins. A family login sees only its own children (or itself), applies for leave, and talks to the class team.
+--   • is_my_child() / family_children()
+--   • student_leaves (apply, approve / reject, cancel; an approved leave writes LV into the attendance register)
+--   • family_messages (one conversation per student between the family and the class team)
+-- Safe to run again.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+create or replace function public.is_my_child(stu uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select auth.uid() is not null and (
+    exists (select 1 from public.student_guardians sg join public.guardians g on g.id = sg.guardian_id where sg.student_id = stu and g.user_id = auth.uid())
+    or exists (select 1 from public.students s where s.id = stu and s.user_id = auth.uid()));
+$$;
+
+-- the children (or the student itself) the signed-in family login can open
+create or replace function public.family_children()
+returns table (student_id uuid, school_id uuid, school_name text, admission_no text, first_name text, last_name text, class_name text, section_name text, status text, relation text, is_self boolean)
+language sql stable security definer set search_path = public as $$
+  select s.id, s.school_id, sc.name, s.admission_no, s.first_name, s.last_name, c.name, sec.name, s.status, g.relation, false
+    from public.guardians g
+    join public.student_guardians sg on sg.guardian_id = g.id
+    join public.students s on s.id = sg.student_id
+    join public.schools sc on sc.id = s.school_id
+    left join public.classes c on c.id = s.class_id
+    left join public.sections sec on sec.id = s.section_id
+   where g.user_id = auth.uid() and auth.uid() is not null and s.status = 'active' and sc.archived_at is null
+  union
+  select s.id, s.school_id, sc.name, s.admission_no, s.first_name, s.last_name, c.name, sec.name, s.status, 'self', true
+    from public.students s
+    join public.schools sc on sc.id = s.school_id
+    left join public.classes c on c.id = s.class_id
+    left join public.sections sec on sec.id = s.section_id
+   where s.user_id = auth.uid() and auth.uid() is not null and s.status = 'active' and sc.archived_at is null
+  order by 7, 5;
+$$;
+
+-- ───────────── Student leave ─────────────
+create table if not exists public.student_leaves (
+  id               uuid primary key default gen_random_uuid(),
+  school_id        uuid not null references public.schools(id) on delete cascade,
+  student_id       uuid not null references public.students(id) on delete cascade,
+  from_date        date not null,
+  to_date          date not null,
+  reason           text,
+  status           text not null default 'pending' check (status in ('pending', 'approved', 'rejected', 'cancelled')),
+  applied_by       uuid references auth.users(id) on delete set null,
+  applied_by_name  text,
+  applied_via      text not null default 'family' check (applied_via in ('family', 'staff')),
+  decided_by       uuid references auth.users(id) on delete set null,
+  decided_by_name  text,
+  decided_at       timestamptz,
+  decision_note    text,
+  created_at       timestamptz not null default now(),
+  check (to_date >= from_date and to_date - from_date <= 45)
+);
+create index if not exists student_leaves_school_idx on public.student_leaves (school_id, status, from_date desc);
+create index if not exists student_leaves_student_idx on public.student_leaves (student_id, from_date desc);
+alter table public.student_leaves enable row level security;
+drop policy if exists "read" on public.student_leaves;
+create policy "read" on public.student_leaves for select to authenticated
+  using (public.can_student(school_id, 'attendance.leave.view', student_id) or public.is_my_child(student_id));
+
+create or replace function public._person_name(sid uuid) returns text
+language sql stable security definer set search_path = public as $$
+  select coalesce((select m.name from public.school_members m where m.school_id = sid and m.user_id = auth.uid()),
+                  (select g.name from public.guardians g where g.user_id = auth.uid() limit 1),
+                  (select u.email from auth.users u where u.id = auth.uid()), 'User');
+$$;
+revoke execute on function public._person_name(uuid) from public, anon;
+
+-- apply for leave: the family for its own child, or the office on a phone call
+create or replace function public.apply_student_leave(stu uuid, d1 date, d2 date, why text) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare s public.students; via text; lid uuid; today date := public.today_ist();
+begin
+  select * into s from public.students where id = stu;
+  if s.id is null then raise exception 'Student not found'; end if;
+  if public.is_my_child(stu) then via := 'family';
+  elsif public.can_student(s.school_id, 'attendance.leave.create', stu) then via := 'staff';
+  else raise exception 'not allowed'; end if;
+  if via = 'family' and not public.school_writable(s.school_id) then raise exception 'The school is not accepting requests right now.'; end if;
+  if d1 is null or d2 is null or d2 < d1 then raise exception 'Choose the first and last day of the leave.'; end if;
+  if d2 - d1 > 45 then raise exception 'A leave request can cover at most 45 days.'; end if;
+  if d2 < today - 7 then raise exception 'That leave is too far in the past.'; end if;
+  if s.status <> 'active' then raise exception 'Only current students can apply for leave.'; end if;
+  if exists (select 1 from public.student_leaves l where l.student_id = stu and l.status in ('pending', 'approved') and l.from_date <= d2 and l.to_date >= d1) then
+    raise exception 'There is already a leave request for these days.';
+  end if;
+  insert into public.student_leaves (school_id, student_id, from_date, to_date, reason, applied_by, applied_by_name, applied_via)
+    values (s.school_id, stu, d1, d2, nullif(left(btrim(coalesce(why, '')), 300), ''), auth.uid(), public._person_name(s.school_id), via)
+    returning id into lid;
+  return lid;
+end $$;
+
+-- write LV into the register for the school days of an approved leave (the teacher can still change a day)
+create or replace function public._leave_to_register(l public.student_leaves) returns int
+language plpgsql security definer set search_path = public as $$
+declare s public.students; d date; n int := 0;
+begin
+  select * into s from public.students where id = l.student_id;
+  for d in select g::date from generate_series(l.from_date, l.to_date, interval '1 day') g loop
+    continue when extract(dow from d) = 0 or public.holiday_on(l.school_id, d) is not null;
+    insert into public.attendance (school_id, student_id, class_id, section_id, date, status, marked_by)
+      values (l.school_id, l.student_id, s.class_id, s.section_id, d, 'LV', 'leave:' || l.id)
+      on conflict (student_id, date) do update set status = 'LV', marked_by = 'leave:' || l.id, marked_at = now()
+       where public.attendance.status in ('A', 'LV');
+    n := n + 1;
+  end loop;
+  return n;
+end $$;
+revoke execute on function public._leave_to_register(public.student_leaves) from public, anon, authenticated;
+
+create or replace function public.decide_student_leave(lid uuid, approve boolean, note text default null) returns text
+language plpgsql security definer set search_path = public as $$
+declare l public.student_leaves;
+begin
+  select * into l from public.student_leaves where id = lid for update;
+  if l.id is null then raise exception 'Leave request not found'; end if;
+  if not public.can_student(l.school_id, 'attendance.leave.approve', l.student_id) then raise exception 'not allowed'; end if;
+  if l.status <> 'pending' then raise exception 'This request has already been %.', l.status; end if;
+  update public.student_leaves set status = case when approve then 'approved' else 'rejected' end, decided_by = auth.uid(), decided_by_name = public._person_name(l.school_id),
+         decided_at = now(), decision_note = nullif(left(btrim(coalesce(note, '')), 300), '') where id = lid;
+  if approve then perform public._leave_to_register(l); end if;
+  return case when approve then 'approved' else 'rejected' end;
+end $$;
+
+create or replace function public.cancel_student_leave(lid uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare l public.student_leaves;
+begin
+  select * into l from public.student_leaves where id = lid for update;
+  if l.id is null then raise exception 'Leave request not found'; end if;
+  if l.status in ('cancelled', 'rejected') then return; end if;
+  if not (public.can_student(l.school_id, 'attendance.leave.approve', l.student_id) or (l.status = 'pending' and l.applied_by = auth.uid())) then raise exception 'not allowed'; end if;
+  update public.student_leaves set status = 'cancelled', decided_by = auth.uid(), decided_by_name = public._person_name(l.school_id), decided_at = now() where id = lid;
+  delete from public.attendance where student_id = l.student_id and marked_by = 'leave:' || l.id and status = 'LV';
+end $$;
+
+-- staff list: filter + search + count + page in one query (RLS limits it to the teacher's sections)
+create or replace function public.student_leave_list(sid uuid, p_status text default null, p_q text default null, p_limit int default 25, p_offset int default 0)
+returns table (id uuid, student_id uuid, student_name text, admission_no text, class_name text, section_name text, from_date date, to_date date, days int, reason text, status text,
+               applied_via text, applied_by_name text, decided_by_name text, decision_note text, created_at timestamptz, total bigint)
+language sql stable set search_path = public as $$
+  select l.id, l.student_id, concat_ws(' ', s.first_name, s.last_name), s.admission_no, c.name, sec.name, l.from_date, l.to_date, (l.to_date - l.from_date + 1)::int, l.reason, l.status,
+         l.applied_via, l.applied_by_name, l.decided_by_name, l.decision_note, l.created_at, count(*) over ()
+    from public.student_leaves l
+    join public.students s on s.id = l.student_id
+    left join public.classes c on c.id = s.class_id
+    left join public.sections sec on sec.id = s.section_id
+   where l.school_id = sid
+     and (p_status is null or p_status = '' or p_status = 'all' or l.status = p_status)
+     and (nullif(btrim(coalesce(p_q, '')), '') is null or concat_ws(' ', s.first_name, s.last_name) ilike public.like_escape(btrim(p_q)) or s.admission_no ilike public.like_escape(btrim(p_q)))
+   order by (l.status = 'pending') desc, l.from_date desc, l.created_at desc, l.id
+   limit least(greatest(coalesce(p_limit, 25), 1), 200) offset greatest(coalesce(p_offset, 0), 0);
+$$;
+
+-- ───────────── Parent ⇄ class team messages (one conversation per student) ─────────────
+create table if not exists public.family_messages (
+  id          uuid primary key default gen_random_uuid(),
+  school_id   uuid not null references public.schools(id) on delete cascade,
+  student_id  uuid not null references public.students(id) on delete cascade,
+  sender_user uuid references auth.users(id) on delete set null,
+  sender_name text,
+  from_family boolean not null,
+  body        text not null check (length(btrim(body)) between 1 and 2000),
+  created_at  timestamptz not null default now(),
+  read_at     timestamptz
+);
+create index if not exists family_messages_student_idx on public.family_messages (student_id, created_at desc);
+create index if not exists family_messages_school_idx on public.family_messages (school_id, created_at desc);
+alter table public.family_messages enable row level security;
+drop policy if exists "read" on public.family_messages;
+create policy "read" on public.family_messages for select to authenticated
+  using (public.can_student(school_id, 'comms.messages.view', student_id) or public.is_my_child(student_id));
+
+create or replace function public.send_family_message(stu uuid, msg text) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare s public.students; fam boolean; mid uuid;
+begin
+  select * into s from public.students where id = stu;
+  if s.id is null then raise exception 'Student not found'; end if;
+  if public.is_my_child(stu) then fam := true;
+  elsif public.can_student(s.school_id, 'comms.messages.create', stu) then fam := false;
+  else raise exception 'not allowed'; end if;
+  if not public.school_writable(s.school_id) then raise exception 'The school is not accepting messages right now.'; end if;
+  if length(btrim(coalesce(msg, ''))) = 0 then raise exception 'Write a message first.'; end if;
+  if fam and (select count(*) from public.family_messages m where m.student_id = stu and m.from_family and m.created_at > now() - interval '1 hour') >= 20 then
+    raise exception 'Too many messages in the last hour. Please wait a little.';
+  end if;
+  insert into public.family_messages (school_id, student_id, sender_user, sender_name, from_family, body)
+    values (s.school_id, stu, auth.uid(), public._person_name(s.school_id), fam, left(btrim(msg), 2000)) returning id into mid;
+  return mid;
+end $$;
+
+-- the reader marks what the other side wrote as read
+create or replace function public.read_family_messages(stu uuid) returns int
+language plpgsql security definer set search_path = public as $$
+declare s public.students; fam boolean; n int;
+begin
+  select * into s from public.students where id = stu;
+  if s.id is null then return 0; end if;
+  if public.is_my_child(stu) then fam := true;
+  elsif public.can_student(s.school_id, 'comms.messages.view', stu) then fam := false;
+  else return 0; end if;
+  update public.family_messages set read_at = now() where student_id = stu and read_at is null and from_family <> fam;
+  get diagnostics n = row_count;
+  return n;
+end $$;
+
+-- staff inbox: one row per student with a conversation, unread first
+create or replace function public.family_inbox(sid uuid, p_q text default null, p_unread boolean default false, p_limit int default 25, p_offset int default 0)
+returns table (student_id uuid, student_name text, admission_no text, class_name text, section_name text, last_body text, last_at timestamptz, last_from_family boolean, unread bigint, total bigint)
+language sql stable set search_path = public as $$
+  with t as (
+    select m.student_id, max(m.created_at) as last_at, count(*) filter (where m.from_family and m.read_at is null) as unread
+      from public.family_messages m where m.school_id = sid group by m.student_id
+  )
+  select s.id, concat_ws(' ', s.first_name, s.last_name), s.admission_no, c.name, sec.name,
+         (select m.body from public.family_messages m where m.student_id = s.id order by m.created_at desc limit 1),
+         t.last_at,
+         (select m.from_family from public.family_messages m where m.student_id = s.id order by m.created_at desc limit 1),
+         t.unread, count(*) over ()
+    from t join public.students s on s.id = t.student_id
+    left join public.classes c on c.id = s.class_id
+    left join public.sections sec on sec.id = s.section_id
+   where (not p_unread or t.unread > 0)
+     and (nullif(btrim(coalesce(p_q, '')), '') is null or concat_ws(' ', s.first_name, s.last_name) ilike public.like_escape(btrim(p_q)) or s.admission_no ilike public.like_escape(btrim(p_q)))
+   order by (t.unread > 0) desc, t.last_at desc, s.id
+   limit least(greatest(coalesce(p_limit, 25), 1), 200) offset greatest(coalesce(p_offset, 0), 0);
+$$;
+
+-- unread counts for the sidebar / header badges
+create or replace function public.family_unread(sid uuid) returns bigint
+language sql stable set search_path = public as $$
+  select count(*) from public.family_messages m where m.school_id = sid and m.from_family and m.read_at is null;
+$$;
+
+grant execute on function public.is_my_child(uuid), public.family_children(), public.apply_student_leave(uuid, date, date, text), public.decide_student_leave(uuid, boolean, text),
+  public.cancel_student_leave(uuid), public.student_leave_list(uuid, text, text, int, int), public.send_family_message(uuid, text), public.read_family_messages(uuid),
+  public.family_inbox(uuid, text, boolean, int, int), public.family_unread(uuid) to authenticated;
+
+notify pgrst, 'reload schema';
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Step 42: Admit cards from the date sheet, and the backup / data-export log.
+--   • {{exam.datesheet_html}} — the student's own date sheet (subject, date, time, room) for an examination
+--   • issue_admit_cards() — one card per student of a class for one examination (a second examination gets its own cards)
+--   • backup_log — who exported the school's data and when
+-- Safe to run again.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+do $$
+begin
+  if exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'document_data')
+     and not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'document_data_hr') then
+    alter function public.document_data(uuid, uuid, uuid, text, date, date, jsonb) rename to document_data_hr;
+  end if;
+end $$;
+
+create or replace function public.document_data(sid uuid, stu uuid, stf uuid, doc_no text, on_day date, valid_until date, p_extra jsonb)
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare d jsonb; eid uuid; ex public.exams; sc public.students; rows text := ''; r record; th text := 'border:1px solid #444;padding:4px 8px';
+begin
+  d := public.document_data_hr(sid, stu, stf, doc_no, on_day, valid_until, p_extra);
+  if stu is not null and coalesce(p_extra ->> 'exam_ref', '') ~ '^[0-9a-f-]{36}$' then
+    eid := (p_extra ->> 'exam_ref')::uuid;
+    select * into ex from public.exams where id = eid and school_id = sid;
+    select * into sc from public.students where id = stu and school_id = sid;
+    if ex.id is not null and sc.id is not null then
+      for r in select su.name as subject, es.exam_date, es.start_time, es.end_time, es.room
+                 from public.exam_subjects es join public.subjects su on su.id = es.subject_id
+                where es.exam_id = ex.id and es.class_id = sc.class_id
+                order by es.exam_date nulls last, es.start_time nulls last, su.name loop
+        rows := rows || '<tr><td style="' || th || '">' || public.html_escape(r.subject) || '</td><td style="' || th || ';text-align:center">' || coalesce(to_char(r.exam_date, 'DD/MM/YYYY'), '—')
+             || '</td><td style="' || th || ';text-align:center">' || coalesce(to_char(r.start_time, 'HH24:MI') || coalesce(' – ' || to_char(r.end_time, 'HH24:MI'), ''), '—')
+             || '</td><td style="' || th || ';text-align:center">' || coalesce(public.html_escape(r.room), '') || '</td></tr>';
+      end loop;
+      d := jsonb_set(d, '{exam}', coalesce(d -> 'exam', '{}'::jsonb) || jsonb_build_object(
+        'id', ex.id::text, 'name', coalesce(d #>> '{exam,name}', ex.name),
+        'datesheet_html', case when rows = '' then '' else '<table style="width:100%;border-collapse:collapse;font-size:11px"><tr style="background:#eef1f6"><th style="' || th || ';text-align:left">Subject</th><th style="' || th
+                          || '">Date</th><th style="' || th || '">Time</th><th style="' || th || '">Room</th></tr>' || rows || '</table>' end));
+    end if;
+  end if;
+  return d;
+end $$;
+revoke execute on function public.document_data(uuid, uuid, uuid, text, date, date, jsonb) from public, anon, authenticated;
+revoke execute on function public.document_data_hr(uuid, uuid, uuid, text, date, date, jsonb) from public, anon, authenticated;
+
+-- admit cards for a class / section, from the template that declares an "exam_ref" question
+create or replace function public.issue_admit_cards(sid uuid, tpl uuid, p_exam uuid, p_class uuid, p_section uuid default null, p_extra jsonb default '{}', p_by text default null)
+returns int language plpgsql security definer set search_path = public as $$
+declare t record; r record; cnt int := 0;
+begin
+  if not public.has_perm_school(sid, 'documents.issue.create') then raise exception 'not allowed'; end if;
+  select * into t from public.document_templates where id = tpl and school_id = sid and active and audience = 'student';
+  if t.id is null then raise exception 'Template not found.'; end if;
+  if not exists (select 1 from jsonb_array_elements(t.fields) f where f ->> 'key' = 'exam_ref') then raise exception 'This template does not ask for an examination. Use the "Exam admit card" design from the gallery.'; end if;
+  if not exists (select 1 from public.exams where id = p_exam and school_id = sid) then raise exception 'Examination not found.'; end if;
+  if p_class is null then raise exception 'Choose the class.'; end if;
+  if not exists (select 1 from public.exam_subjects where exam_id = p_exam and class_id = p_class) then raise exception 'This class has no subjects in the date sheet of this examination yet.'; end if;
+  for r in select s.id from public.students s
+            where s.school_id = sid and s.status = 'active' and s.class_id = p_class and (p_section is null or s.section_id = p_section)
+              and not exists (select 1 from public.issued_documents i where i.template_code = t.code and i.student_id = s.id and i.status = 'issued' and i.data #>> '{exam,id}' = p_exam::text)
+            order by s.roll_no nulls last, s.first_name limit 3000 loop
+    perform public.issue_document(sid, tpl, r.id, null, null, coalesce(p_extra, '{}'::jsonb) || jsonb_build_object('exam_ref', p_exam::text), false, p_by);
+    cnt := cnt + 1;
+  end loop;
+  return cnt;
+end $$;
+grant execute on function public.issue_admit_cards(uuid, uuid, uuid, uuid, uuid, jsonb, text) to authenticated;
+
+-- ───────────── backups ─────────────
+create table if not exists public.backup_log (
+  id         uuid primary key default gen_random_uuid(),
+  school_id  uuid not null references public.schools(id) on delete cascade,
+  kind       text not null default 'full',
+  tables     int not null default 0,
+  row_count  int not null default 0,
+  size_bytes bigint not null default 0,
+  by_user    uuid references auth.users(id) on delete set null,
+  by_name    text,
+  created_at timestamptz not null default now()
+);
+create index if not exists backup_log_school_idx on public.backup_log (school_id, created_at desc);
+alter table public.backup_log enable row level security;
+drop policy if exists "read" on public.backup_log;
+create policy "read" on public.backup_log for select to authenticated using (public.has_perm_school(school_id, 'settings.backups.view') or public.has_perm_school(school_id, 'settings.backups.create'));
+drop policy if exists "write" on public.backup_log;
+create policy "write" on public.backup_log for insert to authenticated with check (public.has_perm_school(school_id, 'settings.backups.create'));
+
+notify pgrst, 'reload schema';
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Step 43: Speed.
+--   • Permission checks are remembered for the length of one request (they were re-worked from the tables for every row of every list)
+--   • Indexes on the foreign keys that had none (lists, joins and the cascade deletes of a school)
+-- Safe to run again.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- ───────────── 1. A generation counter that changes whenever anything a permission depends on changes ─────────────
+create or replace function public._bump_perm_gen() returns trigger language plpgsql as $$
+begin
+  perform set_config('erp.gen', (coalesce(nullif(current_setting('erp.gen', true), ''), '0')::bigint + 1)::text, true);
+  return null;
+end $$;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['member_roles', 'role_permissions', 'member_overrides', 'school_modules', 'school_members', 'platform_admins', 'support_sessions', 'group_members', 'erp_modules', 'staff_assignments'] loop
+    execute format('drop trigger if exists perm_gen on public.%I', t);
+    execute format('create trigger perm_gen after insert or update or delete on public.%I for each statement execute function public._bump_perm_gen()', t);
+  end loop;
+end $$;
+-- schools: only a change of status or group matters (a receipt counter bumping must not clear the memory)
+drop trigger if exists perm_gen_ins on public.schools;
+create trigger perm_gen_ins after insert or delete on public.schools for each statement execute function public._bump_perm_gen();
+drop trigger if exists perm_gen_upd on public.schools;
+create trigger perm_gen_upd after update on public.schools for each row when (old.status is distinct from new.status or old.group_id is distinct from new.group_id) execute function public._bump_perm_gen();
+
+-- ───────────── 2. perm_scope remembers its answer per (login, school, permission) for the rest of the request ─────────────
+-- The real calculation stays in perm_scope_calc (the previous body of perm_scope). Change rules THERE, never in the wrapper.
+do $$
+declare def text;
+begin
+  select pg_get_functiondef(p.oid) into def from pg_proc p
+   where p.proname = 'perm_scope' and p.pronamespace = 'public'::regnamespace and p.prosrc not like '%perm_scope_calc%';
+  if def is not null then
+    execute replace(def, 'FUNCTION public.perm_scope(', 'FUNCTION public.perm_scope_calc(');
+  end if;
+end $$;
+
+create or replace function public.perm_scope(sid uuid, pkey text) returns text
+language plpgsql stable security definer set search_path = public as $$
+declare k text; v text;
+begin
+  if sid is null or auth.uid() is null then return null; end if;
+  k := 'erp.p' || md5(auth.uid()::text || '|' || sid::text || '|' || pkey || '|' || coalesce(nullif(current_setting('erp.gen', true), ''), '0'));
+  v := nullif(current_setting(k, true), '');
+  if v is not null then return case v when '~' then null else v end; end if;
+  v := public.perm_scope_calc(sid, pkey);
+  perform set_config(k, coalesce(v, '~'), true);
+  return v;
+end $$;
+
+-- the same for "is this login assigned to that section" (a teacher's list asks it once per student)
+create or replace function public.assigned_to_section(sid uuid, sec uuid, subj uuid default null) returns boolean
+language plpgsql stable security definer set search_path = public as $$
+declare k text; v text;
+begin
+  if auth.uid() is null or sec is null then return false; end if;
+  k := 'erp.a' || md5(auth.uid()::text || '|' || sid::text || '|' || sec::text || '|' || coalesce(subj::text, '') || '|' || coalesce(nullif(current_setting('erp.gen', true), ''), '0'));
+  v := nullif(current_setting(k, true), '');
+  if v is not null then return v = 't'; end if;
+  v := case when exists (select 1 from public.staff_assignments a where a.school_id = sid and a.user_id = auth.uid() and a.section_id = sec and (subj is null or a.subject_id is null or a.subject_id = subj)) then 't' else 'f' end;
+  perform set_config(k, v, true);
+  return v = 't';
+end $$;
+
+-- the other helpers that row-level policies call for every row
+do $$
+declare f text; def text;
+begin
+  foreach f in array array['is_member', 'has_module_perm', 'is_platform_admin'] loop
+    select pg_get_functiondef(p.oid) into def from pg_proc p
+     where p.proname = f and p.pronamespace = 'public'::regnamespace and p.prosrc not like '%' || f || '_calc%';
+    if def is not null then
+      execute replace(def, 'FUNCTION public.' || f || '(', 'FUNCTION public.' || f || '_calc(');
+    end if;
+  end loop;
+end $$;
+
+create or replace function public.is_platform_admin() returns boolean
+language plpgsql stable security definer set search_path = public as $$
+declare k text; v text;
+begin
+  if auth.uid() is null then return false; end if;
+  k := 'erp.q' || md5(auth.uid()::text || '|' || coalesce(nullif(current_setting('erp.gen', true), ''), '0'));
+  v := nullif(current_setting(k, true), '');
+  if v is not null then return v = 't'; end if;
+  v := case when public.is_platform_admin_calc() then 't' else 'f' end;
+  perform set_config(k, v, true);
+  return v = 't';
+end $$;
+
+create or replace function public.is_member(sid uuid) returns boolean
+language plpgsql stable security definer set search_path = public as $$
+declare k text; v text;
+begin
+  if auth.uid() is null or sid is null then return false; end if;
+  k := 'erp.m' || md5(auth.uid()::text || '|' || sid::text || '|' || coalesce(nullif(current_setting('erp.gen', true), ''), '0'));
+  v := nullif(current_setting(k, true), '');
+  if v is not null then return v = 't'; end if;
+  v := case when public.is_member_calc(sid) then 't' else 'f' end;
+  perform set_config(k, v, true);
+  return v = 't';
+end $$;
+
+create or replace function public.has_module_perm(sid uuid, m text) returns boolean
+language plpgsql stable security definer set search_path = public as $$
+declare k text; v text;
+begin
+  if auth.uid() is null or sid is null then return false; end if;
+  k := 'erp.d' || md5(auth.uid()::text || '|' || sid::text || '|' || m || '|' || coalesce(nullif(current_setting('erp.gen', true), ''), '0'));
+  v := nullif(current_setting(k, true), '');
+  if v is not null then return v = 't'; end if;
+  v := case when public.has_module_perm_calc(sid, m) then 't' else 'f' end;
+  perform set_config(k, v, true);
+  return v = 't';
+end $$;
+
+-- ───────────── 4. The student list only adds up fee dues for the rows on the page ─────────────
+-- (it used to add up every due of the whole school on every page view; only "sort by dues" and the dues filter need that)
+do $$
+begin
+  if exists (select 1 from pg_proc p where p.proname = 'student_list' and p.pronamespace = 'public'::regnamespace and p.prosrc not like '%student_list_dues%')
+     and not exists (select 1 from pg_proc p where p.proname = 'student_list_dues' and p.pronamespace = 'public'::regnamespace) then
+    alter function public.student_list(uuid, text, uuid, uuid, text, text, text, text, text, text, int, int) rename to student_list_dues;
+  end if;
+end $$;
+
+create or replace function public.student_list(sid uuid, p_q text default null, p_class uuid default null, p_section uuid default null,
+    p_status text default 'active', p_gender text default null, p_category text default null, p_blocked text default null,
+    p_dues text default null, p_sort text default 'name', p_limit int default 25, p_offset int default 0)
+returns table (id uuid, admission_no text, first_name text, middle_name text, last_name text, roll_no int, father_name text, guardian_phone text,
+               status text, class_name text, section_name text, gender text, category text, blocked boolean, block_reason text, balance numeric, total bigint)
+language plpgsql stable set search_path = public as $$
+begin
+  if p_sort = 'dues' or coalesce(p_dues, '') in ('yes', 'no') then
+    return query select * from public.student_list_dues(sid, p_q, p_class, p_section, p_status, p_gender, p_category, p_blocked, p_dues, p_sort, p_limit, p_offset);
+    return;
+  end if;
+  return query
+  with base as (
+    select s.*, c.name as cname, c.sort as csort, sec.name as secname
+      from public.students s
+      left join public.classes c on c.id = s.class_id
+      left join public.sections sec on sec.id = s.section_id
+     where s.school_id = sid
+       and (p_status is null or p_status = 'all' or s.status = p_status)
+       and (p_class is null or s.class_id = p_class)
+       and (p_section is null or s.section_id = p_section)
+       and (p_gender is null or p_gender = '' or s.gender = p_gender)
+       and (p_category is null or p_category = '' or s.category = p_category)
+       and (p_blocked is null or p_blocked = '' or (p_blocked = 'yes' and public.block_active(s.blocked_at, s.blocked_till)) or (p_blocked = 'no' and not public.block_active(s.blocked_at, s.blocked_till)))
+       and (nullif(btrim(coalesce(p_q, '')), '') is null
+            or concat_ws(' ', s.first_name, s.middle_name, s.last_name) ilike public.like_escape(btrim(p_q))
+            or s.admission_no ilike public.like_escape(btrim(p_q))
+            or s.father_name ilike public.like_escape(btrim(p_q))
+            or s.mother_name ilike public.like_escape(btrim(p_q))
+            or s.guardian_phone ilike public.like_escape(btrim(p_q))
+            or s.mobile ilike public.like_escape(btrim(p_q)))
+  ), paged as (
+    select b.*, count(*) over () as n
+      from base b
+     order by
+       case when p_sort = 'newest' then b.created_at end desc nulls last,
+       case when p_sort = 'class' then b.csort end asc nulls last,
+       case when p_sort = 'class' then b.secname end asc nulls last,
+       case when p_sort = 'class' then b.roll_no end asc nulls last,
+       case when p_sort = 'adm' then b.admission_no end asc,
+       b.first_name asc, b.last_name asc nulls last, b.id
+     limit least(greatest(coalesce(p_limit, 25), 1), 200) offset greatest(coalesce(p_offset, 0), 0)
+  )
+  select p.id, p.admission_no, p.first_name, p.middle_name, p.last_name, p.roll_no, p.father_name, p.guardian_phone, p.status,
+         p.cname, p.secname, p.gender, p.category, public.block_active(p.blocked_at, p.blocked_till), p.block_reason,
+         coalesce((select sum(greatest(d.amount - d.concession + d.fine - d.paid, 0)) from public.fee_dues d where d.student_id = p.id), 0), p.n
+    from paged p
+   order by
+     case when p_sort = 'newest' then p.created_at end desc nulls last,
+     case when p_sort = 'class' then p.csort end asc nulls last,
+     case when p_sort = 'class' then p.secname end asc nulls last,
+     case when p_sort = 'class' then p.roll_no end asc nulls last,
+     case when p_sort = 'adm' then p.admission_no end asc,
+     p.first_name asc, p.last_name asc nulls last, p.id;
+end $$;
+
+-- ───────────── 5. Indexes on foreign keys ─────────────
+create index if not exists ix_admission_application_events_school_id on public.admission_application_events (school_id);
+create index if not exists ix_admission_applications_class_id on public.admission_applications (class_id);
+create index if not exists ix_admission_applications_enquiry_id on public.admission_applications (enquiry_id);
+create index if not exists ix_admission_applications_session_id on public.admission_applications (session_id);
+create index if not exists ix_admission_applications_student_id on public.admission_applications (student_id);
+create index if not exists ix_advance_recoveries_payslip_id on public.advance_recoveries (payslip_id);
+create index if not exists ix_application_documents_school_id on public.application_documents (school_id);
+create index if not exists ix_application_followups_application_id on public.application_followups (application_id);
+create index if not exists ix_application_followups_enquiry_id on public.application_followups (enquiry_id);
+create index if not exists ix_attendance_class_id on public.attendance (class_id);
+create index if not exists ix_attendance_section_id on public.attendance (section_id);
+create index if not exists ix_attendance_devices_school_id on public.attendance_devices (school_id);
+create index if not exists ix_attendance_punches_device_id on public.attendance_punches (device_id);
+create index if not exists ix_attendance_punches_staff_id on public.attendance_punches (staff_id);
+create index if not exists ix_attendance_punches_student_id on public.attendance_punches (student_id);
+create index if not exists ix_board_registration_events_school_id on public.board_registration_events (school_id);
+create index if not exists ix_board_registrations_session_id on public.board_registrations (session_id);
+create index if not exists ix_class_subjects_subject_id on public.class_subjects (subject_id);
+create index if not exists ix_counselling_notes_school_id on public.counselling_notes (school_id);
+create index if not exists ix_counselling_notes_student_id on public.counselling_notes (student_id);
+create index if not exists ix_discipline_students_school_id on public.discipline_students (school_id);
+create index if not exists ix_document_template_versions_school_id on public.document_template_versions (school_id);
+create index if not exists ix_enquiries_student_id on public.enquiries (student_id);
+create index if not exists ix_exam_class_status_class_id on public.exam_class_status (class_id);
+create index if not exists ix_exam_class_status_school_id on public.exam_class_status (school_id);
+create index if not exists ix_exam_results_class_id on public.exam_results (class_id);
+create index if not exists ix_exam_results_school_id on public.exam_results (school_id);
+create index if not exists ix_exam_results_student_id on public.exam_results (student_id);
+create index if not exists ix_exam_sessions_school_id on public.exam_sessions (school_id);
+create index if not exists ix_exam_subjects_class_id on public.exam_subjects (class_id);
+create index if not exists ix_exam_subjects_school_id on public.exam_subjects (school_id);
+create index if not exists ix_exam_subjects_subject_id on public.exam_subjects (subject_id);
+create index if not exists ix_exams_session_id on public.exams (session_id);
+create index if not exists ix_fee_adjustments_school_id on public.fee_adjustments (school_id);
+create index if not exists ix_fee_adjustments_student_id on public.fee_adjustments (student_id);
+create index if not exists ix_fee_cheques_receipt_id on public.fee_cheques (receipt_id);
+create index if not exists ix_fee_cheques_student_id on public.fee_cheques (student_id);
+create index if not exists ix_fee_dues_fee_head_id on public.fee_dues (fee_head_id);
+create index if not exists ix_fee_dues_fee_plan_id on public.fee_dues (fee_plan_id);
+create index if not exists ix_fee_dues_session_id on public.fee_dues (session_id);
+create index if not exists ix_fee_followups_student_id on public.fee_followups (student_id);
+create index if not exists ix_fee_online_orders_receipt_id on public.fee_online_orders (receipt_id);
+create index if not exists ix_fee_online_orders_student_id on public.fee_online_orders (student_id);
+create index if not exists ix_fee_plans_class_id on public.fee_plans (class_id);
+create index if not exists ix_fee_plans_fee_head_id on public.fee_plans (fee_head_id);
+create index if not exists ix_fee_plans_session_id on public.fee_plans (session_id);
+create index if not exists ix_fee_receipt_lines_receipt_id on public.fee_receipt_lines (receipt_id);
+create index if not exists ix_fee_receipt_lines_school_id on public.fee_receipt_lines (school_id);
+create index if not exists ix_fee_receipt_payments_school_id on public.fee_receipt_payments (school_id);
+create index if not exists ix_fee_receipts_student_id on public.fee_receipts (student_id);
+create index if not exists ix_fee_refunds_student_id on public.fee_refunds (student_id);
+create index if not exists ix_fee_settings_sibling_head_id on public.fee_settings (sibling_head_id);
+create index if not exists ix_fee_wallet_entries_receipt_id on public.fee_wallet_entries (receipt_id);
+create index if not exists ix_fee_wallet_entries_school_id on public.fee_wallet_entries (school_id);
+create index if not exists ix_gate_passes_pickup_staff_id on public.gate_passes (pickup_staff_id);
+create index if not exists ix_gate_passes_student_id on public.gate_passes (student_id);
+create index if not exists ix_guardians_school_id on public.guardians (school_id);
+create index if not exists ix_health_checkups_school_id on public.health_checkups (school_id);
+create index if not exists ix_homework_class_id on public.homework (class_id);
+create index if not exists ix_homework_section_id on public.homework (section_id);
+create index if not exists ix_homework_session_id on public.homework (session_id);
+create index if not exists ix_homework_subject_id on public.homework (subject_id);
+create index if not exists ix_hostel_allocations_school_id on public.hostel_allocations (school_id);
+create index if not exists ix_hostel_allocations_session_id on public.hostel_allocations (session_id);
+create index if not exists ix_hostel_attendance_hostel_id on public.hostel_attendance (hostel_id);
+create index if not exists ix_hostel_outpasses_student_id on public.hostel_outpasses (student_id);
+create index if not exists ix_hostel_rooms_school_id on public.hostel_rooms (school_id);
+create index if not exists ix_hostel_visitors_hostel_id on public.hostel_visitors (hostel_id);
+create index if not exists ix_hostel_visitors_student_id on public.hostel_visitors (student_id);
+create index if not exists ix_hostels_warden_id on public.hostels (warden_id);
+create index if not exists ix_inventory_assignment_events_school_id on public.inventory_assignment_events (school_id);
+create index if not exists ix_inventory_assignments_charge_due_id on public.inventory_assignments (charge_due_id);
+create index if not exists ix_inventory_items_for_class_id on public.inventory_items (for_class_id);
+create index if not exists ix_inventory_items_supplier_id on public.inventory_items (supplier_id);
+create index if not exists ix_inventory_locations_class_id on public.inventory_locations (class_id);
+create index if not exists ix_inventory_locations_in_charge_staff_id on public.inventory_locations (in_charge_staff_id);
+create index if not exists ix_inventory_locations_section_id on public.inventory_locations (section_id);
+create index if not exists ix_inventory_purchase_lines_item_id on public.inventory_purchase_lines (item_id);
+create index if not exists ix_inventory_purchase_lines_purchase_id on public.inventory_purchase_lines (purchase_id);
+create index if not exists ix_inventory_purchase_lines_school_id on public.inventory_purchase_lines (school_id);
+create index if not exists ix_inventory_purchases_supplier_id on public.inventory_purchases (supplier_id);
+create index if not exists ix_inventory_purchases_voucher_id on public.inventory_purchases (voucher_id);
+create index if not exists ix_inventory_repairs_assignment_id on public.inventory_repairs (assignment_id);
+create index if not exists ix_inventory_repairs_item_id on public.inventory_repairs (item_id);
+create index if not exists ix_inventory_repairs_location_id on public.inventory_repairs (location_id);
+create index if not exists ix_inventory_sale_lines_item_id on public.inventory_sale_lines (item_id);
+create index if not exists ix_inventory_sale_lines_sale_id on public.inventory_sale_lines (sale_id);
+create index if not exists ix_inventory_sale_lines_school_id on public.inventory_sale_lines (school_id);
+create index if not exists ix_inventory_sales_fee_due_id on public.inventory_sales (fee_due_id);
+create index if not exists ix_inventory_sales_staff_id on public.inventory_sales (staff_id);
+create index if not exists ix_inventory_sales_voucher_id on public.inventory_sales (voucher_id);
+create index if not exists ix_issued_documents_staff_id on public.issued_documents (staff_id);
+create index if not exists ix_issued_documents_student_id on public.issued_documents (student_id);
+create index if not exists ix_issued_documents_template_id on public.issued_documents (template_id);
+create index if not exists ix_library_issues_book_id on public.library_issues (book_id);
+create index if not exists ix_library_issues_fine_due_id on public.library_issues (fine_due_id);
+create index if not exists ix_library_issues_staff_id on public.library_issues (staff_id);
+create index if not exists ix_library_reservations_book_id on public.library_reservations (book_id);
+create index if not exists ix_library_reservations_staff_id on public.library_reservations (staff_id);
+create index if not exists ix_library_reservations_student_id on public.library_reservations (student_id);
+create index if not exists ix_marks_school_id on public.marks (school_id);
+create index if not exists ix_marks_student_id on public.marks (student_id);
+create index if not exists ix_marks_subject_id on public.marks (subject_id);
+create index if not exists ix_member_roles_role_id on public.member_roles (role_id);
+create index if not exists ix_mess_menu_hostel_id on public.mess_menu (hostel_id);
+create index if not exists ix_message_outbox_student_id on public.message_outbox (student_id);
+create index if not exists ix_notices_class_id on public.notices (class_id);
+create index if not exists ix_notices_school_id on public.notices (school_id);
+create index if not exists ix_online_attempts_school_id on public.online_attempts (school_id);
+create index if not exists ix_online_attempts_student_id on public.online_attempts (student_id);
+create index if not exists ix_online_exam_questions_question_id on public.online_exam_questions (question_id);
+create index if not exists ix_online_exams_class_id on public.online_exams (class_id);
+create index if not exists ix_online_exams_exam_id on public.online_exams (exam_id);
+create index if not exists ix_online_exams_session_id on public.online_exams (session_id);
+create index if not exists ix_online_exams_subject_id on public.online_exams (subject_id);
+create index if not exists ix_online_submissions_application_id on public.online_submissions (application_id);
+create index if not exists ix_payslips_school_id on public.payslips (school_id);
+create index if not exists ix_phone_calls_student_id on public.phone_calls (student_id);
+create index if not exists ix_question_bank_class_id on public.question_bank (class_id);
+create index if not exists ix_question_bank_subject_id on public.question_bank (subject_id);
+create index if not exists ix_roles_template_code on public.roles (template_code);
+create index if not exists ix_school_subscriptions_plan_id on public.school_subscriptions (plan_id);
+create index if not exists ix_schools_group_id on public.schools (group_id);
+create index if not exists ix_sections_school_id on public.sections (school_id);
+create index if not exists ix_staff_advances_staff_id on public.staff_advances (staff_id);
+create index if not exists ix_staff_assignments_section_id on public.staff_assignments (section_id);
+create index if not exists ix_staff_assignments_subject_id on public.staff_assignments (subject_id);
+create index if not exists ix_staff_salary_history_school_id on public.staff_salary_history (school_id);
+create index if not exists ix_student_board_subjects_level_code on public.student_board_subjects (level,code);
+create index if not exists ix_student_board_subjects_school_id on public.student_board_subjects (school_id);
+create index if not exists ix_student_board_subjects_session_id on public.student_board_subjects (session_id);
+create index if not exists ix_student_certificates_student_id on public.student_certificates (student_id);
+create index if not exists ix_student_concessions_fee_head_id on public.student_concessions (fee_head_id);
+create index if not exists ix_student_concessions_school_id on public.student_concessions (school_id);
+create index if not exists ix_student_concessions_student_id on public.student_concessions (student_id);
+create index if not exists ix_student_enrolments_class_id on public.student_enrolments (class_id);
+create index if not exists ix_student_enrolments_section_id on public.student_enrolments (section_id);
+create index if not exists ix_student_enrolments_session_id on public.student_enrolments (session_id);
+create index if not exists ix_student_guardians_guardian_id on public.student_guardians (guardian_id);
+create index if not exists ix_student_guardians_school_id on public.student_guardians (school_id);
+create index if not exists ix_student_health_school_id on public.student_health (school_id);
+create index if not exists ix_student_prior_exams_school_id on public.student_prior_exams (school_id);
+create index if not exists ix_student_subjects_session_id on public.student_subjects (session_id);
+create index if not exists ix_student_subjects_subject_id on public.student_subjects (subject_id);
+create index if not exists ix_students_application_id on public.students (application_id);
+create index if not exists ix_students_class_id on public.students (class_id);
+create index if not exists ix_students_section_id on public.students (section_id);
+create index if not exists ix_students_sibling_student_id on public.students (sibling_student_id);
+create index if not exists ix_substitutions_substitute_staff_id on public.substitutions (substitute_staff_id);
+create index if not exists ix_support_sessions_school_id on public.support_sessions (school_id);
+create index if not exists ix_syllabus_units_class_id on public.syllabus_units (class_id);
+create index if not exists ix_syllabus_units_session_id on public.syllabus_units (session_id);
+create index if not exists ix_syllabus_units_subject_id on public.syllabus_units (subject_id);
+create index if not exists ix_ticket_messages_ticket_id on public.ticket_messages (ticket_id);
+create index if not exists ix_timetable_slots_period_id on public.timetable_slots (period_id);
+create index if not exists ix_timetable_slots_subject_id on public.timetable_slots (subject_id);
+create index if not exists ix_transport_allocations_school_id on public.transport_allocations (school_id);
+create index if not exists ix_transport_allocations_stop_id on public.transport_allocations (stop_id);
+create index if not exists ix_transport_allocations_student_id on public.transport_allocations (student_id);
+create index if not exists ix_transport_position_log_school_id on public.transport_position_log (school_id);
+create index if not exists ix_transport_routes_vehicle_id on public.transport_routes (vehicle_id);
+create index if not exists ix_transport_stops_school_id on public.transport_stops (school_id);
+create index if not exists ix_transport_trips_route_id on public.transport_trips (route_id);
+create index if not exists ix_transport_trips_school_id on public.transport_trips (school_id);
+create index if not exists ix_transport_vehicle_position_school_id on public.transport_vehicle_position (school_id);
+create index if not exists ix_transport_vehicle_position_trip_id on public.transport_vehicle_position (trip_id);
+create index if not exists ix_visitors_student_id on public.visitors (student_id);
+create index if not exists ix_vouchers_book_id on public.vouchers (book_id);
+create index if not exists ix_vouchers_head_id on public.vouchers (head_id);
+create index if not exists ix_vouchers_to_book_id on public.vouchers (to_book_id);
 
 notify pgrst, 'reload schema';

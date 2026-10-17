@@ -7,6 +7,7 @@ import { PrintButton } from "@/components/ui/PrintButton";
 import { getClasses } from "@/lib/erp";
 import { fmtDate } from "@/lib/format";
 import { deleteExam, removeExamSubject, setExamSubjects, togglePublish } from "../../_actions/academics";
+import { issueAdmitCards } from "../../_actions/documents";
 import { copyExamSubjects, declareResult, saveExamSubject, setMarksLock, undoDeclaration } from "../../_actions/exams2";
 
 type Prog = { class_id: string; class_name: string; students: number; subjects: number; expected: number; entered: number; absent: number; locked: boolean; declared_at: string | null; results: number };
@@ -27,6 +28,8 @@ export default async function Exam({ params, searchParams }: { params: Promise<{
     supabase.rpc("exam_marks_progress", { sid: school.id, p_exam: id }),
     supabase.from("exams").select("id,name").eq("school_id", school.id).neq("id", id).order("sort"),
   ]);
+  const { data: tplRows } = can("documents.issue.create") ? await supabase.from("document_templates").select("id,name,fields").eq("school_id", school.id).eq("audience", "student").eq("active", true).order("name") : { data: [] };
+  const admitTpls = ((tplRows ?? []) as { id: string; name: string; fields: { key: string }[] }[]).filter((t) => (t.fields ?? []).some((f) => f.key === "exam_ref"));
   const admin = can("exams.setup.delete");
   const canPublish = can("exams.results.publish");
   const canSetup = can("exams.setup.create") || can("exams.setup.edit");
@@ -54,6 +57,20 @@ export default async function Exam({ params, searchParams }: { params: Promise<{
             </Modal>
           )}
           {canPublish && <form action={togglePublish}><input type="hidden" name="id" value={id} /><input type="hidden" name="published" value={exam.published ? "0" : "1"} /><Submit variant={exam.published ? "secondary" : "primary"}>{exam.published ? "Hide from parents" : "Publish to parents"}</Submit></form>}
+          {can("documents.issue.create") && classList.length > 0 && (
+            <Modal label="Admit cards" variant="secondary" title="Issue admit cards" size="sm">
+              {admitTpls.length ? (
+                <form action={issueAdmitCards} className="grid gap-3">
+                  <input type="hidden" name="exam_id" value={id} />
+                  <p className="m-0 text-[14px] text-muted">One card per student with the photo, roll number and the student's own date sheet. Run it again after the date sheet changes: students who already have this examination's card are skipped.</p>
+                  <Select label="Template" name="template_id" options={admitTpls.map((t) => [t.id, t.name] as [string, string])} />
+                  <Select label="Class" name="class_id" options={classList.map((c) => [c.id, `Class ${c.name}`] as [string, string])} />
+                  <Input label="Centre / hall (optional)" name="centre" />
+                  <Submit>Issue admit cards</Submit>
+                </form>
+              ) : <p className="m-0 text-[14px]">There is no admit-card template that asks for an examination yet. Add <b>Exam admit card</b> from the <Link href="/app/templates">template gallery</Link>, then come back.</p>}
+            </Modal>
+          )}
           {can("exams.results.view") && <Link href={`/app/exams/${id}/results`} className="btn btn-sm btn-secondary">Result sheet</Link>}
         </>} />
       <Flash ok={sp.ok} error={sp.error} />

@@ -98,6 +98,9 @@ Still open:
 - Apply `setup.sql` (includes the 12 Oct 2026 security fix) to the production Supabase project, then click-test every module.
 - Dashboard widgets for step-5 modules; README screenshots / user guide for schools.
 
+## Done in steps 41–43 (17 Oct 2026)
+**Parent & student logins** (family portal at `/family`, installable PWA, printable login sheets, reset password), **student leave** (apply → approve → LV in the register, parent told), **parent–teacher messages**, **admit cards from the date sheet**, **backups & data export** (JSON / CSV + history), **UDISE+ student-level sheet**, and a **speed pass** (permission answers remembered per request, 170 foreign-key indexes, lighter student list). Apply migrations `0043` … `0045`.
+
 ## Done in step 40 (16 Oct 2026)
 HR: login and one-time password when a staff member is added, **Reset password** and all action buttons on every staff row, HR letters (joining / appointment, offer, confirmation, increment, salary certificate, experience, relieving, NOC, warning) issued from the staff profile, pagination on every HR table. Apply migration `0042`.
 

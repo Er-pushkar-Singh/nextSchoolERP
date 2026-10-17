@@ -136,6 +136,7 @@ Object.assign(SAMPLE, {
   "exam.all_html": '<table style="width:100%;border-collapse:collapse;font-size:11px"><tr><th style="border:1px solid #444;padding:4px 8px;text-align:left">Subject</th><th style="border:1px solid #444;padding:4px">Unit Test</th><th style="border:1px solid #444;padding:4px">Half Yearly</th></tr><tr><td style="border:1px solid #444;padding:4px 8px">English</td><td style="border:1px solid #444;text-align:center">21/25</td><td style="border:1px solid #444;text-align:center">84/100</td></tr></table>',
 });
 Object.assign(SAMPLE, {
+  "exam.datesheet_html": '<table style="width:100%;border-collapse:collapse;font-size:11px"><tr style="background:#eef1f6"><th style="border:1px solid #444;padding:4px 8px;text-align:left">Subject</th><th style="border:1px solid #444;padding:4px 8px">Date</th><th style="border:1px solid #444;padding:4px 8px">Time</th><th style="border:1px solid #444;padding:4px 8px">Room</th></tr><tr><td style="border:1px solid #444;padding:4px 8px">English</td><td style="border:1px solid #444;padding:4px 8px;text-align:center">05/11/2026</td><td style="border:1px solid #444;padding:4px 8px;text-align:center">09:00 – 12:00</td><td style="border:1px solid #444;padding:4px 8px;text-align:center">Hall A</td></tr></table>',
   "staff.mr_ms": "Ms.", "staff.he_she": "she", "staff.his_her": "her", "staff.him_her": "her", "staff.address": "45, Jankipuram, Lucknow", "staff.gross": "42,500", "staff.gross_words": "Forty Two Thousand Five Hundred Rupees Only",
   "staff.net": "38,900", "staff.net_words": "Thirty Eight Thousand Nine Hundred Rupees Only", "staff.probation_months": "6", "staff.service_years": "8 years 3 months", "staff.leaving_date": "30/09/2026",
   "extra.report_by": "01/04/2027", "extra.accept_by": "15/03/2027", "extra.confirmed_from": "01/01/2027", "extra.new_salary": "46,000", "extra.effective_from": "01/04/2027", "extra.purpose": "a bank loan",
@@ -284,16 +285,18 @@ export const PRESETS: Preset[] = [
   },
   {
     key: "admit_card", name: "Exam admit card", module: "exams", kind: "admit_card", category: "certificate", audience: "student",
-    description: "A5 landscape admit card with exam name and centre asked at issue.",
-    fields: [{ key: "exam", label: "Examination", type: "text", required: true }, { key: "centre", label: "Centre / room", type: "text" }],
-    build: () => ({ v: 1, w: 210, h: 148, bg: "#ffffff", items: [
+    description: "A4 admit card with the student's own date sheet (subject, date, time, room) from the examination.",
+    fields: [{ key: "exam_ref", label: "Examination", type: "exam", required: true }, { key: "centre", label: "Centre / room", type: "text" }],
+    build: () => ({ v: 1, w: 210, h: 297, bg: "#ffffff", items: [
       ...letterhead(210, "#0f766e"),
       T(12, 33, 186, 9, "ADMIT CARD", { size: 16, weight: 800, align: "center", ls: 40 }),
-      T(12, 43, 186, 7, "{{extra.exam}}", { size: 11, align: "center", color: "#444444" }),
+      T(12, 43, 186, 7, "{{exam.name}}", { size: 11, align: "center", color: "#444444" }),
       PH(160, 54, 34, 42, { radius: 1.5, stroke: "#444444", sw: 0.3 }),
       T(14, 56, 140, 40, "Name: {{student.name}}\nClass / section: {{student.class_section}}\nRoll no.: {{student.roll_no}}\nAdmission no.: {{student.admission_no}}\nFather: {{student.father_name}}\nCentre: {{extra.centre}}", { size: 11, lh: 1.7 }),
-      T(14, 112, 90, 22, "Instructions: bring this card to every paper; no electronic devices; report 20 minutes early.", { size: 8, color: "#555555" }),
-      SG(150, 114, 36, 13), L(140, 128, 56), T(140, 129.5, 56, 5, "Principal", { size: 8, align: "center" }),
+      T(14, 102, 182, 7, "Date sheet", { size: 11, weight: 700 }),
+      T(14, 110, 182, 100, "{{exam.datesheet_html}}", { size: 10 }),
+      T(14, 218, 120, 30, "Instructions: bring this card to every paper; no electronic devices; report 20 minutes early. A student without the card will not be allowed to sit the paper.", { size: 8.5, color: "#555555", lh: 1.5 }),
+      SG(150, 252, 36, 13), L(140, 266, 56), T(140, 267.5, 56, 5, "Principal", { size: 8, align: "center" }),
     ] }),
   },
   {
